@@ -21,8 +21,16 @@
                                 <option value="">All Organizations</option>
                             </select>
                         </div>
+                        <div class="search-box">
+                            <input type="text" id="searchInput" class="search-input" placeholder="Search PRs..." aria-label="Search pull requests">
+                        </div>
                     </div>
                     <div class="header-right">
+                        <button id="compactToggle" class="compact-toggle" title="Toggle compact view (C)">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                            </svg>
+                        </button>
                         <div id="userInfo" class="user-info">
                             <button id="loginBtn" class="login-btn">Login with GitHub</button>
                         </div>

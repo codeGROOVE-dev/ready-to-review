@@ -101,10 +101,21 @@
             document.body.style.opacity = '1';
         });
         
+        // Restore compact view preference
+        if (localStorage.getItem('compactView') === 'true') {
+            document.body.classList.add('compact-view');
+            const compactToggle = $('compactToggle');
+            if (compactToggle) compactToggle.classList.add('active');
+        }
+        
         const urlParams = new URLSearchParams(window.location.search);
         const demo = urlParams.get('demo');
         const code = urlParams.get('code');
         const userParam = urlParams.get('user');
+        
+        // Setup event listeners early so they work in all modes
+        setupEventListeners();
+        setupWhimsicalInteractions();
         
         // Check for demo mode first
         if (demo === 'true') {
@@ -125,9 +136,6 @@
         } else {
             showLoginPrompt();
         }
-        
-        setupEventListeners();
-        setupWhimsicalInteractions();
     };
 
     // Whimsical Interactions
@@ -193,6 +201,8 @@
     const setupEventListeners = () => {
         const loginBtn = $('loginBtn');
         const orgSelect = $('orgSelect');
+        const searchInput = $('searchInput');
+        const compactToggle = $('compactToggle');
         
         if (loginBtn) {
             loginBtn.addEventListener('click', initiateLogin);
@@ -201,6 +211,24 @@
         if (orgSelect) {
             orgSelect.addEventListener('change', handleOrgChange);
         }
+        
+        if (searchInput) {
+            searchInput.addEventListener('input', handleSearch);
+            searchInput.addEventListener('keydown', e => {
+                if (e.key === 'Escape') {
+                    searchInput.value = '';
+                    handleSearch();
+                    searchInput.blur();
+                }
+            });
+        }
+        
+        if (compactToggle) {
+            compactToggle.addEventListener('click', handleCompactToggle);
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', handleKeyboardShortcuts);
         
         window.addEventListener('popstate', handlePopState);
     };
@@ -578,6 +606,7 @@
                             <img src="${pr.user.avatar_url}" alt="${pr.user.login}" class="author-avatar" loading="lazy">
                             <span class="pr-repo">${pr.repository.full_name}</span>
                             <span class="pr-number">#${pr.number}</span>
+                            <span class="pr-author">by ${pr.user.login}</span>
                             <span class="pr-age">${ageText} old</span>
                         </div>
                         <div class="pr-meta-right">
@@ -822,6 +851,100 @@
     // Event Handlers
     const handleOrgChange = () => {
         updatePRSections();
+    };
+    
+    const handleSearch = () => {
+        const searchInput = $('searchInput');
+        const searchTerm = searchInput?.value.toLowerCase() || '';
+        
+        $$('.pr-card').forEach(card => {
+            const title = card.querySelector('.pr-title')?.textContent.toLowerCase() || '';
+            const repo = card.querySelector('.pr-repo')?.textContent.toLowerCase() || '';
+            const author = card.querySelector('.pr-author')?.textContent.toLowerCase() || '';
+            
+            const matches = !searchTerm || 
+                title.includes(searchTerm) || 
+                repo.includes(searchTerm) || 
+                author.includes(searchTerm);
+            
+            card.style.display = matches ? 'block' : 'none';
+        });
+        
+        // Update empty state visibility
+        const allSections = ['incoming', 'outgoing', 'draft'];
+        let totalVisibleCards = 0;
+        
+        allSections.forEach(section => {
+            const list = $(`${section}PRs`);
+            if (list) {
+                const visibleCards = list.querySelectorAll('.pr-card:not([style*="display: none"])');
+                totalVisibleCards += visibleCards.length;
+            }
+        });
+        
+        const emptyState = $('emptyState');
+        if (emptyState) {
+            emptyState.style.display = totalVisibleCards === 0 ? 'block' : 'none';
+        }
+    };
+    
+    const handleKeyboardShortcuts = e => {
+        // Don't trigger shortcuts when typing in input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        
+        const cards = Array.from($$('.pr-card')).filter(card => card.style.display !== 'none');
+        const currentFocus = document.querySelector('.pr-card.focused');
+        const currentIndex = currentFocus ? cards.indexOf(currentFocus) : -1;
+        
+        switch(e.key) {
+            case 'j':
+                e.preventDefault();
+                if (currentIndex < cards.length - 1) {
+                    currentFocus?.classList.remove('focused');
+                    cards[currentIndex + 1].classList.add('focused');
+                    cards[currentIndex + 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else if (cards.length > 0 && currentIndex === -1) {
+                    cards[0].classList.add('focused');
+                    cards[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                break;
+                
+            case 'k':
+                e.preventDefault();
+                if (currentIndex > 0) {
+                    currentFocus?.classList.remove('focused');
+                    cards[currentIndex - 1].classList.add('focused');
+                    cards[currentIndex - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                break;
+                
+            case 'Enter':
+                if (currentFocus) {
+                    const link = currentFocus.querySelector('.pr-title');
+                    if (link) window.open(link.href, '_blank');
+                }
+                break;
+                
+            case '/':
+                e.preventDefault();
+                const searchInput = $('searchInput');
+                if (searchInput) searchInput.focus();
+                break;
+                
+            case 'c':
+                e.preventDefault();
+                handleCompactToggle();
+                break;
+        }
+    };
+    
+    const handleCompactToggle = () => {
+        document.body.classList.toggle('compact-view');
+        const compactToggle = $('compactToggle');
+        if (compactToggle) {
+            compactToggle.classList.toggle('active');
+        }
+        localStorage.setItem('compactView', document.body.classList.contains('compact-view'));
     };
 
     const handlePopState = event => {
