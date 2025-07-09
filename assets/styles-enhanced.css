@@ -7,10 +7,10 @@
    CSS Variables & Theme
    ========================================== */
 :root {
-    /* Core Colors - Enhanced with gradients */
-    --bg-primary: #fafafa;
+    /* Core Colors - Refined Palette */
+    --bg-primary: #fafbfc;
     --bg-secondary: #ffffff;
-    --bg-tertiary: #f4f4f5;
+    --bg-tertiary: #f6f8fa;
     
     --text-primary: #18181b;
     --text-secondary: #52525b;
@@ -20,14 +20,14 @@
     --border-primary: #e4e4e7;
     --border-secondary: #d4d4d8;
     
-    /* Semantic Colors with vibrancy */
-    --color-blue: #2563eb;
-    --color-green: #16a34a;
-    --color-red: #dc2626;
-    --color-amber: #f59e0b;
-    --color-emerald: #10b981;
-    --color-violet: #8b5cf6;
-    --color-pink: #ec4899;
+    /* Semantic Colors - Refined */
+    --color-blue: #0969da;
+    --color-green: #1a7f37;
+    --color-red: #d1242f;
+    --color-amber: #bf8700;
+    --color-emerald: #1a7f37;
+    --color-violet: #6639ba;
+    --color-pink: #bf3989;
     
     /* Gradient Palette */
     --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -67,12 +67,13 @@
     --border-radius-xl: 0.75rem;
     --border-radius-full: 9999px;
     
-    /* Enhanced Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-    --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.2);
+    /* Refined Shadows - Subtle Depth */
+    --shadow-sm: 0 1px 2px rgba(27, 31, 35, 0.04);
+    --shadow-md: 0 3px 6px rgba(27, 31, 35, 0.06);
+    --shadow-lg: 0 8px 24px rgba(27, 31, 35, 0.08);
+    --shadow-xl: 0 12px 48px rgba(27, 31, 35, 0.12);
+    --shadow-glow: 0 0 0 3px rgba(9, 105, 218, 0.08);
+    --shadow-card: 0 0 0 1px rgba(27, 31, 35, 0.04), 0 3px 6px rgba(27, 31, 35, 0.03);
     
     /* Transitions */
     --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -83,10 +84,10 @@
 /* ==========================================
    Animations
    ========================================== */
-@keyframes fadeInUp {
+@keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateY(20px);
+        transform: translateY(8px);
     }
     to {
         opacity: 1;
@@ -110,7 +111,16 @@
         opacity: 1;
     }
     50% {
-        opacity: 0.7;
+        opacity: 0.8;
+    }
+}
+
+@keyframes breathe {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
     }
 }
 
@@ -174,40 +184,11 @@ body {
     font-size: var(--text-base);
     line-height: 1.5;
     color: var(--text-primary);
-    background-color: var(--bg-primary);
+    background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
     text-rendering: optimizeLegibility;
     position: relative;
     overflow-x: hidden;
-}
-
-/* Animated background gradient orbs */
-body::before,
-body::after {
-    content: '';
-    position: fixed;
-    border-radius: 50%;
-    filter: blur(100px);
-    opacity: 0.3;
-    pointer-events: none;
-    z-index: -1;
-}
-
-body::before {
-    width: 400px;
-    height: 400px;
-    background: var(--gradient-primary);
-    top: -200px;
-    right: -200px;
-    animation: float 20s ease-in-out infinite;
-}
-
-body::after {
-    width: 300px;
-    height: 300px;
-    background: var(--gradient-tertiary);
-    bottom: -150px;
-    left: -150px;
-    animation: float 15s ease-in-out infinite reverse;
+    min-height: 100vh;
 }
 
 a {
@@ -269,16 +250,16 @@ svg {
    Layout Components
    ========================================== */
 
-/* Header with glassmorphism */
+/* Header - Elegant Frosted Glass */
 .dashboard-header {
-    background-color: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(27, 31, 35, 0.08);
     position: sticky;
     top: 0;
     z-index: 50;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04);
 }
 
 .header-container {
@@ -317,7 +298,6 @@ svg {
 .main-content {
     flex: 1;
     padding: 1.5rem 0 3rem;
-    background: linear-gradient(to bottom, var(--bg-primary) 0%, rgba(249, 250, 251, 0.8) 100%);
     min-height: calc(100vh - 4rem);
 }
 
@@ -339,28 +319,29 @@ svg {
 }
 
 .org-select {
-    padding: var(--spacing-sm) 2.5rem var(--spacing-sm) var(--spacing-sm);
-    border: 1px solid var(--border-secondary);
-    border-radius: var(--border-radius-md);
-    background-color: rgba(255, 255, 255, 0.8);
-    font-size: var(--text-sm);
+    padding: 0.375rem 2rem 0.375rem 0.625rem;
+    border: 1px solid rgba(27, 31, 35, 0.15);
+    border-radius: 6px;
+    background-color: transparent;
+    font-size: 0.8125rem;
     appearance: none;
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="%2371717a" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 8l4 4 4-4"/></svg>');
-    background-position: right var(--spacing-sm) center;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="%23586069" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 8l4 4 4-4"/></svg>');
+    background-position: right 0.5rem center;
     background-repeat: no-repeat;
-    background-size: 1.5rem 1.5rem;
+    background-size: 1rem 1rem;
     transition: all var(--transition);
+    color: var(--text-secondary);
+    font-weight: 500;
 }
 
 .org-select:hover {
-    border-color: var(--color-violet);
-    background-color: rgba(255, 255, 255, 0.95);
+    border-color: rgba(27, 31, 35, 0.25);
 }
 
 .org-select:focus {
     outline: none;
     border-color: var(--color-blue);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1), 0 0 20px rgba(139, 92, 246, 0.1);
+    box-shadow: var(--shadow-glow);
 }
 
 /* User Info */
@@ -388,32 +369,35 @@ svg {
     color: var(--text-secondary);
 }
 
-/* Enhanced Buttons */
+/* Elegant Buttons */
 .login-btn,
 .login-btn-large {
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--gradient-primary);
+    padding: 0.5rem 1rem;
+    background: var(--text-primary);
     color: var(--bg-secondary);
     border: none;
-    border-radius: var(--border-radius-md);
-    font-size: var(--text-sm);
+    border-radius: 6px;
+    font-size: 0.8125rem;
     font-weight: 500;
     transition: all var(--transition);
-    letter-spacing: -0.01em;
-    background-size: 200% auto;
+    letter-spacing: -0.006em;
     position: relative;
 }
 
 .login-btn:hover,
 .login-btn-large:hover {
-    background-position: right center;
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
+    background: var(--color-blue);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.login-btn:active {
+    transform: translateY(0);
 }
 
 .login-btn-large {
-    font-size: var(--text-base);
-    padding: 0.75rem var(--spacing-lg);
+    font-size: 0.875rem;
+    padding: 0.625rem 1.25rem;
     margin-top: var(--spacing-md);
 }
 
@@ -452,59 +436,61 @@ svg {
     letter-spacing: -0.01em;
 }
 
-/* Animated section icons */
+/* Section Icons - Subtle Glow */
 .section-icon {
-    width: 1.25rem !important;
-    height: 1.25rem !important;
+    width: 1rem !important;
+    height: 1rem !important;
     flex-shrink: 0;
-    transition: transform var(--transition-bounce);
+    transition: all var(--transition);
+    opacity: 0.8;
 }
 
 .section-title:hover .section-icon {
-    transform: rotate(15deg) scale(1.1);
+    transform: scale(1.1);
+    opacity: 1;
 }
 
 .section-icon.incoming { 
     color: var(--color-blue);
-    filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.4));
 }
 .section-icon.outgoing { 
     color: var(--color-emerald);
-    filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.4));
 }
 .section-icon.draft { 
     color: var(--text-muted);
+    opacity: 0.6;
 }
 
-/* Animated PR count */
+/* PR Count - Subtle Badge */
 .pr-count {
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-    padding: 0.125rem 0.5rem;
-    border-radius: var(--border-radius-md);
-    min-width: 1.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: transparent;
+    padding: 0 0.25rem;
+    min-width: 1.5rem;
     text-align: center;
     font-variant-numeric: tabular-nums;
     transition: all var(--transition);
+    opacity: 0.8;
 }
 
-/* Section Stats - Improved */
+.section-title:hover .pr-count {
+    opacity: 1;
+}
+
+/* Section Stats - Subtle Info */
 .section-stats {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
     margin-left: auto;
-    padding: 0.25rem 0.75rem;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius-md);
-    opacity: 0.8;
+    opacity: 0;
     transition: opacity var(--transition);
 }
 
 .section-header:hover .section-stats {
-    opacity: 1;
+    opacity: 0.7;
 }
 
 .section-sparkline {
@@ -518,12 +504,12 @@ svg {
 }
 
 .average-time {
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
-    font-weight: 500;
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+    font-weight: 400;
     white-space: nowrap;
     font-family: var(--font-mono);
-    letter-spacing: -0.025em;
+    letter-spacing: -0.01em;
 }
 
 /* PR List */
@@ -533,18 +519,19 @@ svg {
     gap: 0.625rem;
 }
 
-/* Simplified PR Card - Clean and Readable */
+/* PR Card - Floating with Subtle Depth */
 .pr-card {
     background: var(--bg-secondary);
-    border: 1px solid var(--border-primary);
-    border-radius: var(--border-radius-lg);
-    padding: 1rem 1.25rem;
-    transition: all var(--transition-smooth);
-    border-left: 3px solid var(--border-secondary);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(27, 31, 35, 0.08);
+    border-radius: 12px;
+    padding: 1.125rem 1.25rem;
+    transition: all 200ms cubic-bezier(0.3, 0.2, 0.2, 1);
+    border-left: 2px solid transparent;
+    box-shadow: var(--shadow-card);
     position: relative;
-    animation: fadeInUp 0.3s ease-out;
+    animation: fadeIn 0.5s ease-out;
     animation-fill-mode: both;
+    will-change: transform, box-shadow;
 }
 
 /* Stagger animation for cards */
@@ -555,38 +542,40 @@ svg {
 .pr-list .pr-card:nth-child(5) { animation-delay: 0.25s; }
 
 .pr-card:hover {
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
-    transform: translateY(-1px);
-    border-color: var(--border-secondary);
+    box-shadow: 0 0 0 1px rgba(27, 31, 35, 0.08), 0 6px 12px rgba(27, 31, 35, 0.06);
+    transform: translateY(-2px);
 }
 
-/* PR Card States - Subtle and Clear */
+/* PR Card States - Elegant Indicators */
 .pr-card[data-state="stale"] {
     border-left-color: var(--color-amber);
+    background: linear-gradient(to right, rgba(191, 135, 0, 0.03) 0%, transparent 100%);
 }
 
 .pr-card[data-state="blocked"] {
     border-left-color: var(--color-red);
+    background: linear-gradient(to right, rgba(209, 36, 47, 0.03) 0%, transparent 100%);
 }
 
 .pr-card[data-state="draft"] {
     border-left-color: var(--text-muted);
-    opacity: 0.85;
+    opacity: 0.9;
 }
 
 .pr-card[data-state="ready"] {
     border-left-color: var(--color-emerald);
+    background: linear-gradient(to right, rgba(26, 127, 55, 0.03) 0%, transparent 100%);
 }
 
-/* Simplified badges - Clear and Readable */
+/* Refined Badges - Minimal and Elegant */
 .badge {
-    padding: 0.125rem 0.5rem;
-    height: 1.25rem;
+    padding: 0 0.375rem;
+    height: 1.125rem;
     font-size: 0.625rem;
-    line-height: 1rem;
-    border-radius: var(--border-radius-sm);
-    font-weight: 600;
-    letter-spacing: 0.03em;
+    line-height: 1.125rem;
+    border-radius: 4px;
+    font-weight: 500;
+    letter-spacing: 0.025em;
     border: 1px solid transparent;
     display: inline-flex;
     align-items: center;
@@ -597,49 +586,53 @@ svg {
 }
 
 .badge.blocked {
-    background-color: var(--color-red);
-    color: var(--bg-secondary);
+    background-color: rgba(209, 36, 47, 0.1);
+    color: var(--color-red);
+    border-color: rgba(209, 36, 47, 0.2);
     font-weight: 600;
 }
 
 .badge.blocked-author {
-    background-color: var(--state-amber-bg);
+    background-color: rgba(191, 135, 0, 0.1);
     color: var(--color-amber);
-    border-color: var(--color-amber);
+    border-color: rgba(191, 135, 0, 0.2);
 }
 
 .badge.draft {
     background-color: var(--bg-tertiary);
     color: var(--text-secondary);
+    opacity: 0.8;
 }
 
 .badge.conflict {
-    background-color: var(--color-amber);
-    color: var(--bg-secondary);
+    background-color: rgba(191, 135, 0, 0.1);
+    color: var(--color-amber);
+    border-color: rgba(191, 135, 0, 0.2);
 }
 
 .badge.failing {
-    background-color: var(--state-red-bg);
+    background-color: rgba(209, 36, 47, 0.1);
     color: var(--color-red);
-    border-color: var(--color-red);
+    border-color: rgba(209, 36, 47, 0.2);
 }
 
 .badge.ready {
-    background-color: var(--color-emerald);
-    color: var(--bg-secondary);
+    background-color: rgba(26, 127, 55, 0.1);
+    color: var(--color-emerald);
+    border-color: rgba(26, 127, 55, 0.2);
 }
 
 .badge.stale {
-    background-color: var(--state-amber-bg);
+    background-color: rgba(191, 135, 0, 0.1);
     color: var(--color-amber);
-    border-color: var(--color-amber);
+    border-color: rgba(191, 135, 0, 0.2);
 }
 
-/* Whimsical empty state */
+/* Empty State - Elegant */
 .empty-state {
     text-align: center;
     padding: 4rem 0;
-    animation: fadeInUp 0.6s ease-out;
+    animation: fadeIn 0.8s ease-out;
 }
 
 .empty-icon {
@@ -696,14 +689,26 @@ svg {
 }
 
 .login-prompt .empty-state {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(20px);
-    border-radius: var(--border-radius-xl);
+    background: var(--bg-secondary);
+    border-radius: 16px;
     padding: 3rem;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(27, 31, 35, 0.06);
     max-width: 400px;
     width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.login-prompt .empty-state::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(9, 105, 218, 0.05) 0%, transparent 70%);
+    pointer-events: none;
 }
 
 /* Simplified PR Card Layout */
@@ -726,7 +731,7 @@ svg {
 }
 
 .pr-title {
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 500;
     line-height: 1.5;
     color: var(--text-primary);
@@ -736,11 +741,20 @@ svg {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.006em;
+    transition: color var(--transition);
 }
 
 .pr-title:hover {
     color: var(--color-blue);
+}
+
+.pr-title:focus {
+    outline: none;
+    color: var(--color-blue);
+    text-decoration: underline;
+    text-decoration-color: rgba(9, 105, 218, 0.3);
+    text-underline-offset: 2px;
 }
 
 .pr-meta {
