@@ -112,6 +112,7 @@
         const demo = urlParams.get('demo');
         const code = urlParams.get('code');
         const userParam = urlParams.get('user');
+        const orgParam = urlParams.get('org');
         
         // Setup event listeners early so they work in all modes
         setupEventListeners();
@@ -260,9 +261,9 @@
             ]);
             
             updateUserDisplay();
-            updateOrgFilter();
             
             await loadPullRequests();
+            updateOrgFilter();    // Update org filter after PRs are loaded
             showMainContent();
         } catch (error) {
             console.error('Error initializing app:', error);
@@ -418,24 +419,77 @@
         const orgSelect = $('orgSelect');
         if (!orgSelect) return;
         
+        // Extract unique organizations from all PRs
+        const allPRs = [
+            ...state.pullRequests.incoming,
+            ...state.pullRequests.outgoing,
+            ...state.pullRequests.drafts
+        ];
+        
+        const uniqueOrgs = new Set();
+        allPRs.forEach(pr => {
+            if (pr.repository && pr.repository.full_name) {
+                const orgName = pr.repository.full_name.split('/')[0];
+                uniqueOrgs.add(orgName);
+            }
+        });
+        
+        // Sort organizations alphabetically
+        const sortedOrgs = Array.from(uniqueOrgs).sort();
+        
         orgSelect.innerHTML = '<option value="">All Organizations</option>';
         
-        state.organizations.forEach(org => {
+        sortedOrgs.forEach(org => {
             const option = document.createElement('option');
-            option.value = org.login;
-            option.textContent = org.login;
+            option.value = org;
+            option.textContent = org;
             orgSelect.appendChild(option);
         });
+        
+        // Set selected org from URL if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const orgParam = urlParams.get('org');
+        if (orgParam && sortedOrgs.includes(orgParam)) {
+            orgSelect.value = orgParam;
+        }
     };
 
     const updatePRSections = () => {
         const incomingCount = $('incomingCount');
         const outgoingCount = $('outgoingCount');
         const draftCount = $('draftCount');
+        const incomingBlockedCount = $('incomingBlockedCount');
+        const outgoingBlockedCount = $('outgoingBlockedCount');
         
         if (incomingCount) incomingCount.textContent = state.pullRequests.incoming.length;
         if (outgoingCount) outgoingCount.textContent = state.pullRequests.outgoing.length;
         if (draftCount) draftCount.textContent = state.pullRequests.drafts.length;
+        
+        // Count blocked PRs
+        const incomingBlocked = state.pullRequests.incoming.filter(pr => 
+            pr.status_tags && pr.status_tags.includes('blocked on you')
+        ).length;
+        const outgoingBlocked = state.pullRequests.outgoing.filter(pr => 
+            pr.status_tags && pr.status_tags.includes('blocked on you')
+        ).length;
+        
+        if (incomingBlockedCount) {
+            if (incomingBlocked > 0) {
+                incomingBlockedCount.textContent = `${incomingBlocked} blocked`;
+                incomingBlockedCount.style.display = 'inline-block';
+            } else {
+                incomingBlockedCount.style.display = 'none';
+            }
+        }
+        
+        if (outgoingBlockedCount) {
+            if (outgoingBlocked > 0) {
+                outgoingBlockedCount.textContent = `${outgoingBlocked} blocked`;
+                outgoingBlockedCount.style.display = 'inline-block';
+            } else {
+                outgoingBlockedCount.style.display = 'none';
+            }
+        }
         
         updateSectionSparklines();
         
@@ -642,7 +696,7 @@
         const badges = [];
         
         if (pr.status_tags.includes('blocked on you')) {
-            badges.push('<span class="badge blocked"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM4 8a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5h-6.5A.75.75 0 014 8z"/></svg>BLOCKED</span>');
+            badges.push('<span class="badge blocked"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM4 8a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5h-6.5A.75.75 0 014 8z"/></svg>BLOCKED ON YOU</span>');
         } else if (pr.status_tags.includes('blocked on author')) {
             badges.push('<span class="badge blocked-author">BLOCKED ON AUTHOR</span>');
         }
@@ -783,8 +837,8 @@
         enhancePullRequests();
         
         updateUserDisplay();
-        updateOrgFilter();
-        updatePRSections();
+        updatePRSections();  // Update PR sections first
+        updateOrgFilter();    // Then update org filter based on PR data
         showMainContent();
         addDemoIndicator();
         
@@ -850,6 +904,18 @@
 
     // Event Handlers
     const handleOrgChange = () => {
+        const orgSelect = $('orgSelect');
+        const selectedOrg = orgSelect?.value;
+        
+        // Update URL with organization parameter
+        const url = new URL(window.location);
+        if (selectedOrg) {
+            url.searchParams.set('org', selectedOrg);
+        } else {
+            url.searchParams.delete('org');
+        }
+        window.history.pushState({}, '', url);
+        
         updatePRSections();
     };
     
