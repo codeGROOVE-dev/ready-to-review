@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ready To Review</title>
+    <meta name="description" content="A graceful dashboard for managing GitHub pull requests">
+    <link rel="stylesheet" href="assets/styles-enhanced.css">
+    <link rel="icon" href="/favicon.ico">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="dashboard-header" role="banner">
+            <div class="header-container">
+                <div class="header-content">
+                    <div class="header-left">
+                        <h1 class="header-title">Ready To Review</h1>
+                        <div class="org-filter">
+                            <select id="orgSelect" class="org-select" aria-label="Organization filter">
+                                <option value="">All Organizations</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <div id="userInfo" class="user-info">
+                            <button id="loginBtn" class="login-btn">Login with GitHub</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content" role="main">
+            <div class="content-container">
+                <!-- Login Prompt -->
+                <div id="loginPrompt" class="login-prompt" aria-live="polite">
+                    <div class="empty-state">
+                        <svg class="empty-icon" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <!-- Whimsical Octocat-inspired character -->
+                            <circle cx="100" cy="100" r="60" fill="url(#gradient1)" opacity="0.8"/>
+                            <path d="M70 90 Q100 70 130 90" stroke="#4a5568" stroke-width="3" stroke-linecap="round" fill="none"/>
+                            <circle cx="80" cy="85" r="8" fill="#4a5568"/>
+                            <circle cx="120" cy="85" r="8" fill="#4a5568"/>
+                            <path d="M85 115 Q100 125 115 115" stroke="#4a5568" stroke-width="3" stroke-linecap="round" fill="none"/>
+                            <!-- Floating bubbles -->
+                            <circle cx="40" cy="40" r="8" fill="#e0e7ff" opacity="0.6">
+                                <animate attributeName="cy" values="40;30;40" dur="3s" repeatCount="indefinite"/>
+                            </circle>
+                            <circle cx="160" cy="50" r="6" fill="#fce7f3" opacity="0.6">
+                                <animate attributeName="cy" values="50;40;50" dur="4s" repeatCount="indefinite"/>
+                            </circle>
+                            <circle cx="150" cy="150" r="10" fill="#dbeafe" opacity="0.6">
+                                <animate attributeName="cy" values="150;140;150" dur="3.5s" repeatCount="indefinite"/>
+                            </circle>
+                            <defs>
+                                <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+                                    <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <h2>Welcome to Ready To Review</h2>
+                        <p>Login with GitHub to manage your code reviews</p>
+                        <button class="login-btn-large" onclick="initiateLogin()">Login with GitHub</button>
+                        <div class="demo-link-container">
+                            <span>or</span>
+                            <a href="?demo=true" class="demo-link">Try Demo Mode</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PR Sections -->
+                <div id="prSections" class="pr-sections" style="display: none;">
+                    <!-- Incoming PRs -->
+                    <section class="pr-section" aria-labelledby="incoming-heading">
+                        <div class="section-header">
+                            <div class="section-title">
+                                <svg class="section-icon incoming" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                                </svg>
+                                <h2 id="incoming-heading">Incoming</h2>
+                                <span id="incomingCount" class="pr-count" aria-label="Number of incoming pull requests">0</span>
+                                <div class="section-stats">
+                                    <div id="incomingSparkline" class="section-sparkline"></div>
+                                    <span id="incomingAverage" class="average-time"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="incomingPRs" class="pr-list" role="list"></div>
+                    </section>
+
+                    <!-- Outgoing PRs -->
+                    <section class="pr-section" aria-labelledby="outgoing-heading">
+                        <div class="section-header">
+                            <div class="section-title">
+                                <svg class="section-icon outgoing" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                                </svg>
+                                <h2 id="outgoing-heading">Outgoing</h2>
+                                <span id="outgoingCount" class="pr-count" aria-label="Number of outgoing pull requests">0</span>
+                                <div class="section-stats">
+                                    <div id="outgoingSparkline" class="section-sparkline"></div>
+                                    <span id="outgoingAverage" class="average-time"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="outgoingPRs" class="pr-list" role="list"></div>
+                    </section>
+
+                    <!-- Draft PRs -->
+                    <section class="pr-section" aria-labelledby="draft-heading">
+                        <div class="section-header">
+                            <div class="section-title">
+                                <svg class="section-icon draft" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <h2 id="draft-heading">Drafts</h2>
+                                <span id="draftCount" class="pr-count" aria-label="Number of draft pull requests">0</span>
+                                <div class="section-stats">
+                                    <div id="draftSparkline" class="section-sparkline"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="draftPRs" class="pr-list" role="list"></div>
+                    </section>
+
+                    <!-- Empty State -->
+                    <div id="emptyState" class="empty-state" style="display: none;" role="status">
+                        <svg class="empty-icon" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <!-- Sleepy inbox -->
+                            <rect x="50" y="80" width="100" height="80" rx="8" fill="#e0e7ff" opacity="0.6"/>
+                            <path d="M50 95 L100 120 L150 95" stroke="#8b5cf6" stroke-width="2" fill="none"/>
+                            <!-- Sleeping Z's -->
+                            <text x="160" y="70" font-family="Arial" font-size="20" fill="#8b5cf6" opacity="0.8">Z</text>
+                            <text x="170" y="55" font-family="Arial" font-size="16" fill="#a78bfa" opacity="0.6">z</text>
+                            <text x="175" y="42" font-family="Arial" font-size="12" fill="#c4b5fd" opacity="0.4">z</text>
+                            <!-- Cute face on inbox -->
+                            <circle cx="80" cy="110" r="3" fill="#4a5568"/>
+                            <circle cx="120" cy="110" r="3" fill="#4a5568"/>
+                            <path d="M70 120 Q75 115 80 120" stroke="#4a5568" stroke-width="2" stroke-linecap="round" fill="none"/>
+                            <path d="M120 120 Q125 115 130 120" stroke="#4a5568" stroke-width="2" stroke-linecap="round" fill="none"/>
+                            <!-- Stars -->
+                            <path d="M30 40 L32 44 L36 44 L33 47 L34 51 L30 48 L26 51 L27 47 L24 44 L28 44 Z" fill="#fbbf24" opacity="0.6">
+                                <animateTransform attributeName="transform" type="rotate" from="0 30 45" to="360 30 45" dur="10s" repeatCount="indefinite"/>
+                            </path>
+                            <path d="M170 120 L171 122 L173 122 L171.5 123.5 L172 125.5 L170 124 L168 125.5 L168.5 123.5 L167 122 L169 122 Z" fill="#fbbf24" opacity="0.4">
+                                <animateTransform attributeName="transform" type="rotate" from="0 170 123" to="360 170 123" dur="8s" repeatCount="indefinite"/>
+                            </path>
+                        </svg>
+                        <p class="empty-text">No pull requests found</p>
+                        <p class="empty-subtext">Pull requests will appear here when they're assigned to you for review or when you create them.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- External Dependencies -->
+    <script src="assets/demo-data.js"></script>
+    <script src="assets/app-modern.js"></script>
+</body>
+</html>
