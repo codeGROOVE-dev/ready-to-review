@@ -101,12 +101,6 @@
             document.body.style.opacity = '1';
         });
         
-        // Restore compact view preference
-        if (localStorage.getItem('compactView') === 'true') {
-            document.body.classList.add('compact-view');
-            const compactToggle = $('compactToggle');
-            if (compactToggle) compactToggle.classList.add('active');
-        }
         
         const urlParams = new URLSearchParams(window.location.search);
         const demo = urlParams.get('demo');
@@ -203,7 +197,6 @@
         const loginBtn = $('loginBtn');
         const orgSelect = $('orgSelect');
         const searchInput = $('searchInput');
-        const compactToggle = $('compactToggle');
         
         if (loginBtn) {
             loginBtn.addEventListener('click', initiateLogin);
@@ -222,10 +215,6 @@
                     searchInput.blur();
                 }
             });
-        }
-        
-        if (compactToggle) {
-            compactToggle.addEventListener('click', handleCompactToggle);
         }
         
         // Keyboard shortcuts
@@ -475,7 +464,7 @@
         
         if (incomingBlockedCount) {
             if (incomingBlocked > 0) {
-                incomingBlockedCount.textContent = `${incomingBlocked} blocked`;
+                incomingBlockedCount.textContent = `${incomingBlocked} blocked on you`;
                 incomingBlockedCount.style.display = 'inline-block';
             } else {
                 incomingBlockedCount.style.display = 'none';
@@ -484,7 +473,7 @@
         
         if (outgoingBlockedCount) {
             if (outgoingBlocked > 0) {
-                outgoingBlockedCount.textContent = `${outgoingBlocked} blocked`;
+                outgoingBlockedCount.textContent = `${outgoingBlocked} blocked on you`;
                 outgoingBlockedCount.style.display = 'inline-block';
             } else {
                 outgoingBlockedCount.style.display = 'none';
@@ -645,6 +634,7 @@
         const activity = formatActivity(pr.last_activity);
         
         const lastActivity = pr.last_activity ? formatLastActivity(pr.last_activity) : '';
+        const activityText = pr.last_activity ? ` <span class="activity-text">• ${pr.last_activity.message} ${formatTimeAgo(pr.last_activity.timestamp)}</span>` : '';
         
         return `
             <div class="pr-card-content">
@@ -660,18 +650,13 @@
                             <img src="${pr.user.avatar_url}" alt="${pr.user.login}" class="author-avatar" loading="lazy">
                             <span class="pr-repo">${pr.repository.full_name}</span>
                             <span class="pr-number">#${pr.number}</span>
-                            <span class="pr-author">by ${pr.user.login}</span>
-                            <span class="pr-age">${ageText} old</span>
+                            <span class="pr-author">by ${pr.user.login}${activityText}</span>
                         </div>
                         <div class="pr-meta-right">
+                            <span class="pr-age">${ageText}</span>
                             ${reviewers}
                         </div>
                     </div>
-                    ${lastActivity ? `
-                        <div class="pr-activity">
-                            ${lastActivity}
-                        </div>
-                    ` : ''}
                 </div>
             </div>
         `;
@@ -853,10 +838,7 @@
         
         const indicator = document.createElement('div');
         indicator.className = 'demo-indicator';
-        indicator.innerHTML = `
-            <span>Demo Mode</span>
-            <a href="?" class="exit-demo">Exit</a>
-        `;
+        indicator.innerHTML = `<span>Demo Mode</span>`;
         
         headerRight.insertBefore(indicator, headerRight.firstChild);
     };
@@ -996,21 +978,7 @@
                 const searchInput = $('searchInput');
                 if (searchInput) searchInput.focus();
                 break;
-                
-            case 'c':
-                e.preventDefault();
-                handleCompactToggle();
-                break;
         }
-    };
-    
-    const handleCompactToggle = () => {
-        document.body.classList.toggle('compact-view');
-        const compactToggle = $('compactToggle');
-        if (compactToggle) {
-            compactToggle.classList.toggle('active');
-        }
-        localStorage.setItem('compactView', document.body.classList.contains('compact-view'));
     };
 
     const handlePopState = event => {
