@@ -5,9 +5,9 @@
 
 const DEMO_DATA = {
     user: {
-        login: 'tstromberg',
-        avatar_url: 'https://github.com/identicons/tstromberg.png',
-        name: 'T. Stromberg'
+        login: 'demo',
+        avatar_url: 'https://github.com/identicons/demo.png',
+        name: 'Demo User'
     },
     
     organizations: ['kubernetes', 'hashicorp', 'my-company', 'react-community'],
@@ -28,8 +28,8 @@ const DEMO_DATA = {
                 },
                 requested_reviewers: [
                     { 
-                        login: 'tstromberg', 
-                        avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                        login: 'demo', 
+                        avatar_url: 'https://github.com/identicons/demo.png' 
                     }
                 ],
                 labels: [
@@ -102,8 +102,8 @@ const DEMO_DATA = {
                 },
                 requested_reviewers: [
                     { 
-                        login: 'tstromberg', 
-                        avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                        login: 'demo', 
+                        avatar_url: 'https://github.com/identicons/demo.png' 
                     }
                 ],
                 labels: [
@@ -137,8 +137,8 @@ const DEMO_DATA = {
                 },
                 requested_reviewers: [
                     { 
-                        login: 'tstromberg', 
-                        avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                        login: 'demo', 
+                        avatar_url: 'https://github.com/identicons/demo.png' 
                     }
                 ],
                 labels: [
@@ -174,8 +174,8 @@ const DEMO_DATA = {
                 },
                 requested_reviewers: [
                     { 
-                        login: 'tstromberg', 
-                        avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                        login: 'demo', 
+                        avatar_url: 'https://github.com/identicons/demo.png' 
                     }
                 ],
                 labels: [
@@ -202,8 +202,8 @@ const DEMO_DATA = {
                 },
                 requested_reviewers: [
                     { 
-                        login: 'tstromberg', 
-                        avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                        login: 'demo', 
+                        avatar_url: 'https://github.com/identicons/demo.png' 
                     }
                 ],
                 labels: [
@@ -229,8 +229,8 @@ const DEMO_DATA = {
                 created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
                 updated_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
                 user: { 
-                    login: 'tstromberg', 
-                    avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                    login: 'demo', 
+                    avatar_url: 'https://github.com/identicons/demo.png' 
                 },
                 requested_reviewers: [
                     { 
@@ -270,8 +270,8 @@ const DEMO_DATA = {
                 created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // 10 days ago
                 updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
                 user: { 
-                    login: 'tstromberg', 
-                    avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                    login: 'demo', 
+                    avatar_url: 'https://github.com/identicons/demo.png' 
                 },
                 requested_reviewers: [
                     { 
@@ -307,8 +307,8 @@ const DEMO_DATA = {
                 created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), // 4 days ago
                 updated_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 hours ago
                 user: { 
-                    login: 'tstromberg', 
-                    avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                    login: 'demo', 
+                    avatar_url: 'https://github.com/identicons/demo.png' 
                 },
                 requested_reviewers: [
                     { 
@@ -336,8 +336,8 @@ const DEMO_DATA = {
                 created_at: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(), // 21 days ago
                 updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
                 user: { 
-                    login: 'tstromberg', 
-                    avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                    login: 'demo', 
+                    avatar_url: 'https://github.com/identicons/demo.png' 
                 },
                 requested_reviewers: [
                     { 
@@ -370,8 +370,8 @@ const DEMO_DATA = {
                 created_at: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(), // 28 days ago
                 updated_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days ago
                 user: { 
-                    login: 'tstromberg', 
-                    avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                    login: 'demo', 
+                    avatar_url: 'https://github.com/identicons/demo.png' 
                 },
                 requested_reviewers: [
                     { 
@@ -402,8 +402,8 @@ const DEMO_DATA = {
                 created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
                 updated_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
                 user: { 
-                    login: 'tstromberg', 
-                    avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                    login: 'demo', 
+                    avatar_url: 'https://github.com/identicons/demo.png' 
                 },
                 requested_reviewers: [],
                 labels: [
@@ -426,8 +426,8 @@ const DEMO_DATA = {
                 created_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), // 8 days ago
                 updated_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
                 user: { 
-                    login: 'tstromberg', 
-                    avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                    login: 'demo', 
+                    avatar_url: 'https://github.com/identicons/demo.png' 
                 },
                 requested_reviewers: [],
                 labels: [
