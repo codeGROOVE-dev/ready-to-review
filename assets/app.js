@@ -5,16 +5,64 @@ const App = (() => {
 
   // Configuration
   const CONFIG = {
-    CLIENT_ID: 'YOUR_GITHUB_CLIENT_ID',
+    CLIENT_ID: 'Iv23liYmAKkBpvhHAnQQ',
     API_BASE: 'https://api.github.com',
     STORAGE_KEY: 'github_token',
+    COOKIE_KEY: 'github_pat',
     SEARCH_LIMIT: 100,
+    OAUTH_REDIRECT_URI: window.location.origin + window.location.pathname,
   };
+
+  // Cookie Functions
+  function setCookie(name, value, days) {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
+  }
+
+  function getCookie(name) {
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+      if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
+  }
+
+  function deleteCookie(name) {
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+  }
+
+  function getStoredToken() {
+    // Check cookie first (for PAT)
+    const cookieToken = getCookie(CONFIG.COOKIE_KEY);
+    if (cookieToken) return cookieToken;
+    
+    // Fall back to localStorage (for OAuth)
+    return localStorage.getItem(CONFIG.STORAGE_KEY);
+  }
+
+  function storeToken(token, useCookie = false) {
+    if (useCookie) {
+      setCookie(CONFIG.COOKIE_KEY, token, 365); // 1 year
+    } else {
+      localStorage.setItem(CONFIG.STORAGE_KEY, token);
+    }
+    state.accessToken = token;
+  }
+
+  function clearToken() {
+    localStorage.removeItem(CONFIG.STORAGE_KEY);
+    deleteCookie(CONFIG.COOKIE_KEY);
+    state.accessToken = null;
+  }
 
   // State Management
   const state = {
     currentUser: null,
-    accessToken: localStorage.getItem(CONFIG.STORAGE_KEY),
+    accessToken: getStoredToken(),
     organizations: [],
     pullRequests: {
       incoming: [],
@@ -485,24 +533,76 @@ const App = (() => {
   };
 
   // Auth Functions
-  const initiateLogin = () => {
-    const token = prompt('Please enter your GitHub Personal Access Token with repo scope:');
-    if (token) {
-      localStorage.setItem(CONFIG.STORAGE_KEY, token);
-      state.accessToken = token;
-      window.location.reload();
+  const initiateOAuthLogin = () => {
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${CONFIG.CLIENT_ID}&redirect_uri=${encodeURIComponent(CONFIG.OAUTH_REDIRECT_URI)}&scope=repo%20read:org`;
+    window.location.href = authUrl;
+  };
+
+  const initiatePATLogin = () => {
+    show($('patModal'));
+    $('patInput').focus();
+  };
+
+  const closePATModal = () => {
+    hide($('patModal'));
+    $('patInput').value = '';
+  };
+
+  const submitPAT = async () => {
+    const token = $('patInput').value.trim();
+    if (!token) {
+      showToast('Please enter a valid token', 'error');
+      return;
+    }
+
+    // Test the token
+    try {
+      const testResponse = await fetch(`${CONFIG.API_BASE}/user`, {
+        headers: {
+          'Authorization': `token ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (testResponse.ok) {
+        storeToken(token, true); // Store in cookie
+        closePATModal();
+        window.location.reload();
+      } else {
+        showToast('Invalid token. Please check and try again.', 'error');
+      }
+    } catch (error) {
+      showToast('Failed to validate token. Please try again.', 'error');
     }
   };
 
+  const handleOAuthCallback = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    
+    if (code) {
+      // In a real implementation, you'd exchange this code for a token
+      // via your backend server. For now, we'll show an error message.
+      showToast('OAuth authentication requires a backend server. Please use Personal Access Token instead.', 'warning');
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      showLoginPrompt();
+    }
+  };
+
+  const initiateLogin = () => {
+    // Legacy function - redirect to PAT login
+    initiatePATLogin();
+  };
+
   const handleAuthError = () => {
-    localStorage.removeItem(CONFIG.STORAGE_KEY);
-    state.accessToken = null;
+    clearToken();
     showLoginPrompt();
     showToast('Authentication failed. Please login again.', 'error');
   };
 
   const logout = () => {
-    localStorage.removeItem(CONFIG.STORAGE_KEY);
+    clearToken();
     window.location.href = window.location.pathname;
   };
 
@@ -587,7 +687,23 @@ const App = (() => {
     }
     if (loginBtn) loginBtn.addEventListener('click', initiateLogin);
     
+    // Add event listener for PAT input Enter key
+    const patInput = $('patInput');
+    if (patInput) {
+      patInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          submitPAT();
+        }
+      });
+    }
+    
     document.addEventListener('keydown', handleKeyboardShortcuts);
+    
+    // Check for OAuth callback
+    if (urlParams.get('code')) {
+      handleOAuthCallback();
+      return;
+    }
     
     // Check for demo mode
     if (demo === 'true') {
@@ -619,7 +735,11 @@ const App = (() => {
   return {
     init,
     logout,
-    initiateLogin: () => window.initiateLogin = initiateLogin
+    initiateLogin: () => window.initiateLogin = initiateLogin,
+    initiateOAuthLogin,
+    initiatePATLogin,
+    closePATModal,
+    submitPAT
   };
 })();
 

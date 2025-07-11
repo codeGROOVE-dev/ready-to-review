@@ -43,11 +43,63 @@
                             <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
                         </svg>
                         <h2>Welcome to Ready To Review</h2>
-                        <p>Login with GitHub to manage your code reviews</p>
-                        <button class="btn btn-primary btn-large" onclick="window.initiateLogin()">Login with GitHub</button>
-                        <div class="demo-link-container">
-                            <span>or</span>
-                            <a href="?demo=true" class="demo-link">Try Demo Mode</a>
+                        <p>Choose how you'd like to access your GitHub pull requests</p>
+                        
+                        <div class="login-options">
+                            <a href="?demo=true" class="btn btn-secondary btn-large">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                                    <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                Try Demo Mode
+                            </a>
+                            
+                            <button class="btn btn-primary btn-large" onclick="window.App.initiateOAuthLogin()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+                                </svg>
+                                Login with GitHub App
+                            </button>
+                            
+                            <button class="btn btn-outline btn-large" onclick="window.App.initiatePATLogin()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M15 7h3a5 5 0 015 5 5 5 0 01-5 5h-3m-6 0H6a5 5 0 01-5-5 5 5 0 015-5h3"/>
+                                    <line x1="8" y1="12" x2="16" y2="12"/>
+                                </svg>
+                                Use Personal Access Token
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- PAT Instructions Modal -->
+                <div id="patModal" class="modal" hidden>
+                    <div class="modal-backdrop" onclick="window.App.closePATModal()"></div>
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Create a GitHub Personal Access Token</h3>
+                            <button class="modal-close" onclick="window.App.closePATModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <p>To use a Personal Access Token, follow these steps:</p>
+                            <ol>
+                                <li>Go to <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)</a></li>
+                                <li>Click "Generate new token (classic)"</li>
+                                <li>Give your token a descriptive name (e.g., "Ready To Review Dashboard")</li>
+                                <li>Set expiration to your preference</li>
+                                <li>Select the following scopes:
+                                    <ul>
+                                        <li><code>repo</code> - Full control of private repositories</li>
+                                        <li><code>read:org</code> - Read org and team membership (optional)</li>
+                                    </ul>
+                                </li>
+                                <li>Click "Generate token" at the bottom</li>
+                                <li>Copy your token (you won't be able to see it again!)</li>
+                            </ol>
+                            <div class="pat-input-group">
+                                <input type="password" id="patInput" class="pat-input" placeholder="Paste your token here">
+                                <button class="btn btn-primary" onclick="window.App.submitPAT()">Save Token</button>
+                            </div>
                         </div>
                     </div>
                 </div>
