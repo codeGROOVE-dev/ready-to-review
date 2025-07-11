@@ -7,6 +7,9 @@
   --color-bg-secondary: #f8fafc;
   --color-bg-tertiary: #f1f5f9;
   --color-surface: rgba(255, 255, 255, 0.95);
+  --color-surface-primary: #ffffff;
+  --color-surface-secondary: #f8fafc;
+  --color-surface-tertiary: #f1f5f9;
   
   --color-text: #0f172a;
   --color-text-secondary: #475569;
