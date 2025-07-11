@@ -618,6 +618,51 @@ a {
   margin-left: var(--space-1);
 }
 
+/* PR Action Buttons */
+.pr-actions {
+  position: absolute;
+  bottom: var(--space-2);
+  right: calc(var(--space-2) + 40px); /* Move left to avoid covering age text */
+  display: flex;
+  gap: var(--space-1);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.pr-card:hover .pr-actions {
+  opacity: 1;
+}
+
+.pr-action-btn {
+  background: rgba(243, 244, 246, 0.8);
+  border: 1px solid rgba(209, 213, 219, 0.5);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1);
+  cursor: pointer;
+  color: var(--color-text-tertiary);
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.pr-action-btn:hover {
+  background: rgba(229, 231, 235, 0.9);
+  border-color: rgba(156, 163, 175, 0.7);
+  color: var(--color-text-secondary);
+}
+
+.pr-action-btn:active {
+  transform: scale(0.95);
+}
+
+.pr-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* Empty State */
 .empty-state {
   text-align: center;

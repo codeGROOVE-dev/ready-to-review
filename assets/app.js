@@ -397,6 +397,25 @@ const App = (() => {
             ${reviewers}
           </div>
         </div>
+        <div class="pr-actions">
+          <button class="pr-action-btn" data-action="merge" data-pr-id="${pr.id}" title="Merge PR">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M5 3.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm0 9.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm8.25-6.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/>
+              <path d="M1.75 5.5v5a.75.75 0 001.5 0v-5a.75.75 0 00-1.5 0zm6.5-3.25a.75.75 0 000 1.5h1.5v2.5a2.25 2.25 0 01-2.25 2.25h-1a.75.75 0 000 1.5h1a3.75 3.75 0 003.75-3.75v-2.5h1.5a.75.75 0 000-1.5h-5z"/>
+            </svg>
+          </button>
+          <button class="pr-action-btn" data-action="unassign" data-pr-id="${pr.id}" title="Unassign">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.514 2.63a4 4 0 10-6.028 0A4.002 4.002 0 002 11.5V13a1 1 0 001 1h10a1 1 0 001-1v-1.5a4.002 4.002 0 00-2.986-3.87zM8 1a3 3 0 100 6 3 3 0 000-6zM3 11.5A3 3 0 016 8.5h4a3 3 0 013 3V13H3v-1.5z"/>
+              <path d="M12.146 5.146a.5.5 0 01.708 0l2 2a.5.5 0 010 .708l-2 2a.5.5 0 01-.708-.708L13.293 8l-1.147-1.146a.5.5 0 010-.708z"/>
+            </svg>
+          </button>
+          <button class="pr-action-btn" data-action="close" data-pr-id="${pr.id}" title="Close PR">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/>
+            </svg>
+          </button>
+        </div>
       </div>
     `;
   };
@@ -486,6 +505,118 @@ const App = (() => {
       show(emptyState);
     } else if (visibleCards > 0) {
       hide(emptyState);
+    }
+  };
+  
+  const handlePRAction = async (action, prId) => {
+    // Find PR in all sections
+    const allPRs = [
+      ...state.pullRequests.incoming,
+      ...state.pullRequests.outgoing,
+      ...state.pullRequests.drafts
+    ];
+    const pr = allPRs.find(p => p.id.toString() === prId);
+    if (!pr) return;
+    
+    const token = getStoredToken();
+    if (!token) {
+      showToast('Please login to perform this action', 'error');
+      return;
+    }
+    
+    try {
+      let response;
+      const headers = {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json'
+      };
+      
+      switch (action) {
+        case 'merge':
+          response = await fetch(`${CONFIG.API_BASE}/repos/${pr.repository.full_name}/pulls/${pr.number}/merge`, {
+            method: 'PUT',
+            headers: {
+              ...headers,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              commit_title: `Merge pull request #${pr.number} from ${pr.head.ref}`,
+              commit_message: pr.title
+            })
+          });
+          
+          if (response.ok) {
+            showToast('PR merged successfully', 'success');
+            // Remove PR from state
+            ['incoming', 'outgoing', 'drafts'].forEach(section => {
+              const index = state.pullRequests[section].findIndex(p => p.id.toString() === prId);
+              if (index !== -1) {
+                state.pullRequests[section].splice(index, 1);
+              }
+            });
+            // Update the display
+            updatePRSections();
+          } else {
+            const error = await response.json();
+            showToast(error.message || 'Failed to merge PR', 'error');
+          }
+          break;
+          
+        case 'unassign':
+          response = await fetch(`${CONFIG.API_BASE}/repos/${pr.repository.full_name}/issues/${pr.number}/assignees`, {
+            method: 'DELETE',
+            headers: {
+              ...headers,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              assignees: pr.assignees?.map(a => a.login) || []
+            })
+          });
+          
+          if (response.ok) {
+            showToast('Unassigned from PR', 'success');
+            // Refresh the PR list
+            updatePRSections();
+          } else {
+            showToast('Failed to unassign', 'error');
+          }
+          break;
+          
+        case 'close':
+          response = await fetch(`${CONFIG.API_BASE}/repos/${pr.repository.full_name}/pulls/${pr.number}`, {
+            method: 'PATCH',
+            headers: {
+              ...headers,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              state: 'closed'
+            })
+          });
+          
+          if (response.ok) {
+            showToast('PR closed', 'success');
+            // Remove PR from state
+            ['incoming', 'outgoing', 'drafts'].forEach(section => {
+              const index = state.pullRequests[section].findIndex(p => p.id.toString() === prId);
+              if (index !== -1) {
+                state.pullRequests[section].splice(index, 1);
+              }
+            });
+            // Update the display
+            updatePRSections();
+          } else {
+            const errorMsg = response.status === 403 ? 
+              'Failed to close PR - Permission denied' : 
+              'Failed to close PR';
+            showToast(errorMsg, 'error');
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('Error performing PR action:', error);
+      showToast('An error occurred', 'error');
     }
   };
 
@@ -698,6 +829,16 @@ const App = (() => {
     }
     
     document.addEventListener('keydown', handleKeyboardShortcuts);
+    
+    // Add event delegation for PR action buttons
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.pr-action-btn')) {
+        const btn = e.target.closest('.pr-action-btn');
+        const action = btn.dataset.action;
+        const prId = btn.dataset.prId;
+        handlePRAction(action, prId);
+      }
+    });
     
     // Check for OAuth callback
     if (urlParams.get('code')) {
