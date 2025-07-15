@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -205,12 +206,37 @@ func main() {
 		serverPort = defaultPort
 	}
 
-	// Allow environment variables to override flags for OAuth credentials
-	if envClientID := os.Getenv("GITHUB_CLIENT_ID"); envClientID != "" {
-		*clientID = envClientID
+	// Allow environment variables to override empty flag values
+	if *appID == defaultAppID {
+		if envAppID := os.Getenv("GITHUB_APP_ID"); envAppID != "" {
+			if id, err := strconv.Atoi(envAppID); err == nil {
+				*appID = id
+			}
+		}
 	}
-	if envSecret := os.Getenv("GITHUB_CLIENT_SECRET"); envSecret != "" {
-		*clientSecret = envSecret
+	
+	if *clientID == defaultClientID || *clientID == "" {
+		if envClientID := os.Getenv("GITHUB_CLIENT_ID"); envClientID != "" {
+			*clientID = envClientID
+		}
+	}
+	
+	if *clientSecret == "" {
+		if envSecret := os.Getenv("GITHUB_CLIENT_SECRET"); envSecret != "" {
+			*clientSecret = envSecret
+		}
+	}
+	
+	if *redirectURI == defaultRedirectURI || *redirectURI == "" {
+		if envRedirectURI := os.Getenv("OAUTH_REDIRECT_URI"); envRedirectURI != "" {
+			*redirectURI = envRedirectURI
+		}
+	}
+	
+	if *allowedOrigins == "" {
+		if envAllowedOrigins := os.Getenv("ALLOWED_ORIGINS"); envAllowedOrigins != "" {
+			*allowedOrigins = envAllowedOrigins
+		}
 	}
 
 	// Initialize rate limiter
