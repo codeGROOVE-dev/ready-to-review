@@ -673,7 +673,7 @@ const App = (() => {
       if (event.data && event.data.type === 'oauth-callback' && event.data.token) {
         storeToken(event.data.token);
         authWindow.close();
-        await initialize();
+        await App.init();
       }
     });
   };
@@ -722,8 +722,8 @@ const App = (() => {
   };
 
   const initiateLogin = () => {
-    // Legacy function - redirect to PAT login
-    initiatePATLogin();
+    // Show login options: OAuth or PAT
+    initiateOAuthLogin();
   };
 
   const handleAuthError = () => {

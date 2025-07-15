@@ -30,20 +30,20 @@ const (
 	defaultAppID       = 1546081
 	defaultClientID    = "Iv23liYmAKkBpvhHAnQQ"
 	defaultRedirectURI = "https://dash.ready-to-review.dev/oauth/callback"
-	
+
 	// Rate limiting
 	rateLimitRequests = 10
 	rateLimitWindow   = 1 * time.Minute
-	
+
 	// Timeouts
-	httpTimeout      = 10 * time.Second
-	shutdownTimeout  = 30 * time.Second
-	stateExpiry      = 15 * time.Minute
-	
+	httpTimeout     = 10 * time.Second
+	shutdownTimeout = 30 * time.Second
+	stateExpiry     = 15 * time.Minute
+
 	// Security
-	maxRequestSize   = 1 << 20 // 1MB
-	maxHeaderSize    = 1 << 20 // 1MB
-	maxFailedLogins  = 5
+	maxRequestSize    = 1 << 20 // 1MB
+	maxHeaderSize     = 1 << 20 // 1MB
+	maxFailedLogins   = 5
 	failedLoginWindow = 15 * time.Minute
 )
 
@@ -58,7 +58,7 @@ var (
 	clientSecret   = flag.String("client-secret", "", "GitHub OAuth Client Secret")
 	redirectURI    = flag.String("redirect-uri", defaultRedirectURI, "OAuth redirect URI")
 	allowedOrigins = flag.String("allowed-origins", "", "Comma-separated list of allowed origins for CORS")
-	
+
 	// Security: Track failed login attempts
 	failedAttempts = make(map[string][]time.Time)
 	failedMutex    sync.Mutex
@@ -83,13 +83,13 @@ func newRateLimiter(limit int, window time.Duration) *rateLimiter {
 func (rl *rateLimiter) limitHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := clientIP(r)
-		
+
 		rl.mu.Lock()
 		defer rl.mu.Unlock()
-		
+
 		now := time.Now()
 		cutoff := now.Add(-rl.window)
-		
+
 		// Clean old requests
 		var validRequests []time.Time
 		for _, t := range rl.requests[ip] {
@@ -97,13 +97,13 @@ func (rl *rateLimiter) limitHandler(next http.HandlerFunc) http.HandlerFunc {
 				validRequests = append(validRequests, t)
 			}
 		}
-		
+
 		if len(validRequests) >= rl.limit {
 			log.Printf("[SECURITY] Rate limit exceeded for %s", ip)
 			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
-		
+
 		rl.requests[ip] = append(validRequests, now)
 		next(w, r)
 	}
@@ -118,12 +118,12 @@ func clientIP(r *http.Request) string {
 			return strings.TrimSpace(ips[0])
 		}
 	}
-	
+
 	// Check X-Real-IP header
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		return xri
 	}
-	
+
 	// Fall back to RemoteAddr
 	ip := r.RemoteAddr
 	if colon := strings.LastIndex(ip, ":"); colon != -1 {
@@ -143,19 +143,19 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Request-ID", requestID)
 		// Prevent clickjacking
 		w.Header().Set("X-Frame-Options", "DENY")
-		
+
 		// Prevent MIME type sniffing
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		
+
 		// Enable XSS protection
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
-		
+
 		// Referrer policy
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		
+
 		// Permissions policy
 		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
-		
+
 		// Content Security Policy
 		csp := []string{
 			"default-src 'self'",
@@ -171,12 +171,12 @@ func securityHeaders(next http.Handler) http.Handler {
 			"frame-ancestors 'none'",
 		}
 		w.Header().Set("Content-Security-Policy", strings.Join(csp, "; "))
-		
+
 		// HSTS (only for HTTPS)
 		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -217,25 +217,25 @@ func main() {
 			}
 		}
 	}
-	
+
 	if *clientID == defaultClientID || *clientID == "" {
 		if envClientID := os.Getenv("GITHUB_CLIENT_ID"); envClientID != "" {
 			*clientID = envClientID
 		}
 	}
-	
+
 	if *clientSecret == "" {
 		if envSecret := os.Getenv("GITHUB_CLIENT_SECRET"); envSecret != "" {
 			*clientSecret = envSecret
 		}
 	}
-	
+
 	if *redirectURI == defaultRedirectURI || *redirectURI == "" {
 		if envRedirectURI := os.Getenv("OAUTH_REDIRECT_URI"); envRedirectURI != "" {
 			*redirectURI = envRedirectURI
 		}
 	}
-	
+
 	if *allowedOrigins == "" {
 		if envAllowedOrigins := os.Getenv("ALLOWED_ORIGINS"); envAllowedOrigins != "" {
 			*allowedOrigins = envAllowedOrigins
@@ -310,7 +310,7 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// Clean and validate the path
 	path := filepath.Clean(r.URL.Path)
 	if path == "/" || path == "." {
@@ -319,13 +319,13 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 		// Remove leading slash for embed.FS
 		path = strings.TrimPrefix(path, "/")
 	}
-	
+
 	// Prevent directory traversal
 	if strings.Contains(path, "..") || strings.Contains(path, "~") {
 		http.NotFound(w, r)
 		return
 	}
-	
+
 	// Only serve files from allowed paths
 	if !isAllowedPath(path) {
 		http.NotFound(w, r)
@@ -363,7 +363,7 @@ func isAllowedPath(path string) bool {
 		"index.html",
 		"assets/",
 	}
-	
+
 	for _, allowed := range allowedPaths {
 		if path == allowed || strings.HasPrefix(path, allowed) {
 			return true
@@ -379,7 +379,7 @@ func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
-	
+
 	if *clientID == "" {
 		log.Printf("OAuth login attempted but client ID not configured")
 		http.Error(w, "Service temporarily unavailable", http.StatusServiceUnavailable)
@@ -388,7 +388,7 @@ func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Generate state for CSRF protection
 	state := generateID(16)
-	
+
 	// Store state in cookie with secure settings
 	cookie := &http.Cookie{
 		Name:     "oauth_state",
@@ -398,12 +398,12 @@ func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(stateExpiry),
 	}
-	
+
 	// Set Secure flag for HTTPS
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		cookie.Secure = true
 	}
-	
+
 	http.SetCookie(w, cookie)
 
 	// Build authorization URL
@@ -429,7 +429,7 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if errCode := r.URL.Query().Get("error"); errCode != "" {
 		errDesc := r.URL.Query().Get("error_description")
 		log.Printf("OAuth error: %s - %s", errCode, errDesc)
-		
+
 		// Return user-friendly error page
 		html := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -449,21 +449,63 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify state
+	// Check if this is a GitHub App installation callback
+	installationID := r.URL.Query().Get("installation_id")
+	setupAction := r.URL.Query().Get("setup_action")
+	
+	if installationID != "" && setupAction != "" {
+		// This is a GitHub App installation callback
+		log.Printf("GitHub App installation callback: installation_id=%s, setup_action=%s", installationID, setupAction)
+		
+		// Return a success page for app installations
+		html := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GitHub App Installation</title>
+</head>
+<body>
+    <h1>GitHub App Installed Successfully</h1>
+    <p>The GitHub App has been %s successfully.</p>
+    <p>Installation ID: %s</p>
+    <p>You can close this window and return to the dashboard.</p>
+    <script>
+        // Notify parent window if it exists
+        if (window.opener) {
+            window.opener.postMessage({
+                type: 'github-app-installed',
+                installationId: '%s',
+                setupAction: '%s'
+            }, '*');
+        }
+        // Auto-close after 3 seconds
+        setTimeout(function() {
+            window.close();
+        }, 3000);
+    </script>
+</body>
+</html>
+`, escapeHtml(setupAction), escapeHtml(installationID), escapeHtml(installationID), escapeHtml(setupAction))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(html))
+		return
+	}
+
+	// Regular OAuth flow - verify state
 	state := r.URL.Query().Get("state")
 	if state == "" {
 		trackFailedAttempt(clientIP(r))
 		http.Error(w, "Missing state parameter", http.StatusBadRequest)
 		return
 	}
-	
+
 	cookie, err := r.Cookie("oauth_state")
 	if err != nil || cookie.Value != state {
 		trackFailedAttempt(clientIP(r))
 		http.Error(w, "Invalid state", http.StatusBadRequest)
 		return
 	}
-	
+
 	// Clear the state cookie immediately
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_state",
@@ -490,15 +532,15 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the origin from the request
-	origin := getOrigin(r)
-	
-	// Validate origin against allowed list
-	if !isAllowedOrigin(origin) {
-		log.Printf("OAuth callback from disallowed origin: %s", origin)
-		http.Error(w, "Invalid origin", http.StatusForbidden)
+	// For OAuth callbacks, derive the target origin from the redirect URI
+	// since the request origin will be GitHub
+	parsedRedirectURI, err := url.Parse(*redirectURI)
+	if err != nil {
+		log.Printf("Failed to parse redirect URI: %v", err)
+		http.Error(w, "Configuration error", http.StatusInternalServerError)
 		return
 	}
+	targetOrigin := fmt.Sprintf("%s://%s", parsedRedirectURI.Scheme, parsedRedirectURI.Host)
 
 	// Return HTML that posts the token to the parent window with specific origin
 	html := fmt.Sprintf(`
@@ -522,7 +564,7 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
     </script>
 </body>
 </html>
-`, origin, token)
+`, targetOrigin, token)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(html))
@@ -559,7 +601,7 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 	if code == "" || redirectURI == "" {
 		return "", fmt.Errorf("invalid parameters")
 	}
-	
+
 	// Prepare request
 	data := url.Values{}
 	data.Set("client_id", *clientID)
@@ -569,7 +611,7 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
-	
+
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://github.com/login/oauth/access_token", strings.NewReader(data.Encode()))
 	if err != nil {
 		return "", err
@@ -588,7 +630,7 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 			return nil
 		},
 	}
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("token exchange failed: %w", err)
@@ -618,7 +660,7 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 		log.Printf("Token response error: %s, description: %s", tokenResp.Error, tokenResp.ErrorDescription)
 		return "", fmt.Errorf("no access token in response")
 	}
-	
+
 	// Validate token before returning
 	if err := validateToken(tokenResp.AccessToken); err != nil {
 		return "", fmt.Errorf("token validation failed: %w", err)
@@ -630,7 +672,7 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 func getUserInfo(token string) (*githubUser, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user", nil)
 	if err != nil {
 		return nil, err
@@ -645,7 +687,7 @@ func getUserInfo(token string) (*githubUser, error) {
 			return fmt.Errorf("unexpected redirect")
 		},
 	}
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -669,23 +711,18 @@ func validateToken(token string) error {
 	if len(token) < 40 || len(token) > 255 {
 		return fmt.Errorf("invalid token length")
 	}
-	
+
 	// Check token format (GitHub tokens are typically 40 chars of hex)
 	// Note: newer GitHub tokens may start with 'ghp_' or similar prefixes
-	if strings.HasPrefix(token, "ghp_") || strings.HasPrefix(token, "gho_") || strings.HasPrefix(token, "ghs_") {
+	if strings.HasPrefix(token, "ghp_") || strings.HasPrefix(token, "gho_") || strings.HasPrefix(token, "ghs_") || strings.HasPrefix(token, "ghu_") {
 		// Validate the format for new-style tokens
 		if len(token) < 40 {
-			return fmt.Errorf("invalid token format")
+			return fmt.Errorf("invalid token format - too long - %s", token)
 		}
 	} else {
-		// Legacy token format validation
-		for _, r := range token {
-			if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
-				return fmt.Errorf("invalid token format")
-			}
-		}
+		return fmt.Errorf("unknown token prefix: %q", token[6])
 	}
-	
+
 	return nil
 }
 
@@ -695,19 +732,19 @@ func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	health := struct {
-		Status      string    `json:"status"`
-		Timestamp   time.Time `json:"timestamp"`
-		OAuthReady  bool      `json:"oauth_ready"`
-		Version     string    `json:"version"`
+		Status     string    `json:"status"`
+		Timestamp  time.Time `json:"timestamp"`
+		OAuthReady bool      `json:"oauth_ready"`
+		Version    string    `json:"version"`
 	}{
 		Status:     "healthy",
 		Timestamp:  time.Now(),
 		OAuthReady: *clientID != "" && *clientSecret != "",
 		Version:    "1.0.0",
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(health)
@@ -727,10 +764,10 @@ func generateID(bytes int) string {
 func trackFailedAttempt(ip string) {
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
-	
+
 	now := time.Now()
 	cutoff := now.Add(-failedLoginWindow)
-	
+
 	// Clean old attempts
 	var valid []time.Time
 	for _, t := range failedAttempts[ip] {
@@ -738,9 +775,9 @@ func trackFailedAttempt(ip string) {
 			valid = append(valid, t)
 		}
 	}
-	
+
 	failedAttempts[ip] = append(valid, now)
-	
+
 	// Log if there are too many failed attempts
 	if len(failedAttempts[ip]) > maxFailedLogins {
 		log.Printf("[SECURITY] Multiple failed authentication attempts from %s (%d in 15 minutes)", ip, len(failedAttempts[ip]))
@@ -771,14 +808,14 @@ func getOrigin(r *http.Request) string {
 	if origin := r.Header.Get("Origin"); origin != "" {
 		return origin
 	}
-	
+
 	// Check Referer as fallback
 	if referer := r.Header.Get("Referer"); referer != "" {
 		if u, err := url.Parse(referer); err == nil {
 			return fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 		}
 	}
-	
+
 	// Default to request origin
 	scheme := "http"
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
@@ -792,7 +829,7 @@ func isAllowedOrigin(origin string) bool {
 	if origin == "" {
 		return true
 	}
-	
+
 	// Parse allowed origins from flag
 	if *allowedOrigins != "" {
 		allowed := strings.Split(*allowedOrigins, ",")
@@ -803,17 +840,17 @@ func isAllowedOrigin(origin string) bool {
 		}
 		return false
 	}
-	
+
 	// Default allowed origins
 	u, err := url.Parse(origin)
 	if err != nil {
 		return false
 	}
-	
+
 	// Allow localhost for development and the production domain
 	host := u.Hostname()
-	return host == "localhost" || 
-		host == "127.0.0.1" || 
+	return host == "localhost" ||
+		host == "127.0.0.1" ||
 		strings.HasPrefix(host, "localhost:") ||
 		host == "dash.ready-to-review.dev" ||
 		host == "ready-to-review.dev"
@@ -823,14 +860,14 @@ func isAllowedOrigin(origin string) bool {
 func requestSizeLimiter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
-		
+
 		// Check Content-Length header
 		if r.ContentLength > maxRequestSize {
 			log.Printf("Request too large from %s: %d bytes", clientIP(r), r.ContentLength)
 			http.Error(w, "Request too large", http.StatusRequestEntityTooLarge)
 			return
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -840,19 +877,19 @@ func requestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		requestID := w.Header().Get("X-Request-ID")
-		
+
 		// Create a response writer wrapper to capture status code
 		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-		
+
 		// Log request
 		log.Printf("[%s] %s %s %s from %s", requestID, r.Method, r.URL.Path, r.Proto, clientIP(r))
-		
+
 		next.ServeHTTP(wrapped, r)
-		
+
 		// Log response
 		duration := time.Since(start)
 		log.Printf("[%s] %d %s in %v", requestID, wrapped.statusCode, http.StatusText(wrapped.statusCode), duration)
-		
+
 		// Log security events
 		switch wrapped.statusCode {
 		case http.StatusUnauthorized, http.StatusForbidden:
