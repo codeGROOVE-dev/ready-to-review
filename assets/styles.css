@@ -276,6 +276,33 @@ a {
   box-shadow: 0 0 0 3px rgb(99 102 241 / 0.1);
 }
 
+/* Filter Checkboxes */
+.filter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter-checkbox input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+.filter-checkbox:hover {
+  color: var(--color-text-primary);
+}
+
+/* Filter checkboxes in section headers */
+.section-title .filter-checkbox {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+}
+
 /* Main Content */
 .main-content {
   padding: var(--space-6) 0;
@@ -376,7 +403,6 @@ a {
 
 .icon-incoming { color: var(--color-primary); }
 .icon-outgoing { color: var(--color-success); }
-.icon-draft { color: var(--color-text-muted); }
 
 .count {
   font-size: var(--text-xs);
@@ -477,6 +503,26 @@ a {
 .pr-card[data-needs-action="true"] {
   border-left-color: var(--color-primary);
   border-left-width: 4px;
+}
+
+/* Draft PR cards */
+.pr-card[data-draft="true"] {
+  opacity: 0.7;
+  background: rgba(248, 250, 252, 0.5);
+}
+
+.pr-card[data-draft="true"]:hover {
+  opacity: 0.85;
+  background: rgba(250, 251, 253, 0.8);
+}
+
+.pr-card[data-draft="true"] .pr-title {
+  color: var(--color-text-secondary);
+}
+
+.pr-card[data-draft="true"] .badge-draft {
+  background: var(--color-text-quaternary);
+  color: var(--color-text-secondary);
 }
 
 /* PR Content */

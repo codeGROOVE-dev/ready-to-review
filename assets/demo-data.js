@@ -389,10 +389,7 @@ const DEMO_DATA = {
                 repository: {
                     full_name: 'my-company/infrastructure'
                 }
-            }
-        ],
-        
-        drafts: [
+            },
             {
                 id: 12,
                 number: 2134,

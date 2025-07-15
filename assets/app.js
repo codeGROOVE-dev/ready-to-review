@@ -66,8 +66,7 @@ const App = (() => {
     organizations: [],
     pullRequests: {
       incoming: [],
-      outgoing: [],
-      drafts: []
+      outgoing: []
     },
     isDemoMode: false,
   };
@@ -146,8 +145,7 @@ const App = (() => {
     // Categorize PRs
     state.pullRequests = {
       incoming: [],
-      outgoing: [],
-      drafts: []
+      outgoing: []
     };
     
     for (const pr of prs) {
@@ -156,9 +154,8 @@ const App = (() => {
       pr.status_tags = getStatusTags(pr);
       pr.last_activity = generateMockActivity(pr);
       
-      if (pr.draft) {
-        state.pullRequests.drafts.push(pr);
-      } else if (pr.user.login === state.currentUser.login) {
+      // Include drafts in incoming/outgoing based on author
+      if (pr.user.login === state.currentUser.login) {
         state.pullRequests.outgoing.push(pr);
       } else {
         state.pullRequests.incoming.push(pr);
@@ -229,8 +226,7 @@ const App = (() => {
     // Extract unique organizations from PRs
     const allPRs = [
       ...state.pullRequests.incoming,
-      ...state.pullRequests.outgoing,
-      ...state.pullRequests.drafts
+      ...state.pullRequests.outgoing
     ];
     
     const uniqueOrgs = [...new Set(allPRs.map(pr => pr.repository.full_name.split('/')[0]))].sort();
@@ -255,45 +251,17 @@ const App = (() => {
     // Update counts
     $('incomingCount').textContent = state.pullRequests.incoming.length;
     $('outgoingCount').textContent = state.pullRequests.outgoing.length;
-    $('draftCount').textContent = state.pullRequests.drafts.length;
     
-    // Update blocked counts
-    const incomingBlocked = state.pullRequests.incoming.filter(pr => 
-      pr.status_tags?.includes('blocked on you')
-    ).length;
-    const outgoingBlocked = state.pullRequests.outgoing.filter(pr => 
-      pr.status_tags?.includes('blocked on you')
-    ).length;
-    
-    const incomingBlockedEl = $('incomingBlockedCount');
-    const outgoingBlockedEl = $('outgoingBlockedCount');
-    
-    if (incomingBlocked > 0) {
-      incomingBlockedEl.textContent = `${incomingBlocked} blocked on you`;
-      show(incomingBlockedEl);
-    } else {
-      hide(incomingBlockedEl);
-    }
-    
-    if (outgoingBlocked > 0) {
-      outgoingBlockedEl.textContent = `${outgoingBlocked} blocked on you`;
-      show(outgoingBlockedEl);
-    } else {
-      hide(outgoingBlockedEl);
-    }
-    
-    // Update sparklines
-    updateSparklines();
+    // Update filter counts
+    updateFilterCounts();
     
     // Render PR lists
-    renderPRList($('incomingPRs'), state.pullRequests.incoming);
-    renderPRList($('outgoingPRs'), state.pullRequests.outgoing);
-    renderPRList($('draftPRs'), state.pullRequests.drafts, true);
+    renderPRList($('incomingPRs'), state.pullRequests.incoming, false, 'incoming');
+    renderPRList($('outgoingPRs'), state.pullRequests.outgoing, false, 'outgoing');
     
     // Update empty state
     const totalPRs = state.pullRequests.incoming.length + 
-                    state.pullRequests.outgoing.length + 
-                    state.pullRequests.drafts.length;
+                    state.pullRequests.outgoing.length;
     
     const emptyState = $('emptyState');
     if (totalPRs === 0) {
@@ -303,57 +271,91 @@ const App = (() => {
     }
   };
 
-  const updateSparklines = () => {
-    // Simple sparkline implementation
-    const createSparkline = (data, width = 60, height = 20, color = '#10b981') => {
-      if (!data.length) return '';
+  const updateFilterCounts = () => {
+    // Count stale and blocked on others PRs for each section
+    const sections = [
+      { prs: state.pullRequests.incoming, prefix: 'incoming' },
+      { prs: state.pullRequests.outgoing, prefix: 'outgoing' }
+    ];
+    
+    sections.forEach(({ prs, prefix }) => {
+      const staleCount = prs.filter(pr => pr.status_tags?.includes('stale')).length;
+      const blockedOthersCount = prs.filter(pr => 
+        !pr.status_tags?.includes('blocked on you') && pr.status_tags?.length > 0
+      ).length;
       
-      const max = Math.max(...data, 1);
-      const points = data.map((value, index) => {
-        const x = (index / (data.length - 1)) * width;
-        const y = height - (value / max) * height;
-        return `${x},${y}`;
-      }).join(' ');
+      // Update checkbox labels with counts
+      const staleLabel = $(`${prefix}FilterStale`)?.nextElementSibling;
+      const blockedOthersLabel = $(`${prefix}FilterBlockedOthers`)?.nextElementSibling;
       
-      return `
-        <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-          <polyline
-            fill="none"
-            stroke="${color}"
-            stroke-width="2"
-            points="${points}"
-          />
-        </svg>
-      `;
-    };
-    
-    // Mock data for sparklines
-    const incomingData = [3, 5, 2, 8, 4, 7, 6];
-    const outgoingData = [2, 4, 6, 3, 7, 5, 8];
-    const draftData = [1, 2, 1, 3, 2, 4, 3];
-    
-    $('incomingSparkline').innerHTML = createSparkline(incomingData, 60, 20, '#6366f1');
-    $('outgoingSparkline').innerHTML = createSparkline(outgoingData, 60, 20, '#10b981');
-    $('draftSparkline').innerHTML = createSparkline(draftData, 60, 20, '#94a3b8');
-    
-    // Calculate averages
-    const avgIncoming = Math.round(state.pullRequests.incoming.reduce((sum, pr) => sum + pr.age_days, 0) / state.pullRequests.incoming.length) || 0;
-    const avgOutgoing = Math.round(state.pullRequests.outgoing.reduce((sum, pr) => sum + pr.age_days, 0) / state.pullRequests.outgoing.length) || 0;
-    
-    if (avgIncoming > 0) $('incomingAverage').textContent = `avg ${avgIncoming}d`;
-    if (avgOutgoing > 0) $('outgoingAverage').textContent = `avg ${avgOutgoing}d`;
+      if (staleLabel) {
+        staleLabel.textContent = `Stale (${staleCount})`;
+      }
+      
+      if (blockedOthersLabel) {
+        blockedOthersLabel.textContent = `Blocked on Others (${blockedOthersCount})`;
+      }
+    });
   };
 
-  const renderPRList = (container, prs, isDraft = false) => {
+  const updateAverages = (section, filteredPRs) => {
+    // Calculate average age for filtered PRs
+    if (filteredPRs.length === 0) {
+      const avgElement = $(`${section}Average`);
+      if (avgElement) avgElement.textContent = '';
+      return;
+    }
+    
+    const avgAge = Math.round(filteredPRs.reduce((sum, pr) => sum + pr.age_days, 0) / filteredPRs.length) || 0;
+    const avgElement = $(`${section}Average`);
+    
+    if (avgAge > 0 && avgElement) {
+      avgElement.textContent = `avg ${avgAge}d open`;
+    } else if (avgElement) {
+      avgElement.textContent = '';
+    }
+  };
+
+  const renderPRList = (container, prs, isDraft = false, section = '') => {
     if (!container) return;
     
     const orgSelect = $('orgSelect');
     const selectedOrg = orgSelect?.value;
     
-    // Filter by organization
+    // Get section-specific filter states from cookies or default to true
+    let showStale = true;
+    let showBlockedOthers = true;
+    
+    if (section === 'incoming') {
+      showStale = getCookie('incomingFilterStale') !== 'false';
+      showBlockedOthers = getCookie('incomingFilterBlockedOthers') !== 'false';
+      // Update checkbox states from cookies
+      if ($('incomingFilterStale')) $('incomingFilterStale').checked = showStale;
+      if ($('incomingFilterBlockedOthers')) $('incomingFilterBlockedOthers').checked = showBlockedOthers;
+    } else if (section === 'outgoing') {
+      showStale = getCookie('outgoingFilterStale') !== 'false';
+      showBlockedOthers = getCookie('outgoingFilterBlockedOthers') !== 'false';
+      // Update checkbox states from cookies
+      if ($('outgoingFilterStale')) $('outgoingFilterStale').checked = showStale;
+      if ($('outgoingFilterBlockedOthers')) $('outgoingFilterBlockedOthers').checked = showBlockedOthers;
+    }
+    
+    // Apply filters
     let filteredPRs = prs;
+    
+    // Filter by organization
     if (selectedOrg) {
-      filteredPRs = prs.filter(pr => pr.repository.full_name.startsWith(selectedOrg + '/'));
+      filteredPRs = filteredPRs.filter(pr => pr.repository.full_name.startsWith(selectedOrg + '/'));
+    }
+    
+    // Filter stale PRs
+    if (!showStale) {
+      filteredPRs = filteredPRs.filter(pr => !pr.status_tags?.includes('stale'));
+    }
+    
+    // Filter blocked on others PRs
+    if (!showBlockedOthers) {
+      filteredPRs = filteredPRs.filter(pr => pr.status_tags?.includes('blocked on you'));
     }
     
     // Sort by priority
@@ -366,11 +368,16 @@ const App = (() => {
     });
     
     container.innerHTML = sortedPRs.map(pr => createPRCard(pr, isDraft)).join('');
+    
+    // Update average for this section with filtered PRs
+    if (section === 'incoming' || section === 'outgoing') {
+      updateAverages(section, filteredPRs);
+    }
   };
 
   const createPRCard = (pr, isDraft = false) => {
-    const state = getPRState(pr, isDraft);
-    const badges = buildBadges(pr, isDraft);
+    const state = getPRState(pr, pr.draft);
+    const badges = buildBadges(pr, pr.draft);
     const ageText = getAgeText(pr);
     const activityText = pr.last_activity ? 
       ` <span class="activity-text">• ${pr.last_activity.message} ${formatTimeAgo(pr.last_activity.timestamp)}</span>` : '';
@@ -378,7 +385,7 @@ const App = (() => {
     const needsAction = pr.status_tags?.includes('blocked on you');
     
     return `
-      <div class="pr-card" data-state="${state}" data-pr-id="${pr.id}" ${needsAction ? 'data-needs-action="true"' : ''}>
+      <div class="pr-card" data-state="${state}" data-pr-id="${pr.id}" ${needsAction ? 'data-needs-action="true"' : ''} ${pr.draft ? 'data-draft="true"' : ''}>
         <div class="pr-header">
           <a href="${pr.html_url}" class="pr-title" target="_blank" rel="noopener">
             ${escapeHtml(pr.title)}
@@ -512,8 +519,7 @@ const App = (() => {
     // Find PR in all sections
     const allPRs = [
       ...state.pullRequests.incoming,
-      ...state.pullRequests.outgoing,
-      ...state.pullRequests.drafts
+      ...state.pullRequests.outgoing
     ];
     const pr = allPRs.find(p => p.id.toString() === prId);
     if (!pr) return;
@@ -548,7 +554,7 @@ const App = (() => {
           if (response.ok) {
             showToast('PR merged successfully', 'success');
             // Remove PR from state
-            ['incoming', 'outgoing', 'drafts'].forEach(section => {
+            ['incoming', 'outgoing'].forEach(section => {
               const index = state.pullRequests[section].findIndex(p => p.id.toString() === prId);
               if (index !== -1) {
                 state.pullRequests[section].splice(index, 1);
@@ -612,7 +618,7 @@ const App = (() => {
           if (response.ok) {
             showToast('PR closed', 'success');
             // Remove PR from state
-            ['incoming', 'outgoing', 'drafts'].forEach(section => {
+            ['incoming', 'outgoing'].forEach(section => {
               const index = state.pullRequests[section].findIndex(p => p.id.toString() === prId);
               if (index !== -1) {
                 state.pullRequests[section].splice(index, 1);
@@ -802,8 +808,7 @@ const App = (() => {
     // Enhance demo PRs
     const allPRs = [
       ...state.pullRequests.incoming,
-      ...state.pullRequests.outgoing,
-      ...state.pullRequests.drafts
+      ...state.pullRequests.outgoing
     ];
     
     allPRs.forEach(pr => {
@@ -841,6 +846,26 @@ const App = (() => {
       });
     }
     if (loginBtn) loginBtn.addEventListener('click', initiateLogin);
+    
+    // Setup filter event listeners for each section
+    ['incoming', 'outgoing'].forEach(section => {
+      const staleFilter = $(`${section}FilterStale`);
+      const blockedOthersFilter = $(`${section}FilterBlockedOthers`);
+      
+      if (staleFilter) {
+        staleFilter.addEventListener('change', (e) => {
+          setCookie(`${section}FilterStale`, e.target.checked.toString(), 365);
+          updatePRSections();
+        });
+      }
+      
+      if (blockedOthersFilter) {
+        blockedOthersFilter.addEventListener('change', (e) => {
+          setCookie(`${section}FilterBlockedOthers`, e.target.checked.toString(), 365);
+          updatePRSections();
+        });
+      }
+    });
     
     // Add event listener for PAT input Enter key
     const patInput = $('patInput');
@@ -892,7 +917,8 @@ const App = (() => {
       showMainContent();
     } catch (error) {
       console.error('Error initializing app:', error);
-      showToast('Failed to load data', 'error');
+      const errorMessage = error.message || 'Unknown error';
+      showToast(`Failed to load data: ${errorMessage}`, 'error');
     }
   };
 
