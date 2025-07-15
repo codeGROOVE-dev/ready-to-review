@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -182,9 +183,11 @@ func securityHeaders(next http.Handler) http.Handler {
 
 // oauthTokenResponse represents the GitHub OAuth token response
 type oauthTokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	Scope       string `json:"scope"`
+	AccessToken      string `json:"access_token"`
+	TokenType        string `json:"token_type"`
+	Scope            string `json:"scope"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
 }
 
 // githubUser represents a GitHub user
@@ -596,13 +599,23 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 		return "", fmt.Errorf("token exchange returned status %d", resp.StatusCode)
 	}
 
+	// Read the entire response body for debugging
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	// Parse response
 	var tokenResp oauthTokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		// Log the raw response for debugging
+		log.Printf("Token exchange response body: %s", string(body))
 		return "", fmt.Errorf("failed to parse token response: %w", err)
 	}
 
 	if tokenResp.AccessToken == "" {
+		// Log the parsed response for debugging
+		log.Printf("Token response error: %s, description: %s", tokenResp.Error, tokenResp.ErrorDescription)
 		return "", fmt.Errorf("no access token in response")
 	}
 	
