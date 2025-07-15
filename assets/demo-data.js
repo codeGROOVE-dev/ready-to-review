@@ -6,7 +6,7 @@
 const DEMO_DATA = {
     user: {
         login: 'demo',
-        avatar_url: 'https://github.com/identicons/demo.png',
+        avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4',
         name: 'Demo User'
     },
     
@@ -24,12 +24,12 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), // 3 hours ago
                 user: { 
                     login: 'johndoe', 
-                    avatar_url: 'https://github.com/identicons/johndoe.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/2?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'demo', 
-                        avatar_url: 'https://github.com/identicons/demo.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                     }
                 ],
                 labels: [
@@ -59,16 +59,16 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
                 user: { 
                     login: 'sarahchen', 
-                    avatar_url: 'https://github.com/identicons/sarahchen.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/3?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'tstromberg', 
-                        avatar_url: 'https://github.com/identicons/tstromberg.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/4?v=4' 
                     },
                     { 
                         login: 'mikejones', 
-                        avatar_url: 'https://github.com/identicons/mikejones.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/5?v=4' 
                     }
                 ],
                 labels: [
@@ -98,12 +98,12 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
                 user: { 
                     login: 'alexkim', 
-                    avatar_url: 'https://github.com/identicons/alexkim.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/6?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'demo', 
-                        avatar_url: 'https://github.com/identicons/demo.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                     }
                 ],
                 labels: [
@@ -133,12 +133,12 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
                 user: { 
                     login: 'jennywu', 
-                    avatar_url: 'https://github.com/identicons/jennywu.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/7?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'demo', 
-                        avatar_url: 'https://github.com/identicons/demo.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                     }
                 ],
                 labels: [
@@ -170,12 +170,12 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days ago
                 user: { 
                     login: 'davidlee', 
-                    avatar_url: 'https://github.com/identicons/davidlee.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/8?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'demo', 
-                        avatar_url: 'https://github.com/identicons/demo.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                     }
                 ],
                 labels: [
@@ -198,12 +198,12 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(), // 45 days ago
                 user: { 
                     login: 'robertsmith', 
-                    avatar_url: 'https://github.com/identicons/robertsmith.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/9?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'demo', 
-                        avatar_url: 'https://github.com/identicons/demo.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                     }
                 ],
                 labels: [
@@ -230,16 +230,16 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
                 user: { 
                     login: 'demo', 
-                    avatar_url: 'https://github.com/identicons/demo.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'kubernetes-reviewer', 
-                        avatar_url: 'https://github.com/identicons/kubernetes-reviewer.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/10?v=4' 
                     },
                     { 
                         login: 'sig-storage-lead', 
-                        avatar_url: 'https://github.com/identicons/sig-storage-lead.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/11?v=4' 
                     }
                 ],
                 labels: [
@@ -271,12 +271,12 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
                 user: { 
                     login: 'demo', 
-                    avatar_url: 'https://github.com/identicons/demo.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'terraform-gcp-reviewer', 
-                        avatar_url: 'https://github.com/identicons/terraform-gcp-reviewer.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/12?v=4' 
                     }
                 ],
                 labels: [
@@ -308,12 +308,12 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 hours ago
                 user: { 
                     login: 'demo', 
-                    avatar_url: 'https://github.com/identicons/demo.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'frontend-lead', 
-                        avatar_url: 'https://github.com/identicons/frontend-lead.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/13?v=4' 
                     }
                 ],
                 labels: [
@@ -337,16 +337,16 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
                 user: { 
                     login: 'demo', 
-                    avatar_url: 'https://github.com/identicons/demo.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'platform-team', 
-                        avatar_url: 'https://github.com/identicons/platform-team.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/14?v=4' 
                     },
                     { 
                         login: 'sre-lead', 
-                        avatar_url: 'https://github.com/identicons/sre-lead.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/15?v=4' 
                     }
                 ],
                 labels: [
@@ -371,12 +371,12 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days ago
                 user: { 
                     login: 'demo', 
-                    avatar_url: 'https://github.com/identicons/demo.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                 },
                 requested_reviewers: [
                     { 
                         login: 'infrastructure-team', 
-                        avatar_url: 'https://github.com/identicons/infrastructure-team.png' 
+                        avatar_url: 'https://avatars.githubusercontent.com/u/16?v=4' 
                     }
                 ],
                 labels: [
@@ -403,7 +403,7 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
                 user: { 
                     login: 'demo', 
-                    avatar_url: 'https://github.com/identicons/demo.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                 },
                 requested_reviewers: [],
                 labels: [
@@ -427,7 +427,7 @@ const DEMO_DATA = {
                 updated_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
                 user: { 
                     login: 'demo', 
-                    avatar_url: 'https://github.com/identicons/demo.png' 
+                    avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' 
                 },
                 requested_reviewers: [],
                 labels: [

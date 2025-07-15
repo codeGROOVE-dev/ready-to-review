@@ -540,8 +540,8 @@ const App = (() => {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              commit_title: `Merge pull request #${pr.number} from ${pr.head.ref}`,
-              commit_message: pr.title
+              commit_title: `Merge pull request #${pr.number}${pr.head?.ref ? ` from ${pr.head.ref}` : ''}`,
+              commit_message: pr.title || `Merge PR #${pr.number}`
             })
           });
           
@@ -557,8 +557,15 @@ const App = (() => {
             // Update the display
             updatePRSections();
           } else {
-            const error = await response.json();
-            showToast(error.message || 'Failed to merge PR', 'error');
+            let errorMsg = 'Failed to merge PR';
+            try {
+              const error = await response.json();
+              errorMsg = error.message || error.error || errorMsg;
+            } catch (e) {
+              // If JSON parsing fails, use status text
+              errorMsg = `Failed to merge PR: ${response.statusText}`;
+            }
+            showToast(errorMsg, 'error');
           }
           break;
           
@@ -579,7 +586,14 @@ const App = (() => {
             // Refresh the PR list
             updatePRSections();
           } else {
-            showToast('Failed to unassign', 'error');
+            let errorMsg = 'Failed to unassign';
+            try {
+              const error = await response.json();
+              errorMsg = error.message || error.error || errorMsg;
+            } catch (e) {
+              errorMsg = `Failed to unassign: ${response.statusText}`;
+            }
+            showToast(errorMsg, 'error');
           }
           break;
           
@@ -607,16 +621,26 @@ const App = (() => {
             // Update the display
             updatePRSections();
           } else {
-            const errorMsg = response.status === 403 ? 
-              'Failed to close PR - Permission denied' : 
-              'Failed to close PR';
+            let errorMsg = 'Failed to close PR';
+            if (response.status === 403) {
+              errorMsg = 'Failed to close PR - Permission denied';
+            } else {
+              try {
+                const error = await response.json();
+                errorMsg = error.message || error.error || `Failed to close PR: ${response.statusText}`;
+              } catch (e) {
+                errorMsg = `Failed to close PR: ${response.statusText}`;
+              }
+            }
             showToast(errorMsg, 'error');
           }
           break;
       }
     } catch (error) {
       console.error('Error performing PR action:', error);
-      showToast('An error occurred', 'error');
+      // Show the actual error message to the user
+      const errorMessage = error.message || 'An error occurred';
+      showToast(`Error: ${errorMessage}`, 'error');
     }
   };
 
