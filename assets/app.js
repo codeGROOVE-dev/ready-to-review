@@ -665,8 +665,17 @@ const App = (() => {
 
   // Auth Functions
   const initiateOAuthLogin = () => {
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${CONFIG.CLIENT_ID}&redirect_uri=${encodeURIComponent(CONFIG.OAUTH_REDIRECT_URI)}&scope=repo%20read:org`;
-    window.location.href = authUrl;
+    // Use the Go backend's OAuth endpoint
+    const authWindow = window.open('/oauth/login', 'github-oauth', 'width=600,height=700');
+    
+    // Listen for OAuth callback
+    window.addEventListener('message', async (event) => {
+      if (event.data && event.data.type === 'oauth-callback' && event.data.token) {
+        storeToken(event.data.token);
+        authWindow.close();
+        await initialize();
+      }
+    });
   };
 
   const initiatePATLogin = () => {
@@ -708,17 +717,8 @@ const App = (() => {
   };
 
   const handleOAuthCallback = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    
-    if (code) {
-      // In a real implementation, you'd exchange this code for a token
-      // via your backend server. For now, we'll show an error message.
-      showToast('OAuth authentication requires a backend server. Please use Personal Access Token instead.', 'warning');
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      showLoginPrompt();
-    }
+    // OAuth is now handled via popup window and postMessage
+    // This function is kept for backwards compatibility but does nothing
   };
 
   const initiateLogin = () => {
