@@ -642,39 +642,49 @@ const App = (() => {
     const existingCard = document.querySelector(`[data-pr-id="${pr.id}"]`);
     if (!existingCard) return;
     
-    // Create new card content
-    const newCardHTML = createPRCard(pr);
+    // Determine which section this PR belongs to
+    const section = existingCard.closest('#incomingPRs') ? 'incoming' : 'outgoing';
     
-    // Create a temporary container to parse the new HTML
-    const temp = document.createElement('div');
-    temp.innerHTML = newCardHTML;
-    const newCard = temp.firstElementChild;
+    // Check current filter settings
+    const showStale = getCookie(`${section}FilterStale`) !== 'false';
+    const showBlockedOthers = getCookie(`${section}FilterBlockedOthers`) !== 'false';
     
-    // Replace the old card with the new one
-    existingCard.parentNode.replaceChild(newCard, existingCard);
+    // Check if this PR should be hidden based on filters
+    const shouldHide = (!showStale && isStale(pr)) || (!showBlockedOthers && isBlockedOnOthers(pr));
     
-    // Add fade-in animation for badges and recent activity
-    const badges = newCard.querySelectorAll('.badge');
-    badges.forEach(badge => {
-      badge.style.animation = 'fadeIn 0.3s ease-out';
-    });
-    
-    const bottomRow = newCard.querySelector('.pr-bottom-row');
-    if (bottomRow) {
-      bottomRow.style.animation = 'fadeIn 0.4s ease-out';
+    if (shouldHide) {
+      // Hide the card with a fade out animation
+      existingCard.style.transition = 'opacity 0.3s ease-out';
+      existingCard.style.opacity = '0';
+      setTimeout(() => {
+        existingCard.style.display = 'none';
+      }, 300);
+    } else {
+      // Update the card content
+      const newCardHTML = createPRCard(pr);
+      
+      // Create a temporary container to parse the new HTML
+      const temp = document.createElement('div');
+      temp.innerHTML = newCardHTML;
+      const newCard = temp.firstElementChild;
+      
+      // Replace the old card with the new one
+      existingCard.parentNode.replaceChild(newCard, existingCard);
+      
+      // Add fade-in animation for badges and recent activity
+      const badges = newCard.querySelectorAll('.badge');
+      badges.forEach(badge => {
+        badge.style.animation = 'fadeIn 0.3s ease-out';
+      });
+      
+      const bottomRow = newCard.querySelector('.pr-bottom-row');
+      if (bottomRow) {
+        bottomRow.style.animation = 'fadeIn 0.4s ease-out';
+      }
     }
     
     // Update filter counts since tags may have changed
     updateFilterCounts();
-    
-    // Re-apply current filters to update visibility
-    const section = existingCard.closest('#incomingPRs') ? 'incoming' : 'outgoing';
-    const container = existingCard.closest('.pr-list');
-    if (container) {
-      const showStale = getCookie(`${section}FilterStale`) !== 'false';
-      const showBlockedOthers = getCookie(`${section}FilterBlockedOthers`) !== 'false';
-      renderPRList(container, state.pullRequests[section], false, section);
-    }
   };
 
   const getPRState = pr => {
