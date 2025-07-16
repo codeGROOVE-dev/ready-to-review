@@ -301,6 +301,8 @@ a {
 .section-title .filter-checkbox {
   margin-left: var(--space-2);
   font-size: var(--text-xs);
+  min-width: 160px; /* Ensure consistent width to prevent shifting */
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
 /* Main Content */
@@ -409,6 +411,8 @@ a {
   font-weight: 500;
   color: var(--color-text-tertiary);
   padding: 0 var(--space-1);
+  min-width: 50px; /* Ensure consistent width to prevent layout shifts */
+  text-align: center;
 }
 
 .count-alert {

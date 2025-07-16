@@ -74,7 +74,8 @@ const DEMO_DATA = {
                 labels: [
                     { name: 'enhancement' }, 
                     { name: 'provider/google' },
-                    { name: 'size/L' }
+                    { name: 'size/L' },
+                    { name: 'blocked on someone-else' }
                 ],
                 repository_url: 'https://api.github.com/repos/hashicorp/terraform-provider-google',
                 html_url: 'https://github.com/hashicorp/terraform-provider-google/pull/3421',
@@ -180,7 +181,8 @@ const DEMO_DATA = {
                 ],
                 labels: [
                     { name: 'observability' },
-                    { name: 'golang' }
+                    { name: 'golang' },
+                    { name: 'blocked on someone-else' }
                 ],
                 repository_url: 'https://api.github.com/repos/my-company/api-gateway',
                 html_url: 'https://github.com/my-company/api-gateway/pull/1567',

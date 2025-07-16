@@ -217,15 +217,59 @@ const App = (() => {
       return;
     }
     
-    const query = `is:open is:pr involves:${targetUser.login} archived:false`;
-    const searchResponse = await githubAPI(`/search/issues?q=${encodeURIComponent(query)}&per_page=${CONFIG.SEARCH_LIMIT}`);
+    // Build queries
+    const involvesQuery = `is:open is:pr involves:${targetUser.login} archived:false`;
+    const userQuery = `is:open is:pr user:${targetUser.login} archived:false`;
     
-    const prs = searchResponse.items.map(pr => ({
-      ...pr,
-      repository: {
-        full_name: pr.repository_url.split('/repos/')[1]
+    console.log(`GitHub involves query: https://github.com/search?q=${encodeURIComponent(involvesQuery)}&type=pullrequests`);
+    console.log(`GitHub user query: https://github.com/search?q=${encodeURIComponent(userQuery)}&type=pullrequests`);
+    console.log(`API involves query: ${CONFIG.API_BASE}/search/issues?q=${encodeURIComponent(involvesQuery)}&per_page=${CONFIG.SEARCH_LIMIT}`);
+    console.log(`API user query: ${CONFIG.API_BASE}/search/issues?q=${encodeURIComponent(userQuery)}&per_page=${CONFIG.SEARCH_LIMIT}`);
+    console.log(`Authentication: Using ${state.accessToken ? (state.accessToken.startsWith('ghp_') ? 'Personal Access Token' : 'OAuth App token') : 'no auth'}`);
+    
+    // Run two queries in parallel: involves: and user:
+    const [involvesResponse, ownerResponse] = await Promise.all([
+      githubAPI(`/search/issues?q=${encodeURIComponent(involvesQuery)}&per_page=${CONFIG.SEARCH_LIMIT}`),
+      githubAPI(`/search/issues?q=${encodeURIComponent(userQuery)}&per_page=${CONFIG.SEARCH_LIMIT}`)
+    ]);
+    
+    console.log(`Found ${involvesResponse.items.length} PRs from involves:${targetUser.login} (total_count: ${involvesResponse.total_count})`);
+    involvesResponse.items.forEach(pr => {
+      console.log(`  involves: ${pr.html_url} - "${pr.title}" by @${pr.user.login}`);
+    });
+    
+    console.log(`Found ${ownerResponse.items.length} PRs from user:${targetUser.login} (total_count: ${ownerResponse.total_count})`);
+    ownerResponse.items.forEach(pr => {
+      console.log(`  user: ${pr.html_url} - "${pr.title}" by @${pr.user.login}`);
+    });
+    
+    // Check if we're missing results due to API limitations
+    if (ownerResponse.total_count > ownerResponse.items.length) {
+      console.warn(`WARNING: API returned only ${ownerResponse.items.length} of ${ownerResponse.total_count} total PRs for user:${targetUser.login}`);
+    }
+    
+    // Check if we're missing results due to OAuth limitations
+    if (state.accessToken && !state.accessToken.startsWith('ghp_') && ownerResponse.total_count > ownerResponse.items.length) {
+      console.info(`Note: OAuth Apps may not show all PRs. Found ${ownerResponse.items.length} of ${ownerResponse.total_count} PRs in your repositories. Consider using a Personal Access Token for complete access.`);
+    }
+    
+    // Combine and deduplicate PRs by id
+    const prMap = new Map();
+    
+    // Process both responses
+    [...involvesResponse.items, ...ownerResponse.items].forEach(pr => {
+      if (!prMap.has(pr.id)) {
+        prMap.set(pr.id, {
+          ...pr,
+          repository: {
+            full_name: pr.repository_url.split('/repos/')[1]
+          }
+        });
       }
-    }));
+    });
+    
+    const prs = Array.from(prMap.values());
+    console.log(`Total unique PRs after deduplication: ${prs.length}`);
     
     // First pass: categorize PRs and render immediately
     state.pullRequests = {
@@ -436,23 +480,74 @@ const App = (() => {
   };
 
   const updatePRSections = () => {
-    // Update counts
-    $('incomingCount').textContent = state.pullRequests.incoming.length;
-    $('outgoingCount').textContent = state.pullRequests.outgoing.length;
+    // Get filter states and calculate filtered counts
+    const orgSelect = $('orgSelect');
+    const selectedOrg = orgSelect?.value;
+    
+    const sections = [
+      { 
+        name: 'incoming',
+        prs: state.pullRequests.incoming,
+        countElement: $('incomingCount'),
+        container: $('incomingPRs')
+      },
+      { 
+        name: 'outgoing',
+        prs: state.pullRequests.outgoing,
+        countElement: $('outgoingCount'),
+        container: $('outgoingPRs')
+      }
+    ];
+    
+    let totalFilteredPRs = 0;
+    
+    sections.forEach(({ name, prs, countElement, container }) => {
+      // Get filter states
+      const showStale = getCookie(`${name}FilterStale`) !== 'false';
+      const showBlockedOthers = getCookie(`${name}FilterBlockedOthers`) !== 'false';
+      
+      // Apply filters
+      let filteredPRs = prs;
+      
+      // Filter by organization
+      if (selectedOrg) {
+        filteredPRs = filteredPRs.filter(pr => pr.repository.full_name.startsWith(selectedOrg + '/'));
+      }
+      
+      // Filter stale PRs
+      if (!showStale) {
+        filteredPRs = filteredPRs.filter(pr => !isStale(pr));
+      }
+      
+      // Filter blocked on others PRs
+      if (!showBlockedOthers) {
+        filteredPRs = filteredPRs.filter(pr => !isBlockedOnOthers(pr));
+      }
+      
+      // Update count display
+      if (countElement) {
+        const filteredCount = filteredPRs.length;
+        const totalCount = prs.length;
+        
+        if (filteredCount < totalCount) {
+          countElement.textContent = `${filteredCount} (${totalCount})`;
+        } else {
+          countElement.textContent = totalCount;
+        }
+      }
+      
+      // Render PR list
+      renderPRList(container, prs, false, name);
+      
+      totalFilteredPRs += filteredPRs.length;
+    });
     
     // Update filter counts
     updateFilterCounts();
     
-    // Render PR lists
-    renderPRList($('incomingPRs'), state.pullRequests.incoming, false, 'incoming');
-    renderPRList($('outgoingPRs'), state.pullRequests.outgoing, false, 'outgoing');
-    
-    // Update empty state
-    const totalPRs = state.pullRequests.incoming.length + 
-                    state.pullRequests.outgoing.length;
-    
+    // Update empty state based on filtered results
     const emptyState = $('emptyState');
-    if (totalPRs === 0) {
+    if (totalFilteredPRs === 0) {
       show(emptyState);
     } else {
       hide(emptyState);
@@ -1180,7 +1275,7 @@ const App = (() => {
 
   const logout = () => {
     clearToken();
-    window.location.href = window.location.pathname;
+    window.location.href = '/';
   };
 
   // UI State Management
@@ -1230,6 +1325,26 @@ const App = (() => {
     
     allPRs.forEach(pr => {
       pr.age_days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
+      
+      // Simulate turnData for demo PRs based on labels
+      pr.turnData = {
+        tags: []
+      };
+      
+      // Convert demo labels to turnData tags
+      if (pr.labels) {
+        pr.labels.forEach(label => {
+          if (label.name === 'blocked on you') {
+            pr.turnData.tags.push('blocked on you');
+          } else if (label.name === 'ready') {
+            pr.turnData.tags.push('ready');
+          } else if (label.name === 'blocked on someone-else') {
+            // This simulates a PR that has turnData but is NOT blocked on you
+            pr.turnData.tags.push('blocked on someone-else');
+          }
+        });
+      }
+      
       pr.status_tags = getStatusTags(pr);
       // Demo mode uses pre-populated last_activity
     });
