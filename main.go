@@ -248,9 +248,10 @@ func main() {
 	// Set up routes
 	mux := http.NewServeMux()
 
-	// Serve static files
+	// Serve static files and handle SPA routing
 	mux.HandleFunc("/", serveStaticFiles)
 	mux.HandleFunc("/assets/", serveStaticFiles)
+	mux.HandleFunc("/github/", serveStaticFiles) // Handle /github/* routes
 
 	// OAuth endpoints with rate limiting
 	mux.HandleFunc("/oauth/login", rl.limitHandler(handleOAuthLogin))
@@ -314,6 +315,9 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 	// Clean and validate the path
 	path := filepath.Clean(r.URL.Path)
 	if path == "/" || path == "." {
+		path = "index.html"
+	} else if strings.HasPrefix(path, "/github/") {
+		// Serve index.html for all /github/* routes (SPA routing)
 		path = "index.html"
 	} else {
 		// Remove leading slash for embed.FS

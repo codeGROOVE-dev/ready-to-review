@@ -10,7 +10,7 @@ const App = (() => {
     STORAGE_KEY: 'github_token',
     COOKIE_KEY: 'github_pat',
     SEARCH_LIMIT: 100,
-    OAUTH_REDIRECT_URI: window.location.origin + window.location.pathname,
+    OAUTH_REDIRECT_URI: window.location.origin + '/oauth/callback',
   };
 
   // Cookie Functions
@@ -62,6 +62,7 @@ const App = (() => {
   // State Management
   const state = {
     currentUser: null,
+    viewingUser: null, // User whose dashboard we're viewing
     accessToken: getStoredToken(),
     organizations: [],
     pullRequests: {
@@ -69,6 +70,22 @@ const App = (() => {
       outgoing: []
     },
     isDemoMode: false,
+  };
+  
+  // Parse URL to get viewing context
+  const parseURL = () => {
+    const path = window.location.pathname;
+    const match = path.match(/^\/github\/(all|[^\/]+)\/([^\/]+)$/);
+    
+    if (match) {
+      const [, orgOrAll, username] = match;
+      return {
+        org: orgOrAll === 'all' ? null : orgOrAll,
+        username: username
+      };
+    }
+    
+    return null;
   };
 
   // DOM Helpers
@@ -193,7 +210,14 @@ const App = (() => {
   };
 
   const loadPullRequests = async () => {
-    const query = `is:open is:pr involves:${state.currentUser.login} archived:false`;
+    // Use viewingUser if set, otherwise use currentUser
+    const targetUser = state.viewingUser || state.currentUser;
+    if (!targetUser) {
+      console.error('No user to load PRs for');
+      return;
+    }
+    
+    const query = `is:open is:pr involves:${targetUser.login} archived:false`;
     const searchResponse = await githubAPI(`/search/issues?q=${encodeURIComponent(query)}&per_page=${CONFIG.SEARCH_LIMIT}`);
     
     const prs = searchResponse.items.map(pr => ({
@@ -215,7 +239,9 @@ const App = (() => {
       pr.status_tags = getStatusTags(pr); // Will return ['loading'] initially
       
       // Include drafts in incoming/outgoing based on author
-      if (pr.user.login === state.currentUser.login) {
+      // Use viewingUser if set, otherwise use currentUser
+      const targetUser = state.viewingUser || state.currentUser;
+      if (pr.user.login === targetUser.login) {
         state.pullRequests.outgoing.push(pr);
       } else {
         state.pullRequests.incoming.push(pr);
@@ -350,11 +376,29 @@ const App = (() => {
     const userInfo = $('userInfo');
     if (!userInfo) return;
     
-    userInfo.innerHTML = state.currentUser ? `
-      <img src="${state.currentUser.avatar_url}" alt="${state.currentUser.login}" class="user-avatar">
-      <span class="user-name">${state.currentUser.name || state.currentUser.login}</span>
-      <button onclick="App.logout()" class="btn btn-primary">Logout</button>
-    ` : `<button id="loginBtn" class="btn btn-primary">Login with GitHub</button>`;
+    // Show whose dashboard we're viewing
+    const viewingUser = state.viewingUser || state.currentUser;
+    let displayContent = '';
+    
+    if (state.currentUser) {
+      // User is logged in
+      displayContent = `
+        <img src="${state.currentUser.avatar_url}" alt="${state.currentUser.login}" class="user-avatar">
+        <span class="user-name">${state.currentUser.name || state.currentUser.login}</span>
+        <button onclick="App.logout()" class="btn btn-primary">Logout</button>
+      `;
+    } else if (viewingUser) {
+      // Viewing another user's dashboard without being logged in
+      displayContent = `
+        <span class="user-name">Viewing: ${viewingUser.name || viewingUser.login}</span>
+        <button id="loginBtn" class="btn btn-primary">Login</button>
+      `;
+    } else {
+      // Not logged in and not viewing anyone
+      displayContent = `<button id="loginBtn" class="btn btn-primary">Login with GitHub</button>`;
+    }
+    
+    userInfo.innerHTML = displayContent;
     
     // Re-attach event listener if login button was recreated
     const loginBtn = $('loginBtn');
@@ -832,14 +876,19 @@ const App = (() => {
     const orgSelect = $('orgSelect');
     const selectedOrg = orgSelect?.value;
     
-    // Update URL
-    const url = new URL(window.location);
+    // Get current viewing user
+    const targetUser = state.viewingUser || state.currentUser;
+    if (!targetUser) return;
+    
+    // Update URL to new format
+    let newPath;
     if (selectedOrg) {
-      url.searchParams.set('org', selectedOrg);
+      newPath = `/github/${selectedOrg}/${targetUser.login}`;
     } else {
-      url.searchParams.delete('org');
+      newPath = `/github/all/${targetUser.login}`;
     }
-    window.history.pushState({}, '', url);
+    
+    window.history.pushState({}, '', newPath);
     
     updatePRSections();
   };
@@ -1059,7 +1108,16 @@ const App = (() => {
       if (event.data && event.data.type === 'oauth-callback' && event.data.token) {
         storeToken(event.data.token);
         authWindow.close();
-        await App.init();
+        
+        // Load user info and redirect to their dashboard
+        try {
+          state.accessToken = event.data.token;
+          await loadCurrentUser();
+          window.location.href = `/github/all/${state.currentUser.login}`;
+        } catch (error) {
+          console.error('Failed to load user after OAuth:', error);
+          showToast('Authentication succeeded but failed to load user info', 'error');
+        }
       }
     });
   };
@@ -1091,9 +1149,11 @@ const App = (() => {
       });
 
       if (testResponse.ok) {
+        const user = await testResponse.json();
         storeToken(token, true); // Store in cookie
         closePATModal();
-        window.location.reload();
+        // Redirect to user's dashboard
+        window.location.href = `/github/all/${user.login}`;
       } else {
         showToast('Invalid token. Please check and try again.', 'error');
       }
@@ -1159,6 +1219,7 @@ const App = (() => {
     
     state.isDemoMode = true;
     state.currentUser = DEMO_DATA.user;
+    state.viewingUser = DEMO_DATA.user; // Set viewingUser for consistency
     state.pullRequests = DEMO_DATA.pullRequests;
     
     // Enhance demo PRs
@@ -1173,6 +1234,13 @@ const App = (() => {
       // Demo mode uses pre-populated last_activity
     });
     
+    // If we're not already on a user URL, redirect to demo user's dashboard
+    const urlContext = parseURL();
+    if (!urlContext || !urlContext.username) {
+      window.location.href = `/github/all/${DEMO_DATA.user.login}?demo=true`;
+      return;
+    }
+    
     updateUserDisplay();
     updatePRSections();
     updateOrgFilter();
@@ -1184,6 +1252,9 @@ const App = (() => {
   const init = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const demo = urlParams.get('demo');
+    
+    // Parse URL for viewing context
+    const urlContext = parseURL();
     
     // Setup event listeners
     const orgSelect = $('orgSelect');
@@ -1257,19 +1328,48 @@ const App = (() => {
       return;
     }
     
-    // Check for auth
+    // Check if we're viewing another user's dashboard
+    if (urlContext && urlContext.username) {
+      // Load the user we're viewing
+      try {
+        state.viewingUser = await githubAPI(`/users/${urlContext.username}`);
+        
+        // Check if we have auth (for logged in features)
+        if (state.accessToken) {
+          await loadCurrentUser();
+        }
+        
+        updateUserDisplay();
+        showMainContent();
+        await loadPullRequests();
+        updateOrgFilter();
+        
+        // Set org filter from URL
+        if (urlContext.org && orgSelect) {
+          orgSelect.value = urlContext.org;
+        }
+      } catch (error) {
+        console.error('Error loading user dashboard:', error);
+        showToast(`Failed to load dashboard for ${urlContext.username}`, 'error');
+        // Redirect to home
+        window.location.href = '/';
+      }
+      return;
+    }
+    
+    // Regular auth flow - user needs to log in to see their own dashboard
     if (!state.accessToken) {
       showLoginPrompt();
       return;
     }
     
-    // Initialize app
+    // Initialize app for logged in user
     try {
       await loadCurrentUser();
       updateUserDisplay();
-      showMainContent(); // Show the container immediately
-      await loadPullRequests();
-      updateOrgFilter();
+      
+      // Redirect to user's dashboard URL
+      window.location.href = `/github/all/${state.currentUser.login}`;
     } catch (error) {
       console.error('Error initializing app:', error);
       const errorMessage = error.message || 'Unknown error';
