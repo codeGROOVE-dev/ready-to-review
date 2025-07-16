@@ -115,6 +115,16 @@ const App = (() => {
     const daysSinceUpdate = Math.floor((Date.now() - new Date(pr.updated_at)) / 86400000);
     return daysSinceUpdate >= 90;
   };
+  
+  const isBlockedOnOthers = pr => {
+    // PR is "blocked on others" if it has loaded data from turnserver but is NOT "blocked on you"
+    if (!pr.status_tags || pr.status_tags.length === 0) return false;
+    if (pr.status_tags.includes('loading')) return false; // Still loading from turnserver
+    if (pr.status_tags.includes('blocked on you')) return false; // This is blocked on you, not others
+    
+    // If we get here, turnserver has responded and it's not blocked on you
+    return true;
+  };
 
   // API Functions
   const githubAPI = async (endpoint, options = {}) => {
@@ -415,11 +425,8 @@ const App = (() => {
     sections.forEach(({ prs, prefix }) => {
       // Use local calculation for stale count
       const staleCount = prs.filter(pr => isStale(pr)).length;
-      const blockedOthersCount = prs.filter(pr => 
-        !pr.status_tags?.includes('blocked on you') && 
-        pr.status_tags?.length > 0 &&
-        !pr.status_tags?.includes('loading') // Don't count PRs still loading
-      ).length;
+      // Use proper blocked on others calculation
+      const blockedOthersCount = prs.filter(pr => isBlockedOnOthers(pr)).length;
       
       // Update checkbox labels with counts
       const staleLabel = $(`${prefix}FilterStale`)?.nextElementSibling;
@@ -492,19 +499,7 @@ const App = (() => {
     
     // Filter blocked on others PRs
     if (!showBlockedOthers) {
-      filteredPRs = filteredPRs.filter(pr => {
-        // Keep PRs that are either:
-        // 1. Blocked on you
-        // 2. Have no tags (not yet loaded)
-        // 3. Only have 'loading' tag
-        // 4. Have no blocking tags at all
-        if (!pr.status_tags || pr.status_tags.length === 0) return true;
-        if (pr.status_tags.length === 1 && pr.status_tags[0] === 'loading') return true;
-        if (pr.status_tags.includes('blocked on you')) return true;
-        
-        // Exclude if it has tags but none are "blocked on you"
-        return false;
-      });
+      filteredPRs = filteredPRs.filter(pr => !isBlockedOnOthers(pr));
     }
     
     // Sort by most recently updated with drafts at bottom
