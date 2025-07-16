@@ -127,6 +127,41 @@ const App = (() => {
     return response.json();
   };
 
+  const turnAPI = async (prUrl, updatedAt) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'turnclient/1.0'
+    };
+    
+    // Use GitHub token for Turn API authentication
+    if (state.accessToken) {
+      headers['Authorization'] = `Bearer ${state.accessToken}`;
+    }
+    
+    try {
+      const response = await fetch('https://whos-turn-is-it.ready-to-review.dev/v1/validate', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          url: prUrl,
+          updated_at: updatedAt
+        })
+      });
+      
+      if (!response.ok) {
+        console.warn(`Turn API error for ${prUrl}: ${response.statusText}`);
+        return null;
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.warn(`Turn API request failed for ${prUrl}:`, error);
+      return null;
+    }
+  };
+
   const loadCurrentUser = async () => {
     state.currentUser = await githubAPI('/user');
   };
@@ -142,6 +177,19 @@ const App = (() => {
       }
     }));
     
+    // Only fetch Turn API data if not in demo mode
+    if (!state.isDemoMode) {
+      const turnPromises = prs.map(pr => 
+        turnAPI(pr.html_url, new Date(pr.updated_at).toISOString())
+      );
+      const turnResponses = await Promise.all(turnPromises);
+      
+      // Map Turn API responses to PRs
+      prs.forEach((pr, index) => {
+        pr.turnData = turnResponses[index];
+      });
+    }
+    
     // Categorize PRs
     state.pullRequests = {
       incoming: [],
@@ -152,7 +200,15 @@ const App = (() => {
       // Enhanced PR with calculated fields
       pr.age_days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
       pr.status_tags = getStatusTags(pr);
-      pr.last_activity = generateMockActivity(pr);
+      // Use Turn API's RecentActivity if available
+      if (pr.turnData && pr.turnData.RecentActivity) {
+        pr.last_activity = {
+          type: pr.turnData.RecentActivity.Type,
+          message: pr.turnData.RecentActivity.Message,
+          timestamp: pr.turnData.RecentActivity.Timestamp,
+          actor: pr.turnData.RecentActivity.Author
+        };
+      }
       
       // Include drafts in incoming/outgoing based on author
       if (pr.user.login === state.currentUser.login) {
@@ -164,42 +220,58 @@ const App = (() => {
   };
 
   const getStatusTags = pr => {
-    const tags = [];
-    
-    // Check for labels first if in demo mode
+    // Demo mode uses labels
     if (state.isDemoMode && pr.labels) {
+      const tags = [];
       pr.labels.forEach(label => {
         if (label.name === 'blocked on you') tags.push('blocked on you');
         if (label.name === 'ready to merge') tags.push('ready-to-merge');
         if (label.name === 'stale') tags.push('stale');
       });
-    } else {
-      // Random assignment for non-demo mode
-      const randomChance = Math.random();
-      if (randomChance < 0.2) tags.push('blocked on you');
-      if (randomChance < 0.3 && randomChance >= 0.2) tags.push('blocked on author');
-      if (pr.age_days > 7) tags.push('stale');
-      if (randomChance < 0.15) tags.push('ready-to-merge');
+      return tags;
     }
     
-    return tags;
+    // Use Turn API data if available
+    if (pr.turnData && pr.turnData.tags) {
+      const tags = [...pr.turnData.tags];
+      
+      // Check if user is in NextAction list
+      if (pr.turnData.NextAction && state.currentUser) {
+        const userAction = pr.turnData.NextAction[state.currentUser.login];
+        if (userAction) {
+          // Add "blocked on you" tag
+          if (!tags.includes('blocked on you')) {
+            tags.push('blocked on you');
+          }
+          
+          // Add specific needs-X tag based on action kind
+          const actionKind = userAction.Kind;
+          if (actionKind) {
+            const kindLower = actionKind.toLowerCase();
+            const needsMap = {
+              'review': 'needs-review',
+              'approve': 'needs-approval',
+              'respond': 'needs-response',
+              'fix': 'needs-fix',
+              'merge': 'needs-merge',
+              'address': 'needs-changes'
+            };
+            tags.push(needsMap[kindLower] || `needs-${kindLower}`);
+          }
+        }
+      }
+      
+      // Normalize tag names
+      return tags.map(tag => {
+        if (tag === 'ready_to_merge') return 'ready-to-merge';
+        return tag;
+      });
+    }
+    
+    // Fallback: return empty tags if no Turn API data
+    return [];
   };
 
-  const generateMockActivity = pr => {
-    const activities = [
-      { type: 'commit', messages: ['pushed 2 commits', 'pushed a commit', 'force-pushed'] },
-      { type: 'comment', messages: ['commented', 'left a review', 'requested changes'] },
-      { type: 'review', messages: ['approved changes', 'requested review'] }
-    ];
-    
-    const activity = activities[Math.floor(Math.random() * activities.length)];
-    return {
-      type: activity.type,
-      message: activity.messages[Math.floor(Math.random() * activity.messages.length)],
-      timestamp: pr.updated_at,
-      actor: pr.user.login
-    };
-  };
 
   // UI Functions
   const updateUserDisplay = () => {
@@ -367,7 +439,7 @@ const App = (() => {
       return 0;
     });
     
-    container.innerHTML = sortedPRs.map(pr => createPRCard(pr, isDraft)).join('');
+    container.innerHTML = sortedPRs.map(pr => createPRCard(pr)).join('');
     
     // Update average for this section with filtered PRs
     if (section === 'incoming' || section === 'outgoing') {
@@ -375,9 +447,9 @@ const App = (() => {
     }
   };
 
-  const createPRCard = (pr, isDraft = false) => {
-    const state = getPRState(pr, pr.draft);
-    const badges = buildBadges(pr, pr.draft);
+  const createPRCard = pr => {
+    const state = getPRState(pr);
+    const badges = buildBadges(pr);
     const ageText = getAgeText(pr);
     const activityText = pr.last_activity ? 
       ` <span class="activity-text">• ${pr.last_activity.message} ${formatTimeAgo(pr.last_activity.timestamp)}</span>` : '';
@@ -427,32 +499,94 @@ const App = (() => {
     `;
   };
 
-  const getPRState = (pr, isDraft) => {
-    if (pr.status_tags?.includes('blocked on you')) return 'blocked';
+  const getPRState = pr => {
+    // Priority order for states
+    if (pr.status_tags?.includes('blocked on you') || pr.status_tags?.some(tag => tag.startsWith('needs-'))) return 'blocked';
+    if (pr.status_tags?.includes('tests_failing')) return 'blocked';
+    if (pr.status_tags?.includes('merge_conflict')) return 'blocked';
+    if (pr.status_tags?.includes('changes_requested')) return 'blocked';
     if (pr.status_tags?.includes('stale')) return 'stale';
-    if (isDraft) return 'draft';
-    if (pr.status_tags?.includes('ready-to-merge')) return 'ready';
+    if (pr.draft || pr.status_tags?.includes('draft')) return 'draft';
+    if (pr.status_tags?.includes('ready-to-merge') || pr.status_tags?.includes('ready_to_merge')) return 'ready';
+    if (pr.status_tags?.includes('has_approval') && pr.status_tags?.includes('all_checks_passing')) return 'ready';
     return 'default';
   };
 
-  const buildBadges = (pr, isDraft) => {
+  const buildBadges = pr => {
     const badges = [];
     
     if (pr.status_tags?.includes('blocked on you')) {
       badges.push('<span class="badge badge-blocked"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM4 8a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5h-6.5A.75.75 0 014 8z"/></svg>BLOCKED ON YOU</span>');
     }
     
-    if (isDraft) {
+    if (pr.draft || pr.status_tags?.includes('draft')) {
       badges.push('<span class="badge badge-draft">DRAFT</span>');
     }
     
-    if (pr.status_tags?.includes('ready-to-merge')) {
+    if (pr.status_tags?.includes('ready-to-merge') || pr.status_tags?.includes('ready_to_merge')) {
       badges.push('<span class="badge badge-ready">READY</span>');
+    }
+    
+    if (pr.status_tags?.includes('merge_conflict')) {
+      badges.push('<span class="badge badge-conflict">MERGE CONFLICT</span>');
+    }
+    
+    if (pr.status_tags?.includes('changes_requested')) {
+      badges.push('<span class="badge badge-changes-requested">CHANGES REQUESTED</span>');
+    }
+    
+    if (pr.status_tags?.includes('tests_failing')) {
+      badges.push('<span class="badge badge-tests-failing">TESTS FAILING</span>');
+    }
+    
+    if (pr.status_tags?.includes('tests_pending')) {
+      badges.push('<span class="badge badge-tests-pending">TESTS PENDING</span>');
+    }
+    
+    if (pr.status_tags?.includes('has_approval')) {
+      badges.push('<span class="badge badge-approved">APPROVED</span>');
+    }
+    
+    if (pr.status_tags?.includes('all_checks_passing')) {
+      badges.push('<span class="badge badge-checks-passing">CHECKS PASSING</span>');
     }
     
     if (pr.status_tags?.includes('stale')) {
       badges.push('<span class="badge badge-stale">STALE</span>');
     }
+    
+    // Add needs-X badges
+    if (pr.status_tags?.includes('needs-review')) {
+      badges.push('<span class="badge badge-needs-action">NEEDS REVIEW</span>');
+    }
+    
+    if (pr.status_tags?.includes('needs-approval')) {
+      badges.push('<span class="badge badge-needs-action">NEEDS APPROVAL</span>');
+    }
+    
+    if (pr.status_tags?.includes('needs-response')) {
+      badges.push('<span class="badge badge-needs-action">NEEDS RESPONSE</span>');
+    }
+    
+    if (pr.status_tags?.includes('needs-fix')) {
+      badges.push('<span class="badge badge-needs-action">NEEDS FIX</span>');
+    }
+    
+    if (pr.status_tags?.includes('needs-merge')) {
+      badges.push('<span class="badge badge-needs-action">NEEDS MERGE</span>');
+    }
+    
+    if (pr.status_tags?.includes('needs-changes')) {
+      badges.push('<span class="badge badge-needs-action">NEEDS CHANGES</span>');
+    }
+    
+    // Generic needs-X handler for unknown action kinds
+    pr.status_tags?.forEach(tag => {
+      if (tag.startsWith('needs-') && !['needs-review', 'needs-approval', 'needs-response', 'needs-fix', 'needs-merge', 'needs-changes'].includes(tag)) {
+        const action = tag.substring(6).toUpperCase();
+        badges.push(`<span class="badge badge-needs-action">NEEDS ${action}</span>`);
+      }
+    });
     
     return badges.join('');
   };
@@ -814,7 +948,7 @@ const App = (() => {
     allPRs.forEach(pr => {
       pr.age_days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
       pr.status_tags = getStatusTags(pr);
-      pr.last_activity = pr.last_activity || generateMockActivity(pr);
+      // Demo mode uses pre-populated last_activity
     });
     
     updateUserDisplay();

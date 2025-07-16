@@ -598,6 +598,42 @@ a {
   color: var(--color-warning);
 }
 
+.badge-conflict {
+  background: rgb(251 191 36 / 0.1);
+  color: rgb(180 83 9);
+}
+
+.badge-changes-requested {
+  background: rgb(251 146 60 / 0.1);
+  color: rgb(194 65 12);
+}
+
+.badge-tests-failing {
+  background: rgb(248 113 113 / 0.1);
+  color: rgb(220 38 38);
+}
+
+.badge-tests-pending {
+  background: rgb(156 163 175 / 0.1);
+  color: var(--color-muted);
+}
+
+.badge-approved {
+  background: rgb(74 222 128 / 0.1);
+  color: rgb(22 163 74);
+}
+
+.badge-checks-passing {
+  background: rgb(134 239 172 / 0.1);
+  color: rgb(34 197 94);
+}
+
+.badge-needs-action {
+  background: rgb(239 68 68 / 0.1);
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
 /* PR Meta */
 .pr-meta {
   display: flex;
