@@ -109,6 +109,12 @@ const App = (() => {
     const years = Math.floor(days / 365);
     return `${years}y`;
   };
+  
+  const isStale = pr => {
+    // Consider a PR stale if it hasn't been updated in 90 days
+    const daysSinceUpdate = Math.floor((Date.now() - new Date(pr.updated_at)) / 86400000);
+    return daysSinceUpdate >= 90;
+  };
 
   // API Functions
   const githubAPI = async (endpoint, options = {}) => {
@@ -407,9 +413,12 @@ const App = (() => {
     ];
     
     sections.forEach(({ prs, prefix }) => {
-      const staleCount = prs.filter(pr => pr.status_tags?.includes('stale')).length;
+      // Use local calculation for stale count
+      const staleCount = prs.filter(pr => isStale(pr)).length;
       const blockedOthersCount = prs.filter(pr => 
-        !pr.status_tags?.includes('blocked on you') && pr.status_tags?.length > 0
+        !pr.status_tags?.includes('blocked on you') && 
+        pr.status_tags?.length > 0 &&
+        !pr.status_tags?.includes('loading') // Don't count PRs still loading
       ).length;
       
       // Update checkbox labels with counts
@@ -417,11 +426,11 @@ const App = (() => {
       const blockedOthersLabel = $(`${prefix}FilterBlockedOthers`)?.nextElementSibling;
       
       if (staleLabel) {
-        staleLabel.textContent = `Stale (${staleCount})`;
+        staleLabel.textContent = `Include stale (${staleCount})`;
       }
       
       if (blockedOthersLabel) {
-        blockedOthersLabel.textContent = `Blocked on Others (${blockedOthersCount})`;
+        blockedOthersLabel.textContent = `Include blocked on others (${blockedOthersCount})`;
       }
     });
   };
@@ -476,14 +485,26 @@ const App = (() => {
       filteredPRs = filteredPRs.filter(pr => pr.repository.full_name.startsWith(selectedOrg + '/'));
     }
     
-    // Filter stale PRs
+    // Filter stale PRs (using local calculation based on updated_at)
     if (!showStale) {
-      filteredPRs = filteredPRs.filter(pr => !pr.status_tags?.includes('stale'));
+      filteredPRs = filteredPRs.filter(pr => !isStale(pr));
     }
     
     // Filter blocked on others PRs
     if (!showBlockedOthers) {
-      filteredPRs = filteredPRs.filter(pr => pr.status_tags?.includes('blocked on you'));
+      filteredPRs = filteredPRs.filter(pr => {
+        // Keep PRs that are either:
+        // 1. Blocked on you
+        // 2. Have no tags (not yet loaded)
+        // 3. Only have 'loading' tag
+        // 4. Have no blocking tags at all
+        if (!pr.status_tags || pr.status_tags.length === 0) return true;
+        if (pr.status_tags.length === 1 && pr.status_tags[0] === 'loading') return true;
+        if (pr.status_tags.includes('blocked on you')) return true;
+        
+        // Exclude if it has tags but none are "blocked on you"
+        return false;
+      });
     }
     
     // Sort by most recently updated with drafts at bottom
@@ -647,6 +668,18 @@ const App = (() => {
     if (bottomRow) {
       bottomRow.style.animation = 'fadeIn 0.4s ease-out';
     }
+    
+    // Update filter counts since tags may have changed
+    updateFilterCounts();
+    
+    // Re-apply current filters to update visibility
+    const section = existingCard.closest('#incomingPRs') ? 'incoming' : 'outgoing';
+    const container = existingCard.closest('.pr-list');
+    if (container) {
+      const showStale = getCookie(`${section}FilterStale`) !== 'false';
+      const showBlockedOthers = getCookie(`${section}FilterBlockedOthers`) !== 'false';
+      renderPRList(container, state.pullRequests[section], false, section);
+    }
   };
 
   const getPRState = pr => {
@@ -735,7 +768,7 @@ const App = (() => {
       badges.push('<span class="badge badge-updated">UPDATED</span>');
     }
     
-    if (pr.status_tags?.includes('stale')) {
+    if (pr.status_tags?.includes('stale') || isStale(pr)) {
       badges.push('<span class="badge badge-stale">STALE</span>');
     }
     

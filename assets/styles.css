@@ -855,22 +855,9 @@ a {
   color: var(--color-text-secondary);
 }
 
-/* PR Action Buttons */
+/* PR Action Buttons - Hidden for now due to permission requirements */
 .pr-actions {
-  display: flex;
-  gap: var(--space-1);
-  opacity: 0;
-  transition: opacity var(--transition);
-  flex-shrink: 0;
-}
-
-.pr-actions.standalone {
-  margin-top: var(--space-2);
-  justify-content: flex-end;
-}
-
-.pr-card:hover .pr-actions {
-  opacity: 1;
+  display: none;
 }
 
 .pr-action-btn {
