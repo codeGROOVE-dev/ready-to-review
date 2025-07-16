@@ -140,13 +140,14 @@ const App = (() => {
     }
     
     try {
-      const response = await fetch('https://whos-turn-is-it.ready-to-review.dev/v1/validate', {
+      const response = await fetch('https://turn.ready-to-review.dev/v1/validate', {
         method: 'POST',
         headers,
         body: JSON.stringify({
           url: prUrl,
           updated_at: updatedAt
-        })
+        }),
+        mode: 'cors'
       });
       
       if (!response.ok) {
@@ -268,8 +269,8 @@ const App = (() => {
       });
     }
     
-    // Fallback: return empty tags if no Turn API data
-    return [];
+    // If no Turn API data is available, add 'unknown' tag
+    return ['unknown'];
   };
 
 
@@ -514,6 +515,10 @@ const App = (() => {
 
   const buildBadges = pr => {
     const badges = [];
+    
+    if (pr.status_tags?.includes('unknown')) {
+      badges.push('<span class="badge badge-unknown">UNKNOWN</span>');
+    }
     
     if (pr.status_tags?.includes('blocked on you')) {
       badges.push('<span class="badge badge-blocked"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM4 8a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5h-6.5A.75.75 0 014 8z"/></svg>BLOCKED ON YOU</span>');

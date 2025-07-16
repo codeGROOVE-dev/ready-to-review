@@ -634,6 +634,11 @@ a {
   font-weight: 600;
 }
 
+.badge-unknown {
+  background: rgb(156 163 175 / 0.1);
+  color: var(--color-text-tertiary);
+}
+
 /* PR Meta */
 .pr-meta {
   display: flex;
