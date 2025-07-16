@@ -91,14 +91,23 @@ const App = (() => {
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-    return new Date(timestamp).toLocaleDateString();
+    if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w ago`;
+    if (seconds < 31536000) return `${Math.floor(seconds / 2592000)}mo ago`;
+    
+    const years = Math.floor(seconds / 31536000);
+    return `${years}y ago`;
   };
 
   const getAgeText = pr => {
     const days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
     if (days === 0) return 'today';
     if (days === 1) return '1d';
-    return `${days}d`;
+    if (days < 7) return `${days}d`;
+    if (days < 30) return `${Math.floor(days / 7)}w`;
+    if (days < 365) return `${Math.floor(days / 30)}mo`;
+    
+    const years = Math.floor(days / 365);
+    return `${years}y`;
   };
 
   // API Functions
@@ -178,20 +187,7 @@ const App = (() => {
       }
     }));
     
-    // Only fetch Turn API data if not in demo mode
-    if (!state.isDemoMode) {
-      const turnPromises = prs.map(pr => 
-        turnAPI(pr.html_url, new Date(pr.updated_at).toISOString())
-      );
-      const turnResponses = await Promise.all(turnPromises);
-      
-      // Map Turn API responses to PRs
-      prs.forEach((pr, index) => {
-        pr.turnData = turnResponses[index];
-      });
-    }
-    
-    // Categorize PRs
+    // First pass: categorize PRs and render immediately
     state.pullRequests = {
       incoming: [],
       outgoing: []
@@ -200,16 +196,7 @@ const App = (() => {
     for (const pr of prs) {
       // Enhanced PR with calculated fields
       pr.age_days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
-      pr.status_tags = getStatusTags(pr);
-      // Use Turn API's RecentActivity if available
-      if (pr.turnData && pr.turnData.RecentActivity) {
-        pr.last_activity = {
-          type: pr.turnData.RecentActivity.Type,
-          message: pr.turnData.RecentActivity.Message,
-          timestamp: pr.turnData.RecentActivity.Timestamp,
-          actor: pr.turnData.RecentActivity.Author
-        };
-      }
+      pr.status_tags = getStatusTags(pr); // Will return ['loading'] initially
       
       // Include drafts in incoming/outgoing based on author
       if (pr.user.login === state.currentUser.login) {
@@ -217,6 +204,44 @@ const App = (() => {
       } else {
         state.pullRequests.incoming.push(pr);
       }
+    }
+    
+    // Render immediately with loading indicators
+    updatePRSections();
+    
+    // Then fetch Turn API data asynchronously
+    if (!state.isDemoMode) {
+      const turnPromises = prs.map(async (pr) => {
+        try {
+          const turnData = await turnAPI(pr.html_url, new Date(pr.updated_at).toISOString());
+          pr.turnData = turnData;
+          
+          // Update status tags with real data
+          pr.status_tags = getStatusTags(pr);
+          
+          // Use Turn API's recent_activity if available
+          const recentActivity = turnData?.recent_activity;
+          if (recentActivity) {
+            pr.last_activity = {
+              type: recentActivity.type,
+              message: recentActivity.message,
+              timestamp: recentActivity.timestamp,
+              actor: recentActivity.author
+            };
+          }
+          
+          // Update just this PR card in the UI
+          updateSinglePRCard(pr);
+        } catch (error) {
+          console.error(`Failed to load turn data for PR ${pr.html_url}:`, error);
+          pr.turnData = null;
+          pr.status_tags = getStatusTags(pr);
+          updateSinglePRCard(pr);
+        }
+      });
+      
+      // Wait for all turn API calls to complete
+      await Promise.all(turnPromises);
     }
   };
 
@@ -232,8 +257,13 @@ const App = (() => {
       return tags;
     }
     
-    // Use Turn API data if available
-    if (pr.turnData && pr.turnData.tags) {
+    // If we have turnData (even if empty), the API call completed
+    if (pr.turnData !== undefined) {
+      // If turnData is null or has no tags, return empty array
+      if (!pr.turnData || !pr.turnData.tags) {
+        return [];
+      }
+      
       const tags = [...pr.turnData.tags];
       
       // Check if user is in NextAction list
@@ -269,8 +299,8 @@ const App = (() => {
       });
     }
     
-    // If no Turn API data is available, add 'unknown' tag
-    return ['unknown'];
+    // If turnData is undefined, we're still loading
+    return ['loading'];
   };
 
 
@@ -431,12 +461,28 @@ const App = (() => {
       filteredPRs = filteredPRs.filter(pr => pr.status_tags?.includes('blocked on you'));
     }
     
-    // Sort by priority
+    // Sort by most recently updated with drafts at bottom
     const sortedPRs = [...filteredPRs].sort((a, b) => {
-      if (a.status_tags?.includes('blocked on you')) return -1;
-      if (b.status_tags?.includes('blocked on you')) return 1;
-      if (a.status_tags?.includes('ready-to-merge')) return -1;
-      if (b.status_tags?.includes('ready-to-merge')) return 1;
+      // Drafts always go to bottom (using GitHub's draft field, not tags)
+      if (a.draft && !b.draft) return 1;
+      if (!a.draft && b.draft) return -1;
+      
+      // Within non-drafts or within drafts, apply priority sorting
+      if (a.draft === b.draft) {
+        // First priority: blocked on you (only for non-drafts)
+        if (!a.draft && !b.draft) {
+          if (a.status_tags?.includes('blocked on you') && !b.status_tags?.includes('blocked on you')) return -1;
+          if (!a.status_tags?.includes('blocked on you') && b.status_tags?.includes('blocked on you')) return 1;
+          
+          // Second priority: ready to merge (only for non-drafts)
+          if (a.status_tags?.includes('ready-to-merge') && !b.status_tags?.includes('ready-to-merge')) return -1;
+          if (!a.status_tags?.includes('ready-to-merge') && b.status_tags?.includes('ready-to-merge')) return 1;
+        }
+        
+        // Default: sort by updated_at (most recent first)
+        return new Date(b.updated_at) - new Date(a.updated_at);
+      }
+      
       return 0;
     });
     
@@ -452,29 +498,35 @@ const App = (() => {
     const state = getPRState(pr);
     const badges = buildBadges(pr);
     const ageText = getAgeText(pr);
-    const activityText = pr.last_activity ? 
-      ` <span class="activity-text">• ${pr.last_activity.message} ${formatTimeAgo(pr.last_activity.timestamp)}</span>` : '';
     const reviewers = buildReviewers(pr.requested_reviewers || []);
     const needsAction = pr.status_tags?.includes('blocked on you');
     
-    return `
-      <div class="pr-card" data-state="${state}" data-pr-id="${pr.id}" ${needsAction ? 'data-needs-action="true"' : ''} ${pr.draft ? 'data-draft="true"' : ''}>
-        <div class="pr-header">
-          <a href="${pr.html_url}" class="pr-title" target="_blank" rel="noopener">
-            ${escapeHtml(pr.title)}
-          </a>
-          ${badges ? `<div class="pr-badges">${badges}</div>` : ''}
-        </div>
-        <div class="pr-meta">
-          <div class="pr-meta-left">
-            <img src="${pr.user.avatar_url}" alt="${pr.user.login}" class="author-avatar" loading="lazy">
-            <span class="pr-repo">${pr.repository.full_name}</span>
-            <span class="pr-number">#${pr.number}</span>
-            <span class="pr-author">by ${pr.user.login}${activityText}</span>
+    // Get activity type icon
+    const getActivityIcon = (type) => {
+      const icons = {
+        commit: '<path d="M4 1.5H3a2 2 0 00-2 2V14a2 2 0 002 2h10a2 2 0 002-2V3.5a2 2 0 00-2-2h-1v1h1a1 1 0 011 1V14a1 1 0 01-1 1H3a1 1 0 01-1-1V3.5a1 1 0 011-1h1v-1z"/><path d="M9.5 1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h3zm-3-1A1.5 1.5 0 005 1.5v1A1.5 1.5 0 006.5 4h3A1.5 1.5 0 0011 2.5v-1A1.5 1.5 0 009.5 0h-3z"/><path d="M3.5 6.5A.5.5 0 014 7v1h3.5a.5.5 0 010 1H4v1a.5.5 0 01-1 0v-1H1.5a.5.5 0 010-1H3V7a.5.5 0 01.5-.5z"/><path d="M8 11a1 1 0 100-2 1 1 0 000 2z"/>',
+        comment: '<path d="M14 1a1 1 0 011 1v8a1 1 0 01-1 1H4.414A2 2 0 003 11.586l-2 2V2a1 1 0 011-1h12zM2 0a2 2 0 00-2 2v12.793a.5.5 0 00.854.353l2.853-2.853A1 1 0 014.414 12H14a2 2 0 002-2V2a2 2 0 00-2-2H2z"/>',
+        review: '<path d="M10.854 5.146a.5.5 0 010 .708l-3 3a.5.5 0 01-.708 0l-1.5-1.5a.5.5 0 11.708-.708L7.5 7.793l2.646-2.647a.5.5 0 01.708 0z"/><path d="M2 2a2 2 0 012-2h8a2 2 0 012 2v13.5a.5.5 0 01-.777.416L8 13.101l-5.223 2.815A.5.5 0 012 15.5V2zm2-1a1 1 0 00-1 1v12.566l4.723-2.482a.5.5 0 01.554 0L13 14.566V2a1 1 0 00-1-1H4z"/>',
+        approve: '<path d="M10.97 4.97a.75.75 0 011.071 1.05l-3.992 4.99a.75.75 0 01-1.08.02L4.324 8.384a.75.75 0 111.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 01.02-.022z"/><path d="M8 15A7 7 0 118 1a7 7 0 010 14zm0 1A8 8 0 108 0a8 8 0 000 16z"/>',
+        merge: '<path d="M5 3.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm0 9.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm8.25-6.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/><path d="M1.75 5.5v5a.75.75 0 001.5 0v-5a.75.75 0 00-1.5 0zm6.5-3.25a.75.75 0 000 1.5h1.5v2.5a2.25 2.25 0 01-2.25 2.25h-1a.75.75 0 000 1.5h1a3.75 3.75 0 003.75-3.75v-2.5h1.5a.75.75 0 000-1.5h-5z"/>',
+        push: '<path d="M1 2.5A2.5 2.5 0 013.5 0h8.75a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0V1.5h-8a1 1 0 00-1 1v6.708A2.492 2.492 0 013.5 9h3.25a.75.75 0 010 1.5H3.5a1 1 0 100 2h5.75a.75.75 0 010 1.5H3.5A2.5 2.5 0 011 11.5v-9z"/><path d="M7.25 11.25a.75.75 0 01.75-.75h5.25a.75.75 0 01.53 1.28l-1.72 1.72h3.69a.75.75 0 010 1.5h-5.25a.75.75 0 01-.53-1.28l1.72-1.72H8a.75.75 0 01-.75-.75z"/>'
+      };
+      
+      const iconPath = icons[type] || icons.comment; // Default to comment icon
+      return `<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">${iconPath}</svg>`;
+    };
+    
+    // Format recent activity and actions in a single row
+    const bottomSection = pr.last_activity ? `
+      <div class="pr-bottom-row">
+        <div class="pr-recent-activity">
+          <div class="activity-icon">
+            ${getActivityIcon(pr.last_activity.type)}
           </div>
-          <div class="pr-meta-right">
-            <span class="pr-age">${ageText}</span>
-            ${reviewers}
+          <div class="activity-content">
+            <span class="activity-message">${pr.last_activity.message}</span>
+            ${pr.last_activity.actor ? `<span class="activity-actor">by ${pr.last_activity.actor}</span>` : ''}
+            <span class="activity-time">• ${formatTimeAgo(pr.last_activity.timestamp)}</span>
           </div>
         </div>
         <div class="pr-actions">
@@ -497,7 +549,79 @@ const App = (() => {
           </button>
         </div>
       </div>
+    ` : `
+      <div class="pr-actions standalone">
+        <button class="pr-action-btn" data-action="merge" data-pr-id="${pr.id}" title="Merge PR">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M5 3.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm0 9.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm8.25-6.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/>
+            <path d="M1.75 5.5v5a.75.75 0 001.5 0v-5a.75.75 0 00-1.5 0zm6.5-3.25a.75.75 0 000 1.5h1.5v2.5a2.25 2.25 0 01-2.25 2.25h-1a.75.75 0 000 1.5h1a3.75 3.75 0 003.75-3.75v-2.5h1.5a.75.75 0 000-1.5h-5z"/>
+          </svg>
+        </button>
+        <button class="pr-action-btn" data-action="unassign" data-pr-id="${pr.id}" title="Unassign">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.514 2.63a4 4 0 10-6.028 0A4.002 4.002 0 002 11.5V13a1 1 0 001 1h10a1 1 0 001-1v-1.5a4.002 4.002 0 00-2.986-3.87zM8 1a3 3 0 100 6 3 3 0 000-6zM3 11.5A3 3 0 016 8.5h4a3 3 0 013 3V13H3v-1.5z"/>
+            <path d="M12.146 5.146a.5.5 0 01.708 0l2 2a.5.5 0 010 .708l-2 2a.5.5 0 01-.708-.708L13.293 8l-1.147-1.146a.5.5 0 010-.708z"/>
+          </svg>
+        </button>
+        <button class="pr-action-btn" data-action="close" data-pr-id="${pr.id}" title="Close PR">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/>
+          </svg>
+        </button>
+      </div>
     `;
+    
+    return `
+      <div class="pr-card" data-state="${state}" data-pr-id="${pr.id}" ${needsAction ? 'data-needs-action="true"' : ''} ${pr.draft ? 'data-draft="true"' : ''}>
+        <div class="pr-header">
+          <a href="${pr.html_url}" class="pr-title" target="_blank" rel="noopener">
+            ${escapeHtml(pr.title)}
+          </a>
+          ${badges ? `<div class="pr-badges">${badges}</div>` : ''}
+        </div>
+        <div class="pr-meta">
+          <div class="pr-meta-left">
+            <img src="${pr.user.avatar_url}" alt="${pr.user.login}" class="author-avatar" loading="lazy">
+            <span class="pr-repo">${pr.repository.full_name}</span>
+            <span class="pr-number">#${pr.number}</span>
+            <span class="pr-author">by ${pr.user.login}</span>
+          </div>
+          <div class="pr-meta-right">
+            <span class="pr-age">${ageText}</span>
+            ${reviewers}
+          </div>
+        </div>
+        ${bottomSection}
+      </div>
+    `;
+  };
+
+  const updateSinglePRCard = pr => {
+    // Find the existing PR card
+    const existingCard = document.querySelector(`[data-pr-id="${pr.id}"]`);
+    if (!existingCard) return;
+    
+    // Create new card content
+    const newCardHTML = createPRCard(pr);
+    
+    // Create a temporary container to parse the new HTML
+    const temp = document.createElement('div');
+    temp.innerHTML = newCardHTML;
+    const newCard = temp.firstElementChild;
+    
+    // Replace the old card with the new one
+    existingCard.parentNode.replaceChild(newCard, existingCard);
+    
+    // Add fade-in animation for badges and recent activity
+    const badges = newCard.querySelectorAll('.badge');
+    badges.forEach(badge => {
+      badge.style.animation = 'fadeIn 0.3s ease-out';
+    });
+    
+    const bottomRow = newCard.querySelector('.pr-bottom-row');
+    if (bottomRow) {
+      bottomRow.style.animation = 'fadeIn 0.4s ease-out';
+    }
   };
 
   const getPRState = pr => {
@@ -516,8 +640,8 @@ const App = (() => {
   const buildBadges = pr => {
     const badges = [];
     
-    if (pr.status_tags?.includes('unknown')) {
-      badges.push('<span class="badge badge-unknown">UNKNOWN</span>');
+    if (pr.status_tags?.includes('loading')) {
+      badges.push('<span class="badge badge-loading"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>');
     }
     
     if (pr.status_tags?.includes('blocked on you')) {
@@ -554,6 +678,15 @@ const App = (() => {
     
     if (pr.status_tags?.includes('all_checks_passing')) {
       badges.push('<span class="badge badge-checks-passing">CHECKS PASSING</span>');
+    }
+    
+    // Time-based badges
+    if (pr.status_tags?.includes('new')) {
+      badges.push('<span class="badge badge-new">NEW</span>');
+    }
+    
+    if (pr.status_tags?.includes('updated')) {
+      badges.push('<span class="badge badge-updated">UPDATED</span>');
     }
     
     if (pr.status_tags?.includes('stale')) {
@@ -1050,10 +1183,9 @@ const App = (() => {
     try {
       await loadCurrentUser();
       updateUserDisplay();
+      showMainContent(); // Show the container immediately
       await loadPullRequests();
       updateOrgFilter();
-      updatePRSections();
-      showMainContent();
     } catch (error) {
       console.error('Error initializing app:', error);
       const errorMessage = error.message || 'Unknown error';
