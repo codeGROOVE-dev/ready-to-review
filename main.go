@@ -162,7 +162,7 @@ func securityHeaders(next http.Handler) http.Handler {
 			"script-src 'self' 'unsafe-inline'", // Needed for inline event handlers
 			"style-src 'self' 'unsafe-inline'",  // Needed for inline styles
 			"img-src 'self' https://avatars.githubusercontent.com data:",
-			"connect-src 'self' https://api.github.com",
+			"connect-src 'self' https://api.github.com https://whos-turn-is-it.ready-to-review.dev",
 			"font-src 'self'",
 			"object-src 'none'",
 			"frame-src 'none'",
