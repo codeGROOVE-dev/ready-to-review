@@ -209,6 +209,28 @@ const App = (() => {
     // Render immediately with loading indicators
     updatePRSections();
     
+    // Fetch PR details for size data in parallel with turn server
+    const fetchPRDetails = async (pr) => {
+      try {
+        // Extract owner/repo/number from the PR URL
+        const urlParts = pr.repository_url.split('/');
+        const owner = urlParts[urlParts.length - 2];
+        const repo = urlParts[urlParts.length - 1];
+        
+        const prDetails = await githubAPI(`/repos/${owner}/${repo}/pulls/${pr.number}`);
+        pr.additions = prDetails.additions;
+        pr.deletions = prDetails.deletions;
+        
+        // Update just this PR card to show the size
+        updateSinglePRCard(pr);
+      } catch (error) {
+        console.error(`Failed to fetch PR details for ${pr.html_url}:`, error);
+      }
+    };
+    
+    // Start fetching PR details for all PRs
+    const detailPromises = prs.map(pr => fetchPRDetails(pr));
+    
     // Then fetch Turn API data asynchronously
     if (!state.isDemoMode) {
       const turnPromises = prs.map(async (pr) => {
@@ -243,6 +265,9 @@ const App = (() => {
       // Wait for all turn API calls to complete
       await Promise.all(turnPromises);
     }
+    
+    // Wait for all PR detail fetches to complete
+    await Promise.all(detailPromises);
   };
 
   const getStatusTags = pr => {
@@ -637,8 +662,29 @@ const App = (() => {
     return 'default';
   };
 
+  const getPRSize = pr => {
+    const delta = Math.abs((pr.additions || 0) - (pr.deletions || 0));
+    
+    if (delta <= 6) return 'XXS';
+    if (delta <= 12) return 'XS';
+    if (delta <= 25) return 'S';
+    if (delta <= 50) return 'M';
+    if (delta <= 100) return 'L';
+    if (delta <= 400) return 'XL';
+    if (delta <= 800) return 'XXL';
+    return 'INSANE';
+  };
+
   const buildBadges = pr => {
     const badges = [];
+    
+    // Size badge always shows first (if we have the data)
+    if (pr.additions !== undefined && pr.deletions !== undefined) {
+      const size = getPRSize(pr);
+      const additions = pr.additions || 0;
+      const deletions = pr.deletions || 0;
+      badges.push(`<span class="badge badge-size badge-size-${size.toLowerCase()}" title="+${additions}/-${deletions}">${size}</span>`);
+    }
     
     if (pr.status_tags?.includes('loading')) {
       badges.push('<span class="badge badge-loading"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>');

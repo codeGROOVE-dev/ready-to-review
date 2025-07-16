@@ -646,6 +646,52 @@ a {
   font-weight: 600;
 }
 
+/* Size badges */
+.badge-size {
+  font-weight: 700;
+  margin-right: var(--space-1);
+}
+
+.badge-size-xxs {
+  background: rgb(236 252 203 / 0.5);
+  color: rgb(77 124 15);
+}
+
+.badge-size-xs {
+  background: rgb(209 250 229 / 0.5);
+  color: rgb(6 95 70);
+}
+
+.badge-size-s {
+  background: rgb(204 251 241 / 0.5);
+  color: rgb(19 78 74);
+}
+
+.badge-size-m {
+  background: rgb(207 250 254 / 0.5);
+  color: rgb(14 116 144);
+}
+
+.badge-size-l {
+  background: rgb(224 231 255 / 0.5);
+  color: rgb(67 56 202);
+}
+
+.badge-size-xl {
+  background: rgb(243 232 255 / 0.5);
+  color: rgb(107 33 168);
+}
+
+.badge-size-xxl {
+  background: rgb(253 230 138 / 0.5);
+  color: rgb(146 64 14);
+}
+
+.badge-size-insane {
+  background: rgb(254 202 202 / 0.5);
+  color: rgb(185 28 28);
+}
+
 .badge-loading {
   background: transparent;
   padding: 0.375rem 0.75rem;
