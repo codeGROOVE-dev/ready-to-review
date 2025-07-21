@@ -75,13 +75,26 @@ const App = (() => {
   // Parse URL to get viewing context
   const parseURL = () => {
     const path = window.location.pathname;
-    const match = path.match(/^\/github\/(all|[^\/]+)\/([^\/]+)$/);
     
+    // Check for stats page pattern: /github/(all|org)/username/stats
+    const statsMatch = path.match(/^\/github\/(all|[^\/]+)\/([^\/]+)\/stats$/);
+    if (statsMatch) {
+      const [, orgOrAll, username] = statsMatch;
+      return {
+        org: orgOrAll === 'all' ? null : orgOrAll,
+        username: username,
+        isStats: true
+      };
+    }
+    
+    // Check for regular dashboard pattern: /github/(all|org)/username
+    const match = path.match(/^\/github\/(all|[^\/]+)\/([^\/]+)$/);
     if (match) {
       const [, orgOrAll, username] = match;
       return {
         org: orgOrAll === 'all' ? null : orgOrAll,
-        username: username
+        username: username,
+        isStats: false
       };
     }
     
@@ -128,9 +141,9 @@ const App = (() => {
   };
   
   const isStale = pr => {
-    // Consider a PR stale if it hasn't been updated in 90 days
+    // Consider a PR stale if it hasn't been updated in 60 days
     const daysSinceUpdate = Math.floor((Date.now() - new Date(pr.updated_at)) / 86400000);
-    return daysSinceUpdate >= 90;
+    return daysSinceUpdate >= 60;
   };
   
   const isBlockedOnOthers = pr => {
@@ -486,11 +499,10 @@ const App = (() => {
       orgSelect.appendChild(option);
     });
     
-    // Restore selection from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const orgParam = urlParams.get('org');
-    if (orgParam && uniqueOrgs.includes(orgParam)) {
-      orgSelect.value = orgParam;
+    // Restore selection from URL context
+    const urlContext = parseURL();
+    if (urlContext && urlContext.org && uniqueOrgs.includes(urlContext.org)) {
+      orgSelect.value = urlContext.org;
     }
   };
 
@@ -913,17 +925,32 @@ const App = (() => {
     const targetUser = state.viewingUser || state.currentUser;
     if (!targetUser) return;
     
+    // Check if we're on stats page
+    const urlContext = parseURL();
+    const isStats = urlContext && urlContext.isStats;
+    
     // Update URL to new format
     let newPath;
+    const username = typeof targetUser === 'string' ? targetUser : targetUser.login;
     if (selectedOrg) {
-      newPath = `/github/${selectedOrg}/${targetUser.login}`;
+      newPath = `/github/${selectedOrg}/${username}`;
     } else {
-      newPath = `/github/all/${targetUser.login}`;
+      newPath = `/github/all/${username}`;
+    }
+    
+    // Add /stats if we're on stats page
+    if (isStats) {
+      newPath += '/stats';
     }
     
     window.history.pushState({}, '', newPath);
     
-    updatePRSections();
+    // Update appropriate page
+    if (isStats) {
+      loadStatsData();
+    } else {
+      updatePRSections();
+    }
   };
 
   const handleSearch = () => {
@@ -950,6 +977,78 @@ const App = (() => {
       show(emptyState);
     } else if (visibleCards > 0) {
       hide(emptyState);
+    }
+  };
+
+  // Hamburger Menu Functions
+  let hamburgersSetup = false;
+  const setupHamburgerMenu = () => {
+    if (hamburgersSetup) return; // Prevent duplicate setup
+    
+    const hamburgerBtn = $('hamburgerMenu');
+    const slideMenu = $('slideMenu');
+    const closeMenuBtn = $('closeMenu');
+    const menuBackdrop = $('menuBackdrop');
+    const dashboardLink = $('dashboardLink');
+    const statsLink = $('statsLink');
+    
+    if (!hamburgerBtn || !slideMenu) return;
+    
+    const openMenu = () => {
+      slideMenu.classList.add('open');
+      menuBackdrop.classList.add('show');
+      hamburgerBtn.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
+    };
+    
+    const closeMenu = () => {
+      slideMenu.classList.remove('open');
+      menuBackdrop.classList.remove('show');
+      hamburgerBtn.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+    };
+    
+    // Event listeners
+    hamburgerBtn.addEventListener('click', openMenu);
+    closeMenuBtn?.addEventListener('click', closeMenu);
+    menuBackdrop?.addEventListener('click', closeMenu);
+    
+    hamburgersSetup = true;
+    
+    // Escape key to close menu
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && slideMenu.classList.contains('open')) {
+        closeMenu();
+      }
+    });
+    
+    // Setup navigation links
+    const urlContext = parseURL();
+    if (urlContext) {
+      const { org, username } = urlContext;
+      const basePath = org ? `/github/${org}/${username}` : `/github/all/${username}`;
+      
+      // Update links
+      if (dashboardLink) {
+        dashboardLink.href = basePath;
+        if (window.location.pathname === basePath) {
+          dashboardLink.classList.add('active');
+        }
+      }
+      
+      if (statsLink) {
+        statsLink.href = `${basePath}/stats`;
+        if (window.location.pathname === `${basePath}/stats`) {
+          statsLink.classList.add('active');
+        }
+        
+        // Navigate to stats page
+        statsLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          closeMenu();
+          window.location.href = statsLink.href;
+        });
+      }
     }
   };
   
@@ -1392,6 +1491,12 @@ const App = (() => {
     // Parse URL for viewing context
     const urlContext = parseURL();
     
+    // Handle stats page routing
+    if (urlContext && urlContext.isStats) {
+      showStatsPage();
+      return;
+    }
+    
     // Setup event listeners
     const orgSelect = $('orgSelect');
     const searchInput = $('searchInput');
@@ -1409,6 +1514,9 @@ const App = (() => {
       });
     }
     if (loginBtn) loginBtn.addEventListener('click', initiateLogin);
+    
+    // Setup hamburger menu
+    setupHamburgerMenu();
     
     // Setup filter event listeners for each section
     ['incoming', 'outgoing'].forEach(section => {
@@ -1530,6 +1638,229 @@ const App = (() => {
       // Don't redirect on error to prevent loops
       showMainContent();
     }
+  };
+
+  // Stats Page Functions
+  const showStatsPage = async () => {
+    // Ensure user is authenticated first
+    if (!state.accessToken) {
+      const loginPrompt = $('loginPrompt');
+      show(loginPrompt);
+      hide($('prSections'));
+      hide($('emptyState'));
+      hide($('statsPage'));
+      return;
+    }
+    
+    // Load user data if needed
+    if (!state.currentUser) {
+      await loadCurrentUser();
+    }
+    
+    // Parse URL context to set viewing user
+    const urlContext = parseURL();
+    if (urlContext && urlContext.username) {
+      // If viewingUser is not already set or is just a string, fetch the user object
+      if (!state.viewingUser || typeof state.viewingUser === 'string') {
+        try {
+          state.viewingUser = await githubAPI(`/users/${urlContext.username}`);
+        } catch (error) {
+          console.error('Error loading viewing user:', error);
+          // Fall back to using current user if we can't load the viewing user
+          state.viewingUser = state.currentUser;
+        }
+      }
+    }
+    
+    // Update UI elements (header, user info, etc.)
+    updateUserDisplay();
+    
+    // Setup hamburger menu if not already done
+    setupHamburgerMenu();
+    
+    // Load PRs if not already loaded (needed for org filter)
+    if (state.pullRequests.incoming.length === 0 && state.pullRequests.outgoing.length === 0) {
+      await loadPullRequests();
+    }
+    
+    // Setup event listeners for org filter and search
+    const orgSelect = $('orgSelect');
+    const searchInput = $('searchInput');
+    
+    if (orgSelect && !orgSelect.hasAttribute('data-listener')) {
+      orgSelect.addEventListener('change', handleOrgChange);
+      orgSelect.setAttribute('data-listener', 'true');
+    }
+    
+    if (searchInput && !searchInput.hasAttribute('data-listener')) {
+      searchInput.addEventListener('input', handleSearch);
+      searchInput.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          searchInput.value = '';
+          handleSearch();
+          searchInput.blur();
+        }
+      });
+      searchInput.setAttribute('data-listener', 'true');
+    }
+    
+    // Load organizations for filter
+    updateOrgFilter();
+    
+    // Hide main content and show stats page
+    hide($('loginPrompt'));
+    hide($('prSections'));
+    hide($('emptyState'));
+    show($('statsPage'));
+    
+    // Fetch and display stats
+    await loadStatsData();
+  };
+  
+  const loadStatsData = async () => {
+    try {
+      const urlContext = parseURL();
+      if (!urlContext) return;
+      
+      const { org, username } = urlContext;
+      
+      // Build search query
+      let searchQuery = `type:pr involves:${username}`;
+      if (org) {
+        searchQuery += ` org:${org}`;
+      } else {
+        searchQuery += ` user:${username}`;
+      }
+      
+      // Fetch all PRs
+      const response = await githubAPI(`/search/issues?q=${encodeURIComponent(searchQuery)}&per_page=100&sort=updated`);
+      const allPRs = response.items || [];
+      
+      // Calculate stats
+      const now = new Date();
+      const tenDaysAgo = new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000));
+      
+      let mergedLast10Days = 0;
+      let currentlyOpen = 0;
+      let openMoreThan10Days = 0;
+      let totalMergeTime = 0;
+      let mergeCount = 0;
+      
+      allPRs.forEach(pr => {
+        const createdAt = new Date(pr.created_at);
+        const updatedAt = new Date(pr.updated_at);
+        
+        if (pr.state === 'closed' && pr.pull_request.merged_at) {
+          const mergedAt = new Date(pr.pull_request.merged_at);
+          if (mergedAt >= tenDaysAgo) {
+            mergedLast10Days++;
+          }
+          
+          // Calculate merge time
+          const mergeTime = mergedAt - createdAt;
+          totalMergeTime += mergeTime;
+          mergeCount++;
+        } else if (pr.state === 'open') {
+          currentlyOpen++;
+          const age = now - createdAt;
+          const daysOld = age / (24 * 60 * 60 * 1000);
+          if (daysOld > 10) {
+            openMoreThan10Days++;
+          }
+        }
+      });
+      
+      // Update stats display
+      $('totalPRs').textContent = allPRs.length;
+      $('mergedPRs').textContent = mergedLast10Days;
+      $('stalePRs').textContent = openMoreThan10Days;
+      
+      // Calculate average merge time
+      if (mergeCount > 0) {
+        const avgMergeMs = totalMergeTime / mergeCount;
+        const avgMergeDays = Math.round(avgMergeMs / (24 * 60 * 60 * 1000));
+        $('avgMergeTime').textContent = `${avgMergeDays}d`;
+      } else {
+        $('avgMergeTime').textContent = '-';
+      }
+      
+      // Calculate and display merge:open ratio
+      const ratio = currentlyOpen > 0 ? (mergedLast10Days / currentlyOpen).toFixed(1) : mergedLast10Days;
+      $('ratioDisplay').textContent = `${ratio}:1`;
+      
+      // Draw pie chart showing merged in last 10 days vs open over 10 days
+      drawPieChart(mergedLast10Days, openMoreThan10Days);
+      
+    } catch (error) {
+      console.error('Error loading stats:', error);
+      showToast('Failed to load statistics', 'error');
+    }
+  };
+  
+  const drawPieChart = (merged, stale) => {
+    const canvas = $('prRatioChart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const total = merged + stale;
+    
+    if (total === 0) {
+      // No data to display
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#475569';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No PR data available', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(centerX, centerY) - 20;
+    
+    // Calculate angles
+    const mergedAngle = (merged / total) * 2 * Math.PI;
+    const staleAngle = (stale / total) * 2 * Math.PI;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw merged slice
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + mergedAngle);
+    ctx.closePath();
+    ctx.fillStyle = '#10b981';
+    ctx.fill();
+    
+    // Draw stale slice
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.arc(centerX, centerY, radius, -Math.PI / 2 + mergedAngle, -Math.PI / 2 + mergedAngle + staleAngle);
+    ctx.closePath();
+    ctx.fillStyle = '#f59e0b';
+    ctx.fill();
+    
+    // Add border
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.stroke();
+    
+    // Update legend
+    const legendHtml = `
+      <div class="legend-item">
+        <div class="legend-color" style="background: #10b981;"></div>
+        <span>Merged in 10 days (${merged} - ${Math.round(merged / total * 100)}%)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: #f59e0b;"></div>
+        <span>Open over 10 days (${stale} - ${Math.round(stale / total * 100)}%)</span>
+      </div>
+    `;
+    $('chartLegend').innerHTML = legendHtml;
   };
 
   // Public API
