@@ -163,7 +163,25 @@ const App = (() => {
       if (response.status === 401) {
         handleAuthError();
       }
-      throw new Error(`API Error: ${response.status}`);
+      
+      // Try to parse error details from GitHub
+      let errorMessage = `API Error: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.message) {
+          errorMessage = `GitHub error: ${errorData.message}`;
+        } else if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+          // Get the first error message from the errors array
+          const firstError = errorData.errors[0];
+          if (firstError.message) {
+            errorMessage = `GitHub error: ${firstError.message}`;
+          }
+        }
+      } catch (e) {
+        // If we can't parse the error response, use the default message
+      }
+      
+      throw new Error(errorMessage);
     }
     
     return response.json();
@@ -172,8 +190,7 @@ const App = (() => {
   const turnAPI = async (prUrl, updatedAt) => {
     const headers = {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'User-Agent': 'turnclient/1.0'
+      'Accept': 'application/json'
     };
     
     // Use GitHub token for Turn API authentication
@@ -187,7 +204,8 @@ const App = (() => {
         headers,
         body: JSON.stringify({
           url: prUrl,
-          updated_at: updatedAt
+          updated_at: updatedAt,
+          user: state.currentUser?.login || ''
         }),
         mode: 'cors'
       });
@@ -217,23 +235,48 @@ const App = (() => {
       return;
     }
     
-    // Use a single comprehensive query - simpler and more efficient
-    const query = `is:open is:pr (involves:${targetUser.login} OR user:${targetUser.login}) archived:false`;
+    // Make two separate queries since GitHub doesn't support complex OR queries
+    const query1 = `is:open is:pr involves:${targetUser.login} archived:false`;
+    const query2 = `is:open is:pr user:${targetUser.login} archived:false`;
     
-    console.log(`GitHub query: https://github.com/search?q=${encodeURIComponent(query)}&type=pullrequests`);
-    console.log(`API query: ${CONFIG.API_BASE}/search/issues?q=${encodeURIComponent(query)}&per_page=${CONFIG.SEARCH_LIMIT}`);
+    console.log('GitHub queries:');
+    console.log(`  1. https://github.com/search?q=${encodeURIComponent(query1)}&type=pullrequests`);
+    console.log(`  2. https://github.com/search?q=${encodeURIComponent(query2)}&type=pullrequests`);
     console.log(`Auth: ${state.accessToken ? (state.accessToken.startsWith('ghp_') ? 'PAT' : 'OAuth') : 'none'}`);
     
-    const response = await githubAPI(`/search/issues?q=${encodeURIComponent(query)}&per_page=${CONFIG.SEARCH_LIMIT}`);
+    // Execute both queries in parallel
+    const [response1, response2] = await Promise.all([
+      githubAPI(`/search/issues?q=${encodeURIComponent(query1)}&per_page=${CONFIG.SEARCH_LIMIT}`),
+      githubAPI(`/search/issues?q=${encodeURIComponent(query2)}&per_page=${CONFIG.SEARCH_LIMIT}`)
+    ]);
     
-    console.log(`Found ${response.items.length} PRs (total: ${response.total_count})`);
+    // Merge and deduplicate results based on PR id
+    const prMap = new Map();
+    
+    // Add PRs from first query
+    response1.items.forEach(pr => {
+      prMap.set(pr.id, pr);
+    });
+    
+    // Add PRs from second query (will overwrite duplicates)
+    response2.items.forEach(pr => {
+      prMap.set(pr.id, pr);
+    });
+    
+    // Convert back to array
+    const allPRs = Array.from(prMap.values());
+    
+    console.log(`Found ${response1.items.length} PRs from involves query`);
+    console.log(`Found ${response2.items.length} PRs from user repos query`);
+    console.log(`Total unique PRs: ${allPRs.length}`);
     
     // Check for OAuth limitations
-    if (state.accessToken && !state.accessToken.startsWith('ghp_') && response.total_count > response.items.length) {
+    const totalCount = response1.total_count + response2.total_count;
+    if (state.accessToken && !state.accessToken.startsWith('ghp_') && totalCount > allPRs.length) {
       console.info(`OAuth Apps may not show all PRs. Consider using a Personal Access Token.`);
     }
     
-    const prs = response.items.map(pr => ({
+    const prs = allPRs.map(pr => ({
       ...pr,
       repository: {
         full_name: pr.repository_url.split('/repos/')[1]
@@ -290,20 +333,23 @@ const App = (() => {
     if (!state.isDemoMode) {
       const turnPromises = prs.map(async (pr) => {
         try {
-          const turnData = await turnAPI(pr.html_url, new Date(pr.updated_at).toISOString());
-          pr.turnData = turnData;
+          const turnResponse = await turnAPI(pr.html_url, new Date(pr.updated_at).toISOString());
+          
+          // Store the full response and extract pr_state
+          pr.turnData = turnResponse;
+          pr.prState = turnResponse?.pr_state;
           
           // Update status tags with real data
           pr.status_tags = getStatusTags(pr);
           
-          // Use Turn API's recent_activity if available
-          const recentActivity = turnData?.recent_activity;
-          if (recentActivity) {
+          // Use Turn API's last_activity if available
+          const lastActivity = turnResponse?.pr_state?.last_activity;
+          if (lastActivity) {
             pr.last_activity = {
-              type: recentActivity.type,
-              message: recentActivity.message,
-              timestamp: recentActivity.timestamp,
-              actor: recentActivity.author
+              type: lastActivity.kind,
+              message: lastActivity.message,
+              timestamp: lastActivity.timestamp,
+              actor: lastActivity.author
             };
           }
           
@@ -326,29 +372,25 @@ const App = (() => {
   };
 
   const getStatusTags = pr => {
-    // Demo mode uses labels
-    if (state.isDemoMode && pr.labels) {
-      const tags = [];
-      pr.labels.forEach(label => {
-        if (label.name === 'blocked on you') tags.push('blocked on you');
-        if (label.name === 'ready to merge') tags.push('ready-to-merge');
-        if (label.name === 'stale') tags.push('stale');
-      });
-      return tags;
-    }
-    
     // If we have turnData (even if empty), the API call completed
     if (pr.turnData !== undefined) {
-      // If turnData is null or has no tags, return empty array
-      if (!pr.turnData || !pr.turnData.tags) {
+      // If turnData is null or has no pr_state, return empty array
+      if (!pr.turnData || !pr.turnData.pr_state) {
         return [];
       }
       
-      const tags = [...pr.turnData.tags];
+      const prState = pr.turnData.pr_state;
+      const tags = [];
       
-      // Check if user is in NextAction list
-      if (pr.turnData.NextAction && state.currentUser) {
-        const userAction = pr.turnData.NextAction[state.currentUser.login];
+      // Add status flags from pr_state
+      if (prState.draft) tags.push('draft');
+      if (prState.ready_to_merge) tags.push('ready-to-merge');
+      if (prState.merge_conflict) tags.push('merge_conflict');
+      if (prState.approved) tags.push('approved');
+      
+      // Check if user is in unblock_action list
+      if (prState.unblock_action && state.currentUser) {
+        const userAction = prState.unblock_action[state.currentUser.login];
         if (userAction) {
           // Add "blocked on you" tag
           if (!tags.includes('blocked on you')) {
@@ -356,7 +398,7 @@ const App = (() => {
           }
           
           // Add specific needs-X tag based on action kind
-          const actionKind = userAction.Kind;
+          const actionKind = userAction.kind;
           if (actionKind) {
             const kindLower = actionKind.toLowerCase();
             const needsMap = {
@@ -370,6 +412,13 @@ const App = (() => {
             tags.push(needsMap[kindLower] || `needs-${kindLower}`);
           }
         }
+      }
+      
+      // Add check status tags
+      if (prState.checks) {
+        if (prState.checks.failing > 0) tags.push('tests_failing');
+        if (prState.checks.pending > 0) tags.push('tests_pending');
+        if (prState.checks.waiting > 0) tags.push('tests_waiting');
       }
       
       // Normalize tag names
@@ -746,11 +795,13 @@ const App = (() => {
     const badges = [];
     
     // Size badge always shows first (if we have the data)
-    if (pr.additions !== undefined && pr.deletions !== undefined) {
-      const size = getPRSize(pr);
+    // Try to use size from pr_state first, fall back to calculated size
+    const prSize = pr.prState?.size || (pr.additions !== undefined && pr.deletions !== undefined ? getPRSize(pr) : null);
+    if (prSize) {
       const additions = pr.additions || 0;
       const deletions = pr.deletions || 0;
-      badges.push(`<span class="badge badge-size badge-size-${size.toLowerCase()}" title="+${additions}/-${deletions}">${size}</span>`);
+      const tooltip = pr.additions !== undefined ? ` title="+${additions}/-${deletions}"` : '';
+      badges.push(`<span class="badge badge-size badge-size-${prSize.toLowerCase()}"${tooltip}>${prSize}</span>`);
     }
     
     if (pr.status_tags?.includes('loading')) {
@@ -1098,10 +1149,30 @@ const App = (() => {
         try {
           state.accessToken = event.data.token;
           await loadCurrentUser();
-          window.location.href = `/github/all/${state.currentUser.login}`;
+          
+          // Check if we're already on the correct page to avoid loops
+          const currentPath = window.location.pathname;
+          const expectedPath = `/github/all/${state.currentUser.login}`;
+          
+          if (currentPath !== expectedPath) {
+            window.location.href = expectedPath;
+          } else {
+            // Already on the right page, just reload the data
+            updateUserDisplay();
+            showMainContent();
+            await loadPullRequests();
+            updateOrgFilter();
+          }
         } catch (error) {
           console.error('Failed to load user after OAuth:', error);
-          showToast('Authentication succeeded but failed to load user info', 'error');
+          // Use the detailed error message if available
+          const errorMessage = error.message && error.message.startsWith('GitHub error:') 
+            ? error.message 
+            : 'Authentication succeeded but failed to load user info';
+          showToast(errorMessage, 'error');
+          // Don't redirect on error
+          updateUserDisplay();
+          showMainContent();
         }
       }
     });
@@ -1137,8 +1208,24 @@ const App = (() => {
         const user = await testResponse.json();
         storeToken(token, true); // Store in cookie
         closePATModal();
-        // Redirect to user's dashboard
-        window.location.href = `/github/all/${user.login}`;
+        
+        // Update state
+        state.accessToken = token;
+        state.currentUser = user;
+        
+        // Check if we're already on the correct page to avoid loops
+        const currentPath = window.location.pathname;
+        const expectedPath = `/github/all/${user.login}`;
+        
+        if (currentPath !== expectedPath) {
+          window.location.href = expectedPath;
+        } else {
+          // Already on the right page, just reload the data
+          updateUserDisplay();
+          showMainContent();
+          await loadPullRequests();
+          updateOrgFilter();
+        }
       } else {
         showToast('Invalid token. Please check and try again.', 'error');
       }
@@ -1216,13 +1303,72 @@ const App = (() => {
     allPRs.forEach(pr => {
       pr.age_days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
       
-      // Simple turnData simulation from labels
-      pr.turnData = { tags: [] };
+      // Simulate new API structure from labels
       const labelNames = (pr.labels || []).map(l => l.name);
       
-      if (labelNames.includes('blocked on you')) pr.turnData.tags.push('blocked on you');
-      if (labelNames.includes('ready')) pr.turnData.tags.push('ready');
-      if (labelNames.includes('blocked on someone-else')) pr.turnData.tags.push('blocked on someone-else');
+      // Build unblock_action based on labels
+      const unblockAction = {};
+      if (labelNames.includes('blocked on you')) {
+        unblockAction[state.currentUser.login] = {
+          kind: 'review',
+          critical: true,
+          reason: 'Requested changes need to be addressed',
+          ready_to_notify: true
+        };
+      }
+      
+      // Simulate check status
+      const checks = {
+        total: 5,
+        passing: labelNames.includes('tests passing') ? 5 : 3,
+        failing: labelNames.includes('tests failing') ? 2 : 0,
+        pending: 0,
+        waiting: 0,
+        ignored: 0
+      };
+      
+      // Simulate PR size
+      const sizeMap = {
+        'size/XS': 'XS',
+        'size/S': 'S',
+        'size/M': 'M',
+        'size/L': 'L',
+        'size/XL': 'XL'
+      };
+      let size = 'M'; // default
+      for (const [label, sizeValue] of Object.entries(sizeMap)) {
+        if (labelNames.includes(label)) {
+          size = sizeValue;
+          break;
+        }
+      }
+      
+      // Create pr_state with all fields
+      pr.turnData = {
+        pr_state: {
+          unblock_action: unblockAction,
+          updated_at: pr.updated_at,
+          last_activity: {
+            kind: 'comment',
+            author: pr.user.login,
+            message: 'Latest activity on this PR',
+            timestamp: pr.updated_at
+          },
+          checks: checks,
+          unresolved_comments: labelNames.includes('unresolved comments') ? 3 : 0,
+          size: size,
+          draft: pr.draft || false,
+          ready_to_merge: labelNames.includes('ready') && !labelNames.includes('blocked on you'),
+          merge_conflict: labelNames.includes('merge conflict'),
+          approved: labelNames.includes('approved'),
+          tags: [] // Tags are now computed from other fields
+        },
+        timestamp: new Date().toISOString(),
+        commit: 'demo-version'
+      };
+      
+      // Also set prState for consistency
+      pr.prState = pr.turnData.pr_state;
       
       pr.status_tags = getStatusTags(pr);
     });
@@ -1343,9 +1489,13 @@ const App = (() => {
         }
       } catch (error) {
         console.error('Error loading user dashboard:', error);
-        showToast(`Failed to load dashboard for ${urlContext.username}`, 'error');
-        // Redirect to home
-        window.location.href = '/';
+        // Use the detailed error message from githubAPI
+        const errorMessage = error.message || `Failed to load dashboard for ${urlContext.username}`;
+        showToast(errorMessage, 'error');
+        
+        // Don't redirect on error to prevent loops
+        // Just show what we can with the error message
+        showMainContent();
       }
       return;
     }
@@ -1361,12 +1511,27 @@ const App = (() => {
       await loadCurrentUser();
       updateUserDisplay();
       
-      // Redirect to user's dashboard URL
-      window.location.href = `/github/all/${state.currentUser.login}`;
+      // Only redirect if we're not already on a dashboard page
+      const currentPath = window.location.pathname;
+      const expectedPath = `/github/all/${state.currentUser.login}`;
+      
+      if (currentPath !== expectedPath && !currentPath.startsWith('/github/')) {
+        // Redirect to user's dashboard URL
+        window.location.href = expectedPath;
+      } else {
+        // We're already on a dashboard page, just load the data
+        showMainContent();
+        await loadPullRequests();
+        updateOrgFilter();
+      }
     } catch (error) {
       console.error('Error initializing app:', error);
-      const errorMessage = error.message || 'Unknown error';
-      showToast(`Failed to load data: ${errorMessage}`, 'error');
+      // The error message from githubAPI already includes "GitHub error:" prefix
+      const errorMessage = error.message || 'Failed to load data';
+      showToast(errorMessage, 'error');
+      
+      // Don't redirect on error to prevent loops
+      showMainContent();
     }
   };
 
