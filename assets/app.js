@@ -384,7 +384,7 @@ const App = (() => {
       
       // Add status flags from pr_state
       if (prState.draft) tags.push('draft');
-      if (prState.ready_to_merge) tags.push('ready-to-merge');
+      if (prState.ready_to_merge) tags.push('ready_to_merge');
       if (prState.merge_conflict) tags.push('merge_conflict');
       if (prState.approved) tags.push('approved');
       
@@ -421,11 +421,8 @@ const App = (() => {
         if (prState.checks.waiting > 0) tags.push('tests_waiting');
       }
       
-      // Normalize tag names
-      return tags.map(tag => {
-        if (tag === 'ready_to_merge') return 'ready-to-merge';
-        return tag;
-      });
+      // Normalize tag names - replace underscores with dashes
+      return tags.map(tag => tag.replace(/_/g, '-'));
     }
     
     // If turnData is undefined, we're still loading
@@ -773,8 +770,8 @@ const App = (() => {
     if (pr.status_tags?.includes('changes_requested')) return 'blocked';
     if (pr.status_tags?.includes('stale')) return 'stale';
     if (pr.draft || pr.status_tags?.includes('draft')) return 'draft';
-    if (pr.status_tags?.includes('ready-to-merge') || pr.status_tags?.includes('ready_to_merge')) return 'ready';
-    if (pr.status_tags?.includes('has_approval') && pr.status_tags?.includes('all_checks_passing')) return 'ready';
+    if (pr.status_tags?.includes('ready-to-merge')) return 'ready';
+    if (pr.status_tags?.includes('approved') && pr.status_tags?.includes('all_checks_passing')) return 'ready';
     return 'default';
   };
 
@@ -836,7 +833,7 @@ const App = (() => {
       badges.push('<span class="badge badge-tests-pending">TESTS PENDING</span>');
     }
     
-    if (pr.status_tags?.includes('has_approval')) {
+    if (pr.status_tags?.includes('approved')) {
       badges.push('<span class="badge badge-approved">APPROVED</span>');
     }
     
