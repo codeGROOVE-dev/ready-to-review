@@ -1495,6 +1495,9 @@ const App = (() => {
         storeToken(event.data.token);
         authWindow.close();
 
+        // Set cookie to remember GitHub App was successfully used
+        setCookie("github_app_installed", "true", 365); // Remember for 1 year
+
         // Load user info and redirect to their dashboard
         try {
           state.accessToken = event.data.token;
@@ -1529,6 +1532,23 @@ const App = (() => {
     });
   };
 
+  const showGitHubAppModal = () => {
+    // Check if user has successfully used GitHub App before
+    if (getCookie("github_app_installed") === "true") {
+      // Skip the modal and go directly to OAuth
+      initiateOAuthLogin();
+    } else {
+      // Show the installation guidance modal
+      show($("githubAppModal"));
+    }
+  };
+  const closeGitHubAppModal = () => {
+    hide($("githubAppModal"));
+  };
+  const proceedWithOAuth = () => {
+    closeGitHubAppModal();
+    initiateOAuthLogin();
+  };
   const initiatePATLogin = () => {
     show($("patModal"));
     $("patInput").focus();
@@ -2477,6 +2497,9 @@ const App = (() => {
     logout,
     initiateLogin: () => (window.initiateLogin = initiateLogin),
     initiateOAuthLogin,
+    showGitHubAppModal,
+    closeGitHubAppModal,
+    proceedWithOAuth,
     initiatePATLogin,
     closePATModal,
     submitPAT,

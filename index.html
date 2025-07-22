@@ -92,7 +92,7 @@
                                 Try Demo Mode
                             </a>
                             
-                            <button class="btn btn-primary btn-large" onclick="window.App.initiateOAuthLogin()">
+                            <button class="btn btn-primary btn-large" onclick="window.App.showGitHubAppModal()">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
                                 </svg>
@@ -114,6 +114,31 @@
                     </div>
                 </div>
                 
+                <!-- GitHub App Installation Modal -->
+                <div id="githubAppModal" class="modal" hidden>
+                    <div class="modal-backdrop" onclick="window.App.closeGitHubAppModal()"></div>
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Install Ready to Review GitHub App</h3>
+                            <button class="modal-close" onclick="window.App.closeGitHubAppModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <p>To use the GitHub App authentication, you need to first install the Ready to Review app on your GitHub account or organization.</p>
+                            <ol>
+                                <li>Visit <a href="https://github.com/apps/ready-to-review-beta" target="_blank" rel="noopener">Ready to Review Beta GitHub App</a></li>
+                                <li>Click "Install" or "Configure" to add it to your repositories</li>
+                                <li>Select the repositories you want to access</li>
+                                <li>Complete the installation</li>
+                                <li>Come back here and click "Continue with Authentication"</li>
+                            </ol>
+                            <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
+                                <button class="btn btn-secondary" onclick="window.App.closeGitHubAppModal()">Cancel</button>
+                                <button class="btn btn-primary" onclick="window.App.proceedWithOAuth()">Continue with Authentication</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- PAT Instructions Modal -->
                 <div id="patModal" class="modal" hidden>
                     <div class="modal-backdrop" onclick="window.App.closePATModal()"></div>
@@ -123,21 +148,17 @@
                             <button class="modal-close" onclick="window.App.closePATModal()">&times;</button>
                         </div>
                         <div class="modal-body">
-                            <p>To use a Personal Access Token, follow these steps:</p>
-                            <ol>
-                                <li>Go to <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)</a></li>
-                                <li>Click "Generate new token (classic)"</li>
-                                <li>Give your token a descriptive name (e.g., "Ready To Review Dashboard")</li>
-                                <li>Set expiration to your preference</li>
-                                <li>Select the following scopes:
-                                    <ul>
-                                        <li><code>repo</code> - Full control of private repositories</li>
-                                        <li><code>read:org</code> - Read org and team membership (optional)</li>
-                                    </ul>
-                                </li>
-                                <li>Click "Generate token" at the bottom</li>
-                                <li>Copy your token (you won't be able to see it again!)</li>
-                            </ol>
+                            <p><strong>Quick method:</strong> If you have the GitHub CLI installed, run:</p>
+                            <pre style="background: #f3f4f6; padding: 0.75rem; border-radius: 0.375rem; margin: 1rem 0;"><code>gh auth token</code></pre>
+                            <p>Then paste the token below.</p>
+                            
+                            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
+                            
+                            <p><strong>Alternative:</strong> Visit <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">GitHub Personal Access Tokens</a> to create a longer-lived token with these permissions:</p>
+                            <ul style="margin: 0.5rem 0 1rem 1.5rem;">
+                                <li><strong>Pull requests:</strong> Read-only</li>
+                            </ul>
+                            
                             <div class="pat-input-group">
                                 <input type="password" id="patInput" class="pat-input" placeholder="Paste your token here">
                                 <button class="btn btn-primary" onclick="window.App.submitPAT()">Save Token</button>
@@ -224,7 +245,7 @@
         </main>
         
         <footer class="dashboard-footer">
-            <span>dashboard 87c7691 - realtime updates DISABLED</span>
+            <span>Want real-time notifications on your desktop? Try the <a href="https://github.com/ready-to-review/pr-menubar" target="_blank" rel="noopener">Ready to Review menubar</a></span>
         </footer>
     </div>
 

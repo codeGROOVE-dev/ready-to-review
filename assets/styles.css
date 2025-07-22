@@ -1494,6 +1494,18 @@ a {
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
 }
+.modal-body a {
+  color: #0969da;
+  text-decoration: underline;
+  font-weight: 500;
+}
+.modal-body a:hover {
+  color: #0860ca;
+  text-decoration: underline;
+}
+.modal-body a:visited {
+  color: #8250df;
+}
 
 .pat-input-group {
   display: flex;
