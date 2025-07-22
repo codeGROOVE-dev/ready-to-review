@@ -213,43 +213,11 @@
                 <div id="statsPage" class="stats-page" hidden>
                     <header class="stats-header">
                         <h1 class="stats-title">Pull Request Statistics</h1>
-                        <p class="stats-subtitle">Overview of your PR activity</p>
+                        <p class="stats-subtitle">10-day activity by organization</p>
                     </header>
                     
-                    <div class="stats-container">
-                        <!-- PR Ratio Chart -->
-                        <div class="stat-card">
-                            <h3 class="stat-card-title">10-Day Merge:Open Ratio</h3>
-                            <p class="stat-card-subtitle">High-performing projects have a 10:1 ratio or greater</p>
-                            <div class="ratio-display" id="ratioDisplay">-</div>
-                            <div class="chart-container">
-                                <canvas id="prRatioChart" width="300" height="300"></canvas>
-                            </div>
-                            <div class="chart-legend" id="chartLegend"></div>
-                        </div>
-                        
-                        <!-- Stats Summary -->
-                        <div class="stat-card">
-                            <h3 class="stat-card-title">Summary</h3>
-                            <div class="stats-grid">
-                                <div class="stat-item">
-                                    <div class="stat-value" id="totalPRs">0</div>
-                                    <div class="stat-label">Total PRs</div>
-                                </div>
-                                <div class="stat-item">
-                                    <div class="stat-value" id="mergedPRs">0</div>
-                                    <div class="stat-label">Merged (10 days)</div>
-                                </div>
-                                <div class="stat-item">
-                                    <div class="stat-value" id="stalePRs">0</div>
-                                    <div class="stat-label">Stale (>10 days)</div>
-                                </div>
-                                <div class="stat-item">
-                                    <div class="stat-value" id="avgMergeTime">-</div>
-                                    <div class="stat-label">Avg Merge Time</div>
-                                </div>
-                            </div>
-                        </div>
+                    <div id="orgStatsContainer" class="org-stats-container">
+                        <!-- Organization sections will be dynamically added here -->
                     </div>
                 </div>
             </div>

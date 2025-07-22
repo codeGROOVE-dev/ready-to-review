@@ -1,31 +1,31 @@
 // Ready To Review - Modern ES6+ Application
 
 const App = (() => {
-  'use strict';
+  "use strict";
 
   // Configuration
   const CONFIG = {
-    CLIENT_ID: 'Iv23liYmAKkBpvhHAnQQ',
-    API_BASE: 'https://api.github.com',
-    STORAGE_KEY: 'github_token',
-    COOKIE_KEY: 'github_pat',
+    CLIENT_ID: "Iv23liYmAKkBpvhHAnQQ",
+    API_BASE: "https://api.github.com",
+    STORAGE_KEY: "github_token",
+    COOKIE_KEY: "github_pat",
     SEARCH_LIMIT: 100,
-    OAUTH_REDIRECT_URI: window.location.origin + '/oauth/callback',
+    OAUTH_REDIRECT_URI: window.location.origin + "/oauth/callback",
   };
 
   // Cookie Functions
   function setCookie(name, value, days) {
     const expires = new Date();
-    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
     document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
   }
 
   function getCookie(name) {
     const nameEQ = name + "=";
-    const ca = document.cookie.split(';');
+    const ca = document.cookie.split(";");
     for (let i = 0; i < ca.length; i++) {
       let c = ca[i];
-      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+      while (c.charAt(0) === " ") c = c.substring(1, c.length);
       if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
     }
     return null;
@@ -39,7 +39,7 @@ const App = (() => {
     // Check cookie first (for PAT)
     const cookieToken = getCookie(CONFIG.COOKIE_KEY);
     if (cookieToken) return cookieToken;
-    
+
     // Fall back to localStorage (for OAuth)
     return localStorage.getItem(CONFIG.STORAGE_KEY);
   }
@@ -67,91 +67,106 @@ const App = (() => {
     organizations: [],
     pullRequests: {
       incoming: [],
-      outgoing: []
+      outgoing: [],
     },
     isDemoMode: false,
   };
-  
+
   // Parse URL to get viewing context
   const parseURL = () => {
     const path = window.location.pathname;
-    
-    // Check for stats page pattern: /github/(all|org)/username/stats
-    const statsMatch = path.match(/^\/github\/(all|[^\/]+)\/([^\/]+)\/stats$/);
+
+    // Check for stats page pattern: /github/(all|org)/stats
+    const statsMatch = path.match(/^\/github\/(all|[^\/]+)\/stats$/);
     if (statsMatch) {
-      const [, orgOrAll, username] = statsMatch;
+      const [, orgOrAll] = statsMatch;
       return {
-        org: orgOrAll === 'all' ? null : orgOrAll,
-        username: username,
-        isStats: true
+        org: orgOrAll === "all" ? null : orgOrAll,
+        username: state.viewingUser?.login || state.currentUser?.login,
+        isStats: true,
       };
     }
-    
+
+    // Check for legacy stats pattern: /github/(all|org)/username/stats
+    const legacyStatsMatch = path.match(
+      /^\/github\/(all|[^\/]+)\/([^\/]+)\/stats$/,
+    );
+    if (legacyStatsMatch) {
+      const [, orgOrAll, username] = legacyStatsMatch;
+      return {
+        org: orgOrAll === "all" ? null : orgOrAll,
+        username: username,
+        isStats: true,
+      };
+    }
+
     // Check for regular dashboard pattern: /github/(all|org)/username
     const match = path.match(/^\/github\/(all|[^\/]+)\/([^\/]+)$/);
     if (match) {
       const [, orgOrAll, username] = match;
       return {
-        org: orgOrAll === 'all' ? null : orgOrAll,
+        org: orgOrAll === "all" ? null : orgOrAll,
         username: username,
-        isStats: false
+        isStats: false,
       };
     }
-    
+
     return null;
   };
 
   // DOM Helpers
-  const $ = id => document.getElementById(id);
-  const $$ = selector => document.querySelectorAll(selector);
-  const show = el => el && el.removeAttribute('hidden');
-  const hide = el => el && el.setAttribute('hidden', '');
+  const $ = (id) => document.getElementById(id);
+  const $$ = (selector) => document.querySelectorAll(selector);
+  const show = (el) => el && el.removeAttribute("hidden");
+  const hide = (el) => el && el.setAttribute("hidden", "");
 
   // Utilities
-  const escapeHtml = text => {
-    const div = document.createElement('div');
+  const escapeHtml = (text) => {
+    const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
   };
 
-  const formatTimeAgo = timestamp => {
+  const formatTimeAgo = (timestamp) => {
     const seconds = Math.floor((Date.now() - new Date(timestamp)) / 1000);
-    
-    if (seconds < 60) return 'just now';
+
+    if (seconds < 60) return "just now";
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
     if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w ago`;
     if (seconds < 31536000) return `${Math.floor(seconds / 2592000)}mo ago`;
-    
+
     const years = Math.floor(seconds / 31536000);
     return `${years}y ago`;
   };
 
-  const getAgeText = pr => {
+  const getAgeText = (pr) => {
     const days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
-    if (days === 0) return 'today';
-    if (days === 1) return '1d';
+    if (days === 0) return "today";
+    if (days === 1) return "1d";
     if (days < 7) return `${days}d`;
     if (days < 30) return `${Math.floor(days / 7)}w`;
     if (days < 365) return `${Math.floor(days / 30)}mo`;
-    
+
     const years = Math.floor(days / 365);
     return `${years}y`;
   };
-  
-  const isStale = pr => {
+
+  const isStale = (pr) => {
     // Consider a PR stale if it hasn't been updated in 60 days
-    const daysSinceUpdate = Math.floor((Date.now() - new Date(pr.updated_at)) / 86400000);
+    const daysSinceUpdate = Math.floor(
+      (Date.now() - new Date(pr.updated_at)) / 86400000,
+    );
     return daysSinceUpdate >= 60;
   };
-  
-  const isBlockedOnOthers = pr => {
+
+  const isBlockedOnOthers = (pr) => {
     // PR is "blocked on others" if it has loaded data from turnserver but is NOT "blocked on you"
     if (!pr.status_tags || pr.status_tags.length === 0) return false;
-    if (pr.status_tags.includes('loading')) return false; // Still loading from turnserver
-    if (pr.status_tags.includes('blocked on you')) return false; // This is blocked on you, not others
-    
+    if (pr.status_tags.includes("loading")) return false; // Still loading from turnserver
+    if (pr.status_tags.includes("blocked on you")) return false; // This is blocked on you, not others
+
     // If we get here, turnserver has responded and it's not blocked on you
     return true;
   };
@@ -159,31 +174,57 @@ const App = (() => {
   // API Functions
   const githubAPI = async (endpoint, options = {}) => {
     const headers = {
-      'Accept': 'application/vnd.github.v3+json',
-      ...options.headers
+      Accept: "application/vnd.github.v3+json",
+      ...options.headers,
     };
-    
+
     if (state.accessToken) {
-      headers['Authorization'] = `token ${state.accessToken}`;
+      headers["Authorization"] = `token ${state.accessToken}`;
     }
-    
+
     const response = await fetch(`${CONFIG.API_BASE}${endpoint}`, {
       ...options,
-      headers
+      headers,
     });
-    
+
     if (!response.ok) {
       if (response.status === 401) {
         handleAuthError();
       }
-      
+
+      // Check for rate limit error
+      if (response.status === 403) {
+        const rateLimitRemaining = response.headers.get(
+          "X-RateLimit-Remaining",
+        );
+        const rateLimitReset = response.headers.get("X-RateLimit-Reset");
+
+        if (rateLimitRemaining === "0") {
+          const resetTime = new Date(parseInt(rateLimitReset) * 1000);
+          const now = new Date();
+          const minutesUntilReset = Math.ceil((resetTime - now) / 60000);
+
+          const error = new Error(
+            `GitHub API rate limit exceeded. Resets in ${minutesUntilReset} minutes.`,
+          );
+          error.isRateLimit = true;
+          error.resetTime = resetTime;
+          error.minutesUntilReset = minutesUntilReset;
+          throw error;
+        }
+      }
+
       // Try to parse error details from GitHub
       let errorMessage = `API Error: ${response.status}`;
       try {
         const errorData = await response.json();
         if (errorData.message) {
           errorMessage = `GitHub error: ${errorData.message}`;
-        } else if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+        } else if (
+          errorData.errors &&
+          Array.isArray(errorData.errors) &&
+          errorData.errors.length > 0
+        ) {
           // Get the first error message from the errors array
           const firstError = errorData.errors[0];
           if (firstError.message) {
@@ -193,41 +234,80 @@ const App = (() => {
       } catch (e) {
         // If we can't parse the error response, use the default message
       }
-      
+
       throw new Error(errorMessage);
     }
-    
+
     return response.json();
+  };
+
+  // Fetch all pages of a GitHub search query
+  const githubSearchAll = async (searchPath, maxPages = 20) => {
+    const allItems = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore && page <= maxPages) {
+      const pagePath = searchPath.includes("?")
+        ? `${searchPath}&page=${page}`
+        : `${searchPath}?page=${page}`;
+
+      const response = await githubAPI(pagePath);
+
+      if (response.items && response.items.length > 0) {
+        allItems.push(...response.items);
+
+        // Check if we've fetched all results
+        if (
+          response.total_count <= allItems.length ||
+          response.items.length < 100
+        ) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return {
+      items: allItems,
+      total_count: allItems.length,
+    };
   };
 
   const turnAPI = async (prUrl, updatedAt) => {
     const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      "Content-Type": "application/json",
+      Accept: "application/json",
     };
-    
+
     // Use GitHub token for Turn API authentication
     if (state.accessToken) {
-      headers['Authorization'] = `Bearer ${state.accessToken}`;
+      headers["Authorization"] = `Bearer ${state.accessToken}`;
     }
-    
+
     try {
-      const response = await fetch('https://turn.ready-to-review.dev/v1/validate', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          url: prUrl,
-          updated_at: updatedAt,
-          user: state.currentUser?.login || ''
-        }),
-        mode: 'cors'
-      });
-      
+      const response = await fetch(
+        "https://turn.ready-to-review.dev/v1/validate",
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            url: prUrl,
+            updated_at: updatedAt,
+            user: state.currentUser?.login || "",
+          }),
+          mode: "cors",
+        },
+      );
+
       if (!response.ok) {
         console.warn(`Turn API error for ${prUrl}: ${response.statusText}`);
         return null;
       }
-      
+
       const data = await response.json();
       return data;
     } catch (error) {
@@ -237,76 +317,94 @@ const App = (() => {
   };
 
   const loadCurrentUser = async () => {
-    state.currentUser = await githubAPI('/user');
+    state.currentUser = await githubAPI("/user");
   };
 
   const loadPullRequests = async () => {
     // Use viewingUser if set, otherwise use currentUser
     const targetUser = state.viewingUser || state.currentUser;
     if (!targetUser) {
-      console.error('No user to load PRs for');
+      console.error("No user to load PRs for");
       return;
     }
-    
+
     // Make two separate queries since GitHub doesn't support complex OR queries
     const query1 = `is:open is:pr involves:${targetUser.login} archived:false`;
     const query2 = `is:open is:pr user:${targetUser.login} archived:false`;
-    
-    console.log('GitHub queries:');
-    console.log(`  1. https://github.com/search?q=${encodeURIComponent(query1)}&type=pullrequests`);
-    console.log(`  2. https://github.com/search?q=${encodeURIComponent(query2)}&type=pullrequests`);
-    console.log(`Auth: ${state.accessToken ? (state.accessToken.startsWith('ghp_') ? 'PAT' : 'OAuth') : 'none'}`);
-    
-    // Execute both queries in parallel
+
+    console.log("GitHub queries:");
+    console.log(
+      `  1. https://github.com/search?q=${encodeURIComponent(query1)}&type=pullrequests`,
+    );
+    console.log(
+      `  2. https://github.com/search?q=${encodeURIComponent(query2)}&type=pullrequests`,
+    );
+    console.log(
+      `Auth: ${state.accessToken ? (state.accessToken.startsWith("ghp_") ? "PAT" : "OAuth") : "none"}`,
+    );
+
+    // Execute both queries in parallel with pagination
     const [response1, response2] = await Promise.all([
-      githubAPI(`/search/issues?q=${encodeURIComponent(query1)}&per_page=${CONFIG.SEARCH_LIMIT}`),
-      githubAPI(`/search/issues?q=${encodeURIComponent(query2)}&per_page=${CONFIG.SEARCH_LIMIT}`)
+      githubSearchAll(
+        `/search/issues?q=${encodeURIComponent(query1)}&per_page=100`,
+      ),
+      githubSearchAll(
+        `/search/issues?q=${encodeURIComponent(query2)}&per_page=100`,
+      ),
     ]);
-    
+
     // Merge and deduplicate results based on PR id
     const prMap = new Map();
-    
+
     // Add PRs from first query
-    response1.items.forEach(pr => {
+    response1.items.forEach((pr) => {
       prMap.set(pr.id, pr);
     });
-    
+
     // Add PRs from second query (will overwrite duplicates)
-    response2.items.forEach(pr => {
+    response2.items.forEach((pr) => {
       prMap.set(pr.id, pr);
     });
-    
+
     // Convert back to array
     const allPRs = Array.from(prMap.values());
-    
+
     console.log(`Found ${response1.items.length} PRs from involves query`);
     console.log(`Found ${response2.items.length} PRs from user repos query`);
     console.log(`Total unique PRs: ${allPRs.length}`);
-    
+
     // Check for OAuth limitations
     const totalCount = response1.total_count + response2.total_count;
-    if (state.accessToken && !state.accessToken.startsWith('ghp_') && totalCount > allPRs.length) {
-      console.info(`OAuth Apps may not show all PRs. Consider using a Personal Access Token.`);
+    if (
+      state.accessToken &&
+      !state.accessToken.startsWith("ghp_") &&
+      totalCount > allPRs.length
+    ) {
+      console.info(
+        `OAuth Apps may not show all PRs. Consider using a Personal Access Token.`,
+      );
     }
-    
-    const prs = allPRs.map(pr => ({
+
+    const prs = allPRs.map((pr) => ({
       ...pr,
       repository: {
-        full_name: pr.repository_url.split('/repos/')[1]
-      }
+        full_name: pr.repository_url.split("/repos/")[1],
+      },
     }));
-    
+
     // First pass: categorize PRs and render immediately
     state.pullRequests = {
       incoming: [],
-      outgoing: []
+      outgoing: [],
     };
-    
+
     for (const pr of prs) {
       // Enhanced PR with calculated fields
-      pr.age_days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
+      pr.age_days = Math.floor(
+        (Date.now() - new Date(pr.created_at)) / 86400000,
+      );
       pr.status_tags = getStatusTags(pr); // Will return ['loading'] initially
-      
+
       // Include drafts in incoming/outgoing based on author
       // Use viewingUser if set, otherwise use currentUser
       const targetUser = state.viewingUser || state.currentUser;
@@ -316,45 +414,50 @@ const App = (() => {
         state.pullRequests.incoming.push(pr);
       }
     }
-    
+
     // Render immediately with loading indicators
     updatePRSections();
-    
+
     // Fetch PR details for size data in parallel with turn server
     const fetchPRDetails = async (pr) => {
       try {
         // Extract owner/repo/number from the PR URL
-        const urlParts = pr.repository_url.split('/');
+        const urlParts = pr.repository_url.split("/");
         const owner = urlParts[urlParts.length - 2];
         const repo = urlParts[urlParts.length - 1];
-        
-        const prDetails = await githubAPI(`/repos/${owner}/${repo}/pulls/${pr.number}`);
+
+        const prDetails = await githubAPI(
+          `/repos/${owner}/${repo}/pulls/${pr.number}`,
+        );
         pr.additions = prDetails.additions;
         pr.deletions = prDetails.deletions;
-        
+
         // Update just this PR card to show the size
         updateSinglePRCard(pr);
       } catch (error) {
         console.error(`Failed to fetch PR details for ${pr.html_url}:`, error);
       }
     };
-    
+
     // Start fetching PR details for all PRs
-    const detailPromises = prs.map(pr => fetchPRDetails(pr));
-    
+    const detailPromises = prs.map((pr) => fetchPRDetails(pr));
+
     // Then fetch Turn API data asynchronously
     if (!state.isDemoMode) {
       const turnPromises = prs.map(async (pr) => {
         try {
-          const turnResponse = await turnAPI(pr.html_url, new Date(pr.updated_at).toISOString());
-          
+          const turnResponse = await turnAPI(
+            pr.html_url,
+            new Date(pr.updated_at).toISOString(),
+          );
+
           // Store the full response and extract pr_state
           pr.turnData = turnResponse;
           pr.prState = turnResponse?.pr_state;
-          
+
           // Update status tags with real data
           pr.status_tags = getStatusTags(pr);
-          
+
           // Use Turn API's last_activity if available
           const lastActivity = turnResponse?.pr_state?.last_activity;
           if (lastActivity) {
@@ -362,96 +465,98 @@ const App = (() => {
               type: lastActivity.kind,
               message: lastActivity.message,
               timestamp: lastActivity.timestamp,
-              actor: lastActivity.author
+              actor: lastActivity.author,
             };
           }
-          
+
           // Update just this PR card in the UI
           updateSinglePRCard(pr);
         } catch (error) {
-          console.error(`Failed to load turn data for PR ${pr.html_url}:`, error);
+          console.error(
+            `Failed to load turn data for PR ${pr.html_url}:`,
+            error,
+          );
           pr.turnData = null;
           pr.status_tags = getStatusTags(pr);
           updateSinglePRCard(pr);
         }
       });
-      
+
       // Wait for all turn API calls to complete
       await Promise.all(turnPromises);
     }
-    
+
     // Wait for all PR detail fetches to complete
     await Promise.all(detailPromises);
   };
 
-  const getStatusTags = pr => {
+  const getStatusTags = (pr) => {
     // If we have turnData (even if empty), the API call completed
     if (pr.turnData !== undefined) {
       // If turnData is null or has no pr_state, return empty array
       if (!pr.turnData || !pr.turnData.pr_state) {
         return [];
       }
-      
+
       const prState = pr.turnData.pr_state;
       const tags = [];
-      
+
       // Add status flags from pr_state
-      if (prState.draft) tags.push('draft');
-      if (prState.ready_to_merge) tags.push('ready_to_merge');
-      if (prState.merge_conflict) tags.push('merge_conflict');
-      if (prState.approved) tags.push('approved');
-      
+      if (prState.draft) tags.push("draft");
+      if (prState.ready_to_merge) tags.push("ready_to_merge");
+      if (prState.merge_conflict) tags.push("merge_conflict");
+      if (prState.approved) tags.push("approved");
+
       // Check if user is in unblock_action list
       if (prState.unblock_action && state.currentUser) {
         const userAction = prState.unblock_action[state.currentUser.login];
         if (userAction) {
           // Add "blocked on you" tag
-          if (!tags.includes('blocked on you')) {
-            tags.push('blocked on you');
+          if (!tags.includes("blocked on you")) {
+            tags.push("blocked on you");
           }
-          
+
           // Add specific needs-X tag based on action kind
           const actionKind = userAction.kind;
           if (actionKind) {
             const kindLower = actionKind.toLowerCase();
             const needsMap = {
-              'review': 'needs-review',
-              'approve': 'needs-approval',
-              'respond': 'needs-response',
-              'fix': 'needs-fix',
-              'merge': 'needs-merge',
-              'address': 'needs-changes'
+              review: "needs-review",
+              approve: "needs-approval",
+              respond: "needs-response",
+              fix: "needs-fix",
+              merge: "needs-merge",
+              address: "needs-changes",
             };
             tags.push(needsMap[kindLower] || `needs-${kindLower}`);
           }
         }
       }
-      
+
       // Add check status tags
       if (prState.checks) {
-        if (prState.checks.failing > 0) tags.push('tests_failing');
-        if (prState.checks.pending > 0) tags.push('tests_pending');
-        if (prState.checks.waiting > 0) tags.push('tests_waiting');
+        if (prState.checks.failing > 0) tags.push("tests_failing");
+        if (prState.checks.pending > 0) tags.push("tests_pending");
+        if (prState.checks.waiting > 0) tags.push("tests_waiting");
       }
-      
-      // Normalize tag names - replace underscores with dashes
-      return tags.map(tag => tag.replace(/_/g, '-'));
-    }
-    
-    // If turnData is undefined, we're still loading
-    return ['loading'];
-  };
 
+      // Normalize tag names - replace underscores with dashes
+      return tags.map((tag) => tag.replace(/_/g, "-"));
+    }
+
+    // If turnData is undefined, we're still loading
+    return ["loading"];
+  };
 
   // UI Functions
   const updateUserDisplay = () => {
-    const userInfo = $('userInfo');
+    const userInfo = $("userInfo");
     if (!userInfo) return;
-    
+
     // Show whose dashboard we're viewing
     const viewingUser = state.viewingUser || state.currentUser;
-    let displayContent = '';
-    
+    let displayContent = "";
+
     if (state.currentUser) {
       // User is logged in
       displayContent = `
@@ -469,36 +574,38 @@ const App = (() => {
       // Not logged in and not viewing anyone
       displayContent = `<button id="loginBtn" class="btn btn-primary">Login with GitHub</button>`;
     }
-    
+
     userInfo.innerHTML = displayContent;
-    
+
     // Re-attach event listener if login button was recreated
-    const loginBtn = $('loginBtn');
+    const loginBtn = $("loginBtn");
     if (loginBtn) {
-      loginBtn.addEventListener('click', initiateLogin);
+      loginBtn.addEventListener("click", initiateLogin);
     }
   };
 
   const updateOrgFilter = () => {
-    const orgSelect = $('orgSelect');
+    const orgSelect = $("orgSelect");
     if (!orgSelect) return;
-    
+
     // Extract unique organizations from PRs
     const allPRs = [
       ...state.pullRequests.incoming,
-      ...state.pullRequests.outgoing
+      ...state.pullRequests.outgoing,
     ];
-    
-    const uniqueOrgs = [...new Set(allPRs.map(pr => pr.repository.full_name.split('/')[0]))].sort();
-    
+
+    const uniqueOrgs = [
+      ...new Set(allPRs.map((pr) => pr.repository.full_name.split("/")[0])),
+    ].sort();
+
     orgSelect.innerHTML = '<option value="">All Organizations</option>';
-    uniqueOrgs.forEach(org => {
-      const option = document.createElement('option');
+    uniqueOrgs.forEach((org) => {
+      const option = document.createElement("option");
       option.value = org;
       option.textContent = org;
       orgSelect.appendChild(option);
     });
-    
+
     // Restore selection from URL context
     const urlContext = parseURL();
     if (urlContext && urlContext.org && uniqueOrgs.includes(urlContext.org)) {
@@ -508,41 +615,47 @@ const App = (() => {
 
   const updatePRSections = () => {
     let totalVisible = 0;
-    
-    ['incoming', 'outgoing'].forEach(section => {
+
+    ["incoming", "outgoing"].forEach((section) => {
       const prs = state.pullRequests[section];
       const countElement = $(`${section}Count`);
       const container = $(`${section}PRs`);
-      
+
       const filtered = applyFilters(prs, section);
-      
+
       if (countElement) {
-        countElement.textContent = filtered.length < prs.length ? `${filtered.length} (${prs.length})` : prs.length;
+        countElement.textContent =
+          filtered.length < prs.length
+            ? `${filtered.length} (${prs.length})`
+            : prs.length;
       }
-      
+
       totalVisible += filtered.length;
       renderPRList(container, prs, false, section);
     });
-    
+
     updateFilterCounts();
-    
+
     // Show/hide empty state
-    const emptyState = $('emptyState');
+    const emptyState = $("emptyState");
     if (totalVisible === 0) show(emptyState);
     else hide(emptyState);
   };
 
   const updateFilterCounts = () => {
-    ['incoming', 'outgoing'].forEach(section => {
+    ["incoming", "outgoing"].forEach((section) => {
       const prs = state.pullRequests[section];
       const staleCount = prs.filter(isStale).length;
       const blockedCount = prs.filter(isBlockedOnOthers).length;
-      
+
       const staleLabel = $(`${section}FilterStale`)?.nextElementSibling;
-      const blockedLabel = $(`${section}FilterBlockedOthers`)?.nextElementSibling;
-      
+      const blockedLabel = $(
+        `${section}FilterBlockedOthers`,
+      )?.nextElementSibling;
+
       if (staleLabel) staleLabel.textContent = `Include stale (${staleCount})`;
-      if (blockedLabel) blockedLabel.textContent = `Include blocked on others (${blockedCount})`;
+      if (blockedLabel)
+        blockedLabel.textContent = `Include blocked on others (${blockedCount})`;
     });
   };
 
@@ -550,102 +663,133 @@ const App = (() => {
     // Calculate average age for filtered PRs
     if (filteredPRs.length === 0) {
       const avgElement = $(`${section}Average`);
-      if (avgElement) avgElement.textContent = '';
+      if (avgElement) avgElement.textContent = "";
       return;
     }
-    
-    const avgAge = Math.round(filteredPRs.reduce((sum, pr) => sum + pr.age_days, 0) / filteredPRs.length) || 0;
+
+    const avgAge =
+      Math.round(
+        filteredPRs.reduce((sum, pr) => sum + pr.age_days, 0) /
+          filteredPRs.length,
+      ) || 0;
     const avgElement = $(`${section}Average`);
-    
+
     if (avgAge > 0 && avgElement) {
       avgElement.textContent = `avg ${avgAge}d open`;
     } else if (avgElement) {
-      avgElement.textContent = '';
+      avgElement.textContent = "";
     }
   };
 
   const applyFilters = (prs, section) => {
-    const orgSelect = $('orgSelect');
+    const orgSelect = $("orgSelect");
     const selectedOrg = orgSelect?.value;
-    const showStale = getCookie(`${section}FilterStale`) !== 'false';
-    const showBlockedOthers = getCookie(`${section}FilterBlockedOthers`) !== 'false';
-    
+    const showStale = getCookie(`${section}FilterStale`) !== "false";
+    const showBlockedOthers =
+      getCookie(`${section}FilterBlockedOthers`) !== "false";
+
     // Update checkbox states
     const staleCheckbox = $(`${section}FilterStale`);
     const blockedCheckbox = $(`${section}FilterBlockedOthers`);
     if (staleCheckbox) staleCheckbox.checked = showStale;
     if (blockedCheckbox) blockedCheckbox.checked = showBlockedOthers;
-    
+
     let filtered = prs;
-    if (selectedOrg) filtered = filtered.filter(pr => pr.repository.full_name.startsWith(selectedOrg + '/'));
-    if (!showStale) filtered = filtered.filter(pr => !isStale(pr));
-    if (!showBlockedOthers) filtered = filtered.filter(pr => !isBlockedOnOthers(pr));
-    
+    if (selectedOrg)
+      filtered = filtered.filter((pr) =>
+        pr.repository.full_name.startsWith(selectedOrg + "/"),
+      );
+    if (!showStale) filtered = filtered.filter((pr) => !isStale(pr));
+    if (!showBlockedOthers)
+      filtered = filtered.filter((pr) => !isBlockedOnOthers(pr));
+
     return filtered;
   };
 
-  const renderPRList = (container, prs, isDraft = false, section = '') => {
+  const renderPRList = (container, prs, isDraft = false, section = "") => {
     if (!container) return;
-    
+
     const filteredPRs = applyFilters(prs, section);
-    
+
     // Sort by most recently updated with drafts at bottom
     const sortedPRs = [...filteredPRs].sort((a, b) => {
       // Drafts always go to bottom (using GitHub's draft field, not tags)
       if (a.draft && !b.draft) return 1;
       if (!a.draft && b.draft) return -1;
-      
+
       // Within non-drafts or within drafts, apply priority sorting
       if (a.draft === b.draft) {
         // First priority: blocked on you (only for non-drafts)
         if (!a.draft && !b.draft) {
-          if (a.status_tags?.includes('blocked on you') && !b.status_tags?.includes('blocked on you')) return -1;
-          if (!a.status_tags?.includes('blocked on you') && b.status_tags?.includes('blocked on you')) return 1;
-          
+          if (
+            a.status_tags?.includes("blocked on you") &&
+            !b.status_tags?.includes("blocked on you")
+          )
+            return -1;
+          if (
+            !a.status_tags?.includes("blocked on you") &&
+            b.status_tags?.includes("blocked on you")
+          )
+            return 1;
+
           // Second priority: ready to merge (only for non-drafts)
-          if (a.status_tags?.includes('ready-to-merge') && !b.status_tags?.includes('ready-to-merge')) return -1;
-          if (!a.status_tags?.includes('ready-to-merge') && b.status_tags?.includes('ready-to-merge')) return 1;
+          if (
+            a.status_tags?.includes("ready-to-merge") &&
+            !b.status_tags?.includes("ready-to-merge")
+          )
+            return -1;
+          if (
+            !a.status_tags?.includes("ready-to-merge") &&
+            b.status_tags?.includes("ready-to-merge")
+          )
+            return 1;
         }
-        
+
         // Default: sort by updated_at (most recent first)
         return new Date(b.updated_at) - new Date(a.updated_at);
       }
-      
+
       return 0;
     });
-    
-    container.innerHTML = sortedPRs.map(pr => createPRCard(pr)).join('');
-    
+
+    container.innerHTML = sortedPRs.map((pr) => createPRCard(pr)).join("");
+
     // Update average for this section with filtered PRs
-    if (section === 'incoming' || section === 'outgoing') {
+    if (section === "incoming" || section === "outgoing") {
       updateAverages(section, filteredPRs);
     }
   };
 
-  const createPRCard = pr => {
+  const createPRCard = (pr) => {
     const state = getPRState(pr);
     const badges = buildBadges(pr);
     const ageText = getAgeText(pr);
     const reviewers = buildReviewers(pr.requested_reviewers || []);
-    const needsAction = pr.status_tags?.includes('blocked on you');
-    
+    const needsAction = pr.status_tags?.includes("blocked on you");
+
     // Get activity type icon
     const getActivityIcon = (type) => {
       const icons = {
-        commit: '<path d="M4 1.5H3a2 2 0 00-2 2V14a2 2 0 002 2h10a2 2 0 002-2V3.5a2 2 0 00-2-2h-1v1h1a1 1 0 011 1V14a1 1 0 01-1 1H3a1 1 0 01-1-1V3.5a1 1 0 011-1h1v-1z"/><path d="M9.5 1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h3zm-3-1A1.5 1.5 0 005 1.5v1A1.5 1.5 0 006.5 4h3A1.5 1.5 0 0011 2.5v-1A1.5 1.5 0 009.5 0h-3z"/><path d="M3.5 6.5A.5.5 0 014 7v1h3.5a.5.5 0 010 1H4v1a.5.5 0 01-1 0v-1H1.5a.5.5 0 010-1H3V7a.5.5 0 01.5-.5z"/><path d="M8 11a1 1 0 100-2 1 1 0 000 2z"/>',
-        comment: '<path d="M14 1a1 1 0 011 1v8a1 1 0 01-1 1H4.414A2 2 0 003 11.586l-2 2V2a1 1 0 011-1h12zM2 0a2 2 0 00-2 2v12.793a.5.5 0 00.854.353l2.853-2.853A1 1 0 014.414 12H14a2 2 0 002-2V2a2 2 0 00-2-2H2z"/>',
-        review: '<path d="M10.854 5.146a.5.5 0 010 .708l-3 3a.5.5 0 01-.708 0l-1.5-1.5a.5.5 0 11.708-.708L7.5 7.793l2.646-2.647a.5.5 0 01.708 0z"/><path d="M2 2a2 2 0 012-2h8a2 2 0 012 2v13.5a.5.5 0 01-.777.416L8 13.101l-5.223 2.815A.5.5 0 012 15.5V2zm2-1a1 1 0 00-1 1v12.566l4.723-2.482a.5.5 0 01.554 0L13 14.566V2a1 1 0 00-1-1H4z"/>',
-        approve: '<path d="M10.97 4.97a.75.75 0 011.071 1.05l-3.992 4.99a.75.75 0 01-1.08.02L4.324 8.384a.75.75 0 111.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 01.02-.022z"/><path d="M8 15A7 7 0 118 1a7 7 0 010 14zm0 1A8 8 0 108 0a8 8 0 000 16z"/>',
-        merge: '<path d="M5 3.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm0 9.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm8.25-6.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/><path d="M1.75 5.5v5a.75.75 0 001.5 0v-5a.75.75 0 00-1.5 0zm6.5-3.25a.75.75 0 000 1.5h1.5v2.5a2.25 2.25 0 01-2.25 2.25h-1a.75.75 0 000 1.5h1a3.75 3.75 0 003.75-3.75v-2.5h1.5a.75.75 0 000-1.5h-5z"/>',
-        push: '<path d="M1 2.5A2.5 2.5 0 013.5 0h8.75a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0V1.5h-8a1 1 0 00-1 1v6.708A2.492 2.492 0 013.5 9h3.25a.75.75 0 010 1.5H3.5a1 1 0 100 2h5.75a.75.75 0 010 1.5H3.5A2.5 2.5 0 011 11.5v-9z"/><path d="M7.25 11.25a.75.75 0 01.75-.75h5.25a.75.75 0 01.53 1.28l-1.72 1.72h3.69a.75.75 0 010 1.5h-5.25a.75.75 0 01-.53-1.28l1.72-1.72H8a.75.75 0 01-.75-.75z"/>'
+        commit:
+          '<path d="M4 1.5H3a2 2 0 00-2 2V14a2 2 0 002 2h10a2 2 0 002-2V3.5a2 2 0 00-2-2h-1v1h1a1 1 0 011 1V14a1 1 0 01-1 1H3a1 1 0 01-1-1V3.5a1 1 0 011-1h1v-1z"/><path d="M9.5 1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h3zm-3-1A1.5 1.5 0 005 1.5v1A1.5 1.5 0 006.5 4h3A1.5 1.5 0 0011 2.5v-1A1.5 1.5 0 009.5 0h-3z"/><path d="M3.5 6.5A.5.5 0 014 7v1h3.5a.5.5 0 010 1H4v1a.5.5 0 01-1 0v-1H1.5a.5.5 0 010-1H3V7a.5.5 0 01.5-.5z"/><path d="M8 11a1 1 0 100-2 1 1 0 000 2z"/>',
+        comment:
+          '<path d="M14 1a1 1 0 011 1v8a1 1 0 01-1 1H4.414A2 2 0 003 11.586l-2 2V2a1 1 0 011-1h12zM2 0a2 2 0 00-2 2v12.793a.5.5 0 00.854.353l2.853-2.853A1 1 0 014.414 12H14a2 2 0 002-2V2a2 2 0 00-2-2H2z"/>',
+        review:
+          '<path d="M10.854 5.146a.5.5 0 010 .708l-3 3a.5.5 0 01-.708 0l-1.5-1.5a.5.5 0 11.708-.708L7.5 7.793l2.646-2.647a.5.5 0 01.708 0z"/><path d="M2 2a2 2 0 012-2h8a2 2 0 012 2v13.5a.5.5 0 01-.777.416L8 13.101l-5.223 2.815A.5.5 0 012 15.5V2zm2-1a1 1 0 00-1 1v12.566l4.723-2.482a.5.5 0 01.554 0L13 14.566V2a1 1 0 00-1-1H4z"/>',
+        approve:
+          '<path d="M10.97 4.97a.75.75 0 011.071 1.05l-3.992 4.99a.75.75 0 01-1.08.02L4.324 8.384a.75.75 0 111.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 01.02-.022z"/><path d="M8 15A7 7 0 118 1a7 7 0 010 14zm0 1A8 8 0 108 0a8 8 0 000 16z"/>',
+        merge:
+          '<path d="M5 3.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm0 9.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm8.25-6.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/><path d="M1.75 5.5v5a.75.75 0 001.5 0v-5a.75.75 0 00-1.5 0zm6.5-3.25a.75.75 0 000 1.5h1.5v2.5a2.25 2.25 0 01-2.25 2.25h-1a.75.75 0 000 1.5h1a3.75 3.75 0 003.75-3.75v-2.5h1.5a.75.75 0 000-1.5h-5z"/>',
+        push: '<path d="M1 2.5A2.5 2.5 0 013.5 0h8.75a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0V1.5h-8a1 1 0 00-1 1v6.708A2.492 2.492 0 013.5 9h3.25a.75.75 0 010 1.5H3.5a1 1 0 100 2h5.75a.75.75 0 010 1.5H3.5A2.5 2.5 0 011 11.5v-9z"/><path d="M7.25 11.25a.75.75 0 01.75-.75h5.25a.75.75 0 01.53 1.28l-1.72 1.72h3.69a.75.75 0 010 1.5h-5.25a.75.75 0 01-.53-1.28l1.72-1.72H8a.75.75 0 01-.75-.75z"/>',
       };
-      
+
       const iconPath = icons[type] || icons.comment; // Default to comment icon
       return `<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">${iconPath}</svg>`;
     };
-    
+
     // Format recent activity and actions in a single row
-    const bottomSection = pr.last_activity ? `
+    const bottomSection = pr.last_activity
+      ? `
       <div class="pr-bottom-row">
         <div class="pr-recent-activity">
           <div class="activity-icon">
@@ -653,7 +797,7 @@ const App = (() => {
           </div>
           <div class="activity-content">
             <span class="activity-message">${pr.last_activity.message}</span>
-            ${pr.last_activity.actor ? `<span class="activity-actor">by ${pr.last_activity.actor}</span>` : ''}
+            ${pr.last_activity.actor ? `<span class="activity-actor">by ${pr.last_activity.actor}</span>` : ""}
             <span class="activity-time">• ${formatTimeAgo(pr.last_activity.timestamp)}</span>
           </div>
         </div>
@@ -677,7 +821,8 @@ const App = (() => {
           </button>
         </div>
       </div>
-    ` : `
+    `
+      : `
       <div class="pr-actions standalone">
         <button class="pr-action-btn" data-action="merge" data-pr-id="${pr.id}" title="Merge PR">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -698,14 +843,14 @@ const App = (() => {
         </button>
       </div>
     `;
-    
+
     return `
-      <div class="pr-card" data-state="${state}" data-pr-id="${pr.id}" ${needsAction ? 'data-needs-action="true"' : ''} ${pr.draft ? 'data-draft="true"' : ''}>
+      <div class="pr-card" data-state="${state}" data-pr-id="${pr.id}" ${needsAction ? 'data-needs-action="true"' : ""} ${pr.draft ? 'data-draft="true"' : ""}>
         <div class="pr-header">
           <a href="${pr.html_url}" class="pr-title" target="_blank" rel="noopener">
             ${escapeHtml(pr.title)}
           </a>
-          ${badges ? `<div class="pr-badges">${badges}</div>` : ''}
+          ${badges ? `<div class="pr-badges">${badges}</div>` : ""}
         </div>
         <div class="pr-meta">
           <div class="pr-meta-left">
@@ -724,227 +869,295 @@ const App = (() => {
     `;
   };
 
-  const updateSinglePRCard = pr => {
+  const updateSinglePRCard = (pr) => {
     // Find the existing PR card
     const existingCard = document.querySelector(`[data-pr-id="${pr.id}"]`);
     if (!existingCard) return;
-    
+
     // Determine which section this PR belongs to
-    const section = existingCard.closest('#incomingPRs') ? 'incoming' : 'outgoing';
-    
+    const section = existingCard.closest("#incomingPRs")
+      ? "incoming"
+      : "outgoing";
+
     // Check current filter settings
-    const showStale = getCookie(`${section}FilterStale`) !== 'false';
-    const showBlockedOthers = getCookie(`${section}FilterBlockedOthers`) !== 'false';
-    
+    const showStale = getCookie(`${section}FilterStale`) !== "false";
+    const showBlockedOthers =
+      getCookie(`${section}FilterBlockedOthers`) !== "false";
+
     // Check if this PR should be hidden based on filters
-    const shouldHide = (!showStale && isStale(pr)) || (!showBlockedOthers && isBlockedOnOthers(pr));
-    
+    const shouldHide =
+      (!showStale && isStale(pr)) ||
+      (!showBlockedOthers && isBlockedOnOthers(pr));
+
     if (shouldHide) {
       // Hide the card with a fade out animation
-      existingCard.style.transition = 'opacity 0.3s ease-out';
-      existingCard.style.opacity = '0';
+      existingCard.style.transition = "opacity 0.3s ease-out";
+      existingCard.style.opacity = "0";
       setTimeout(() => {
-        existingCard.style.display = 'none';
+        existingCard.style.display = "none";
       }, 300);
     } else {
       // Update the card content
       const newCardHTML = createPRCard(pr);
-      
+
       // Create a temporary container to parse the new HTML
-      const temp = document.createElement('div');
+      const temp = document.createElement("div");
       temp.innerHTML = newCardHTML;
       const newCard = temp.firstElementChild;
-      
+
       // Replace the old card with the new one
       existingCard.parentNode.replaceChild(newCard, existingCard);
-      
+
       // Add fade-in animation for badges and recent activity
-      const badges = newCard.querySelectorAll('.badge');
-      badges.forEach(badge => {
-        badge.style.animation = 'fadeIn 0.3s ease-out';
+      const badges = newCard.querySelectorAll(".badge");
+      badges.forEach((badge) => {
+        badge.style.animation = "fadeIn 0.3s ease-out";
       });
-      
-      const bottomRow = newCard.querySelector('.pr-bottom-row');
+
+      const bottomRow = newCard.querySelector(".pr-bottom-row");
       if (bottomRow) {
-        bottomRow.style.animation = 'fadeIn 0.4s ease-out';
+        bottomRow.style.animation = "fadeIn 0.4s ease-out";
       }
     }
-    
+
     // Update filter counts since tags may have changed
     updateFilterCounts();
   };
 
-  const getPRState = pr => {
+  const getPRState = (pr) => {
     // Priority order for states
-    if (pr.status_tags?.includes('blocked on you') || pr.status_tags?.some(tag => tag.startsWith('needs-'))) return 'blocked';
-    if (pr.status_tags?.includes('tests_failing')) return 'blocked';
-    if (pr.status_tags?.includes('merge_conflict')) return 'blocked';
-    if (pr.status_tags?.includes('changes_requested')) return 'blocked';
-    if (pr.status_tags?.includes('stale')) return 'stale';
-    if (pr.draft || pr.status_tags?.includes('draft')) return 'draft';
-    if (pr.status_tags?.includes('ready-to-merge')) return 'ready';
-    if (pr.status_tags?.includes('approved') && pr.status_tags?.includes('all_checks_passing')) return 'ready';
-    return 'default';
+    if (
+      pr.status_tags?.includes("blocked on you") ||
+      pr.status_tags?.some((tag) => tag.startsWith("needs-"))
+    )
+      return "blocked";
+    if (pr.status_tags?.includes("tests_failing")) return "blocked";
+    if (pr.status_tags?.includes("merge_conflict")) return "blocked";
+    if (pr.status_tags?.includes("changes_requested")) return "blocked";
+    if (pr.status_tags?.includes("stale")) return "stale";
+    if (pr.draft || pr.status_tags?.includes("draft")) return "draft";
+    if (pr.status_tags?.includes("ready-to-merge")) return "ready";
+    if (
+      pr.status_tags?.includes("approved") &&
+      pr.status_tags?.includes("all_checks_passing")
+    )
+      return "ready";
+    return "default";
   };
 
-  const getPRSize = pr => {
+  const getPRSize = (pr) => {
     const delta = Math.abs((pr.additions || 0) - (pr.deletions || 0));
-    
-    if (delta <= 6) return 'XXS';
-    if (delta <= 12) return 'XS';
-    if (delta <= 25) return 'S';
-    if (delta <= 50) return 'M';
-    if (delta <= 100) return 'L';
-    if (delta <= 400) return 'XL';
-    if (delta <= 800) return 'XXL';
-    return 'INSANE';
+
+    if (delta <= 6) return "XXS";
+    if (delta <= 12) return "XS";
+    if (delta <= 25) return "S";
+    if (delta <= 50) return "M";
+    if (delta <= 100) return "L";
+    if (delta <= 400) return "XL";
+    if (delta <= 800) return "XXL";
+    return "INSANE";
   };
 
-  const buildBadges = pr => {
+  const buildBadges = (pr) => {
     const badges = [];
-    
+
     // Size badge always shows first (if we have the data)
     // Try to use size from pr_state first, fall back to calculated size
-    const prSize = pr.prState?.size || (pr.additions !== undefined && pr.deletions !== undefined ? getPRSize(pr) : null);
+    const prSize =
+      pr.prState?.size ||
+      (pr.additions !== undefined && pr.deletions !== undefined
+        ? getPRSize(pr)
+        : null);
     if (prSize) {
       const additions = pr.additions || 0;
       const deletions = pr.deletions || 0;
-      const tooltip = pr.additions !== undefined ? ` title="+${additions}/-${deletions}"` : '';
-      badges.push(`<span class="badge badge-size badge-size-${prSize.toLowerCase()}"${tooltip}>${prSize}</span>`);
+      const tooltip =
+        pr.additions !== undefined
+          ? ` title="+${additions}/-${deletions}"`
+          : "";
+      badges.push(
+        `<span class="badge badge-size badge-size-${prSize.toLowerCase()}"${tooltip}>${prSize}</span>`,
+      );
     }
-    
-    if (pr.status_tags?.includes('loading')) {
-      badges.push('<span class="badge badge-loading"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>');
+
+    if (pr.status_tags?.includes("loading")) {
+      badges.push(
+        '<span class="badge badge-loading"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>',
+      );
     }
-    
-    if (pr.status_tags?.includes('blocked on you')) {
-      badges.push('<span class="badge badge-blocked"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM4 8a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5h-6.5A.75.75 0 014 8z"/></svg>BLOCKED ON YOU</span>');
+
+    if (pr.status_tags?.includes("blocked on you")) {
+      badges.push(
+        '<span class="badge badge-blocked"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM4 8a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5h-6.5A.75.75 0 014 8z"/></svg>BLOCKED ON YOU</span>',
+      );
     }
-    
-    if (pr.draft || pr.status_tags?.includes('draft')) {
+
+    if (pr.draft || pr.status_tags?.includes("draft")) {
       badges.push('<span class="badge badge-draft">DRAFT</span>');
     }
-    
-    if (pr.status_tags?.includes('ready-to-merge') || pr.status_tags?.includes('ready_to_merge')) {
+
+    if (
+      pr.status_tags?.includes("ready-to-merge") ||
+      pr.status_tags?.includes("ready_to_merge")
+    ) {
       badges.push('<span class="badge badge-ready">READY</span>');
     }
-    
-    if (pr.status_tags?.includes('merge_conflict')) {
+
+    if (pr.status_tags?.includes("merge_conflict")) {
       badges.push('<span class="badge badge-conflict">MERGE CONFLICT</span>');
     }
-    
-    if (pr.status_tags?.includes('changes_requested')) {
-      badges.push('<span class="badge badge-changes-requested">CHANGES REQUESTED</span>');
+
+    if (pr.status_tags?.includes("changes_requested")) {
+      badges.push(
+        '<span class="badge badge-changes-requested">CHANGES REQUESTED</span>',
+      );
     }
-    
-    if (pr.status_tags?.includes('tests_failing')) {
-      badges.push('<span class="badge badge-tests-failing">TESTS FAILING</span>');
+
+    if (pr.status_tags?.includes("tests_failing")) {
+      badges.push(
+        '<span class="badge badge-tests-failing">TESTS FAILING</span>',
+      );
     }
-    
-    if (pr.status_tags?.includes('tests_pending')) {
-      badges.push('<span class="badge badge-tests-pending">TESTS PENDING</span>');
+
+    if (pr.status_tags?.includes("tests_pending")) {
+      badges.push(
+        '<span class="badge badge-tests-pending">TESTS PENDING</span>',
+      );
     }
-    
-    if (pr.status_tags?.includes('approved')) {
+
+    if (pr.status_tags?.includes("approved")) {
       badges.push('<span class="badge badge-approved">APPROVED</span>');
     }
-    
-    if (pr.status_tags?.includes('all_checks_passing')) {
-      badges.push('<span class="badge badge-checks-passing">CHECKS PASSING</span>');
+
+    if (pr.status_tags?.includes("all_checks_passing")) {
+      badges.push(
+        '<span class="badge badge-checks-passing">CHECKS PASSING</span>',
+      );
     }
-    
+
     // Time-based badges
-    if (pr.status_tags?.includes('new')) {
+    if (pr.status_tags?.includes("new")) {
       badges.push('<span class="badge badge-new">NEW</span>');
     }
-    
-    if (pr.status_tags?.includes('updated')) {
+
+    if (pr.status_tags?.includes("updated")) {
       badges.push('<span class="badge badge-updated">UPDATED</span>');
     }
-    
-    if (pr.status_tags?.includes('stale') || isStale(pr)) {
+
+    if (pr.status_tags?.includes("stale") || isStale(pr)) {
       badges.push('<span class="badge badge-stale">STALE</span>');
     }
-    
+
     // Add needs-X badges
-    if (pr.status_tags?.includes('needs-review')) {
+    if (pr.status_tags?.includes("needs-review")) {
       badges.push('<span class="badge badge-needs-action">NEEDS REVIEW</span>');
     }
-    
-    if (pr.status_tags?.includes('needs-approval')) {
-      badges.push('<span class="badge badge-needs-action">NEEDS APPROVAL</span>');
+
+    if (pr.status_tags?.includes("needs-approval")) {
+      badges.push(
+        '<span class="badge badge-needs-action">NEEDS APPROVAL</span>',
+      );
     }
-    
-    if (pr.status_tags?.includes('needs-response')) {
-      badges.push('<span class="badge badge-needs-action">NEEDS RESPONSE</span>');
+
+    if (pr.status_tags?.includes("needs-response")) {
+      badges.push(
+        '<span class="badge badge-needs-action">NEEDS RESPONSE</span>',
+      );
     }
-    
-    if (pr.status_tags?.includes('needs-fix')) {
+
+    if (pr.status_tags?.includes("needs-fix")) {
       badges.push('<span class="badge badge-needs-action">NEEDS FIX</span>');
     }
-    
-    if (pr.status_tags?.includes('needs-merge')) {
+
+    if (pr.status_tags?.includes("needs-merge")) {
       badges.push('<span class="badge badge-needs-action">NEEDS MERGE</span>');
     }
-    
-    if (pr.status_tags?.includes('needs-changes')) {
-      badges.push('<span class="badge badge-needs-action">NEEDS CHANGES</span>');
+
+    if (pr.status_tags?.includes("needs-changes")) {
+      badges.push(
+        '<span class="badge badge-needs-action">NEEDS CHANGES</span>',
+      );
     }
-    
+
     // Generic needs-X handler for unknown action kinds
-    pr.status_tags?.forEach(tag => {
-      if (tag.startsWith('needs-') && !['needs-review', 'needs-approval', 'needs-response', 'needs-fix', 'needs-merge', 'needs-changes'].includes(tag)) {
+    pr.status_tags?.forEach((tag) => {
+      if (
+        tag.startsWith("needs-") &&
+        ![
+          "needs-review",
+          "needs-approval",
+          "needs-response",
+          "needs-fix",
+          "needs-merge",
+          "needs-changes",
+        ].includes(tag)
+      ) {
         const action = tag.substring(6).toUpperCase();
-        badges.push(`<span class="badge badge-needs-action">NEEDS ${action}</span>`);
+        badges.push(
+          `<span class="badge badge-needs-action">NEEDS ${action}</span>`,
+        );
       }
     });
-    
-    return badges.join('');
+
+    return badges.join("");
   };
 
-  const buildReviewers = reviewers => {
-    if (!reviewers.length) return '';
-    
+  const buildReviewers = (reviewers) => {
+    if (!reviewers.length) return "";
+
     const maxShow = 3;
-    const avatars = reviewers.slice(0, maxShow).map(reviewer => 
-      `<img src="${reviewer.avatar_url}" alt="${reviewer.login}" class="reviewer-avatar" loading="lazy" title="${reviewer.login}">`
-    ).join('');
-    
-    const extra = reviewers.length > maxShow ? 
-      `<span class="reviewer-count">+${reviewers.length - maxShow}</span>` : '';
-    
+    const avatars = reviewers
+      .slice(0, maxShow)
+      .map(
+        (reviewer) =>
+          `<img src="${reviewer.avatar_url}" alt="${reviewer.login}" class="reviewer-avatar" loading="lazy" title="${reviewer.login}">`,
+      )
+      .join("");
+
+    const extra =
+      reviewers.length > maxShow
+        ? `<span class="reviewer-count">+${reviewers.length - maxShow}</span>`
+        : "";
+
     return `<div class="reviewers">${avatars}${extra}</div>`;
   };
 
   // Event Handlers
   const handleOrgChange = () => {
-    const orgSelect = $('orgSelect');
+    const orgSelect = $("orgSelect");
     const selectedOrg = orgSelect?.value;
-    
+
     // Get current viewing user
     const targetUser = state.viewingUser || state.currentUser;
     if (!targetUser) return;
-    
+
     // Check if we're on stats page
     const urlContext = parseURL();
     const isStats = urlContext && urlContext.isStats;
-    
+
     // Update URL to new format
     let newPath;
-    const username = typeof targetUser === 'string' ? targetUser : targetUser.login;
-    if (selectedOrg) {
-      newPath = `/github/${selectedOrg}/${username}`;
-    } else {
-      newPath = `/github/all/${username}`;
-    }
-    
-    // Add /stats if we're on stats page
+    const username =
+      typeof targetUser === "string" ? targetUser : targetUser.login;
+
     if (isStats) {
-      newPath += '/stats';
+      // For stats page, use the new URL format without username
+      if (selectedOrg) {
+        newPath = `/github/${selectedOrg}/stats`;
+      } else {
+        newPath = `/github/all/stats`;
+      }
+    } else {
+      // For dashboard page, keep the username in the URL
+      if (selectedOrg) {
+        newPath = `/github/${selectedOrg}/${username}`;
+      } else {
+        newPath = `/github/all/${username}`;
+      }
     }
-    
-    window.history.pushState({}, '', newPath);
-    
+
+    window.history.pushState({}, "", newPath);
+
     // Update appropriate page
     if (isStats) {
       loadStatsData();
@@ -954,25 +1167,29 @@ const App = (() => {
   };
 
   const handleSearch = () => {
-    const searchInput = $('searchInput');
-    const searchTerm = searchInput?.value.toLowerCase() || '';
-    
-    $$('.pr-card').forEach(card => {
-      const title = card.querySelector('.pr-title')?.textContent.toLowerCase() || '';
-      const repo = card.querySelector('.pr-repo')?.textContent.toLowerCase() || '';
-      const author = card.querySelector('.pr-author')?.textContent.toLowerCase() || '';
-      
-      const matches = !searchTerm || 
-        title.includes(searchTerm) || 
-        repo.includes(searchTerm) || 
+    const searchInput = $("searchInput");
+    const searchTerm = searchInput?.value.toLowerCase() || "";
+
+    $$(".pr-card").forEach((card) => {
+      const title =
+        card.querySelector(".pr-title")?.textContent.toLowerCase() || "";
+      const repo =
+        card.querySelector(".pr-repo")?.textContent.toLowerCase() || "";
+      const author =
+        card.querySelector(".pr-author")?.textContent.toLowerCase() || "";
+
+      const matches =
+        !searchTerm ||
+        title.includes(searchTerm) ||
+        repo.includes(searchTerm) ||
         author.includes(searchTerm);
-      
-      card.style.display = matches ? '' : 'none';
+
+      card.style.display = matches ? "" : "none";
     });
-    
+
     // Update empty state
     const visibleCards = $$('.pr-card:not([style*="display: none"])').length;
-    const emptyState = $('emptyState');
+    const emptyState = $("emptyState");
     if (visibleCards === 0 && searchTerm) {
       show(emptyState);
     } else if (visibleCards > 0) {
@@ -984,66 +1201,73 @@ const App = (() => {
   let hamburgersSetup = false;
   const setupHamburgerMenu = () => {
     if (hamburgersSetup) return; // Prevent duplicate setup
-    
-    const hamburgerBtn = $('hamburgerMenu');
-    const slideMenu = $('slideMenu');
-    const closeMenuBtn = $('closeMenu');
-    const menuBackdrop = $('menuBackdrop');
-    const dashboardLink = $('dashboardLink');
-    const statsLink = $('statsLink');
-    
+
+    const hamburgerBtn = $("hamburgerMenu");
+    const slideMenu = $("slideMenu");
+    const closeMenuBtn = $("closeMenu");
+    const menuBackdrop = $("menuBackdrop");
+    const dashboardLink = $("dashboardLink");
+    const statsLink = $("statsLink");
+
     if (!hamburgerBtn || !slideMenu) return;
-    
+
     const openMenu = () => {
-      slideMenu.classList.add('open');
-      menuBackdrop.classList.add('show');
-      hamburgerBtn.setAttribute('aria-expanded', 'true');
-      document.body.style.overflow = 'hidden';
+      slideMenu.classList.add("open");
+      menuBackdrop.classList.add("show");
+      hamburgerBtn.setAttribute("aria-expanded", "true");
+      document.body.style.overflow = "hidden";
     };
-    
+
     const closeMenu = () => {
-      slideMenu.classList.remove('open');
-      menuBackdrop.classList.remove('show');
-      hamburgerBtn.setAttribute('aria-expanded', 'false');
-      document.body.style.overflow = '';
+      slideMenu.classList.remove("open");
+      menuBackdrop.classList.remove("show");
+      hamburgerBtn.setAttribute("aria-expanded", "false");
+      document.body.style.overflow = "";
     };
-    
+
     // Event listeners
-    hamburgerBtn.addEventListener('click', openMenu);
-    closeMenuBtn?.addEventListener('click', closeMenu);
-    menuBackdrop?.addEventListener('click', closeMenu);
-    
+    hamburgerBtn.addEventListener("click", openMenu);
+    closeMenuBtn?.addEventListener("click", closeMenu);
+    menuBackdrop?.addEventListener("click", closeMenu);
+
     hamburgersSetup = true;
-    
+
     // Escape key to close menu
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && slideMenu.classList.contains('open')) {
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && slideMenu.classList.contains("open")) {
         closeMenu();
       }
     });
-    
+
     // Setup navigation links
     const urlContext = parseURL();
     if (urlContext) {
       const { org, username } = urlContext;
-      const basePath = org ? `/github/${org}/${username}` : `/github/all/${username}`;
-      
+      const basePath = org
+        ? `/github/${org}/${username}`
+        : `/github/all/${username}`;
+      const statsPath = org ? `/github/${org}/stats` : `/github/all/stats`;
+
       // Update links
       if (dashboardLink) {
         dashboardLink.href = basePath;
         if (window.location.pathname === basePath) {
-          dashboardLink.classList.add('active');
+          dashboardLink.classList.add("active");
         }
       }
-      
+
       if (statsLink) {
-        statsLink.href = `${basePath}/stats`;
-        if (window.location.pathname === `${basePath}/stats`) {
-          statsLink.classList.add('active');
+        statsLink.href = statsPath;
+        // Check both new and legacy stats URL patterns
+        if (
+          window.location.pathname === statsPath ||
+          window.location.pathname === `${basePath}/stats`
+        ) {
+          statsLink.classList.add("active");
         }
-        
+
         // Navigate to stats page
-        statsLink.addEventListener('click', (e) => {
+        statsLink.addEventListener("click", (e) => {
           e.preventDefault();
           closeMenu();
           window.location.href = statsLink.href;
@@ -1051,48 +1275,53 @@ const App = (() => {
       }
     }
   };
-  
+
   const handlePRAction = async (action, prId) => {
     // Find PR in all sections
     const allPRs = [
       ...state.pullRequests.incoming,
-      ...state.pullRequests.outgoing
+      ...state.pullRequests.outgoing,
     ];
-    const pr = allPRs.find(p => p.id.toString() === prId);
+    const pr = allPRs.find((p) => p.id.toString() === prId);
     if (!pr) return;
-    
+
     const token = getStoredToken();
     if (!token) {
-      showToast('Please login to perform this action', 'error');
+      showToast("Please login to perform this action", "error");
       return;
     }
-    
+
     try {
       let response;
       const headers = {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/vnd.github.v3+json'
+        Authorization: `token ${token}`,
+        Accept: "application/vnd.github.v3+json",
       };
-      
+
       switch (action) {
-        case 'merge':
-          response = await fetch(`${CONFIG.API_BASE}/repos/${pr.repository.full_name}/pulls/${pr.number}/merge`, {
-            method: 'PUT',
-            headers: {
-              ...headers,
-              'Content-Type': 'application/json'
+        case "merge":
+          response = await fetch(
+            `${CONFIG.API_BASE}/repos/${pr.repository.full_name}/pulls/${pr.number}/merge`,
+            {
+              method: "PUT",
+              headers: {
+                ...headers,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                commit_title: `Merge pull request #${pr.number}${pr.head?.ref ? ` from ${pr.head.ref}` : ""}`,
+                commit_message: pr.title || `Merge PR #${pr.number}`,
+              }),
             },
-            body: JSON.stringify({
-              commit_title: `Merge pull request #${pr.number}${pr.head?.ref ? ` from ${pr.head.ref}` : ''}`,
-              commit_message: pr.title || `Merge PR #${pr.number}`
-            })
-          });
-          
+          );
+
           if (response.ok) {
-            showToast('PR merged successfully', 'success');
+            showToast("PR merged successfully", "success");
             // Remove PR from state
-            ['incoming', 'outgoing'].forEach(section => {
-              const index = state.pullRequests[section].findIndex(p => p.id.toString() === prId);
+            ["incoming", "outgoing"].forEach((section) => {
+              const index = state.pullRequests[section].findIndex(
+                (p) => p.id.toString() === prId,
+              );
               if (index !== -1) {
                 state.pullRequests[section].splice(index, 1);
               }
@@ -1100,7 +1329,7 @@ const App = (() => {
             // Update the display
             updatePRSections();
           } else {
-            let errorMsg = 'Failed to merge PR';
+            let errorMsg = "Failed to merge PR";
             try {
               const error = await response.json();
               errorMsg = error.message || error.error || errorMsg;
@@ -1108,55 +1337,63 @@ const App = (() => {
               // If JSON parsing fails, use status text
               errorMsg = `Failed to merge PR: ${response.statusText}`;
             }
-            showToast(errorMsg, 'error');
+            showToast(errorMsg, "error");
           }
           break;
-          
-        case 'unassign':
-          response = await fetch(`${CONFIG.API_BASE}/repos/${pr.repository.full_name}/issues/${pr.number}/assignees`, {
-            method: 'DELETE',
-            headers: {
-              ...headers,
-              'Content-Type': 'application/json'
+
+        case "unassign":
+          response = await fetch(
+            `${CONFIG.API_BASE}/repos/${pr.repository.full_name}/issues/${pr.number}/assignees`,
+            {
+              method: "DELETE",
+              headers: {
+                ...headers,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                assignees: pr.assignees?.map((a) => a.login) || [],
+              }),
             },
-            body: JSON.stringify({
-              assignees: pr.assignees?.map(a => a.login) || []
-            })
-          });
-          
+          );
+
           if (response.ok) {
-            showToast('Unassigned from PR', 'success');
+            showToast("Unassigned from PR", "success");
             // Refresh the PR list
             updatePRSections();
           } else {
-            let errorMsg = 'Failed to unassign';
+            let errorMsg = "Failed to unassign";
             try {
               const error = await response.json();
               errorMsg = error.message || error.error || errorMsg;
             } catch (e) {
               errorMsg = `Failed to unassign: ${response.statusText}`;
             }
-            showToast(errorMsg, 'error');
+            showToast(errorMsg, "error");
           }
           break;
-          
-        case 'close':
-          response = await fetch(`${CONFIG.API_BASE}/repos/${pr.repository.full_name}/pulls/${pr.number}`, {
-            method: 'PATCH',
-            headers: {
-              ...headers,
-              'Content-Type': 'application/json'
+
+        case "close":
+          response = await fetch(
+            `${CONFIG.API_BASE}/repos/${pr.repository.full_name}/pulls/${pr.number}`,
+            {
+              method: "PATCH",
+              headers: {
+                ...headers,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                state: "closed",
+              }),
             },
-            body: JSON.stringify({
-              state: 'closed'
-            })
-          });
-          
+          );
+
           if (response.ok) {
-            showToast('PR closed', 'success');
+            showToast("PR closed", "success");
             // Remove PR from state
-            ['incoming', 'outgoing'].forEach(section => {
-              const index = state.pullRequests[section].findIndex(p => p.id.toString() === prId);
+            ["incoming", "outgoing"].forEach((section) => {
+              const index = state.pullRequests[section].findIndex(
+                (p) => p.id.toString() === prId,
+              );
               if (index !== -1) {
                 state.pullRequests[section].splice(index, 1);
               }
@@ -1164,68 +1401,77 @@ const App = (() => {
             // Update the display
             updatePRSections();
           } else {
-            let errorMsg = 'Failed to close PR';
+            let errorMsg = "Failed to close PR";
             if (response.status === 403) {
-              errorMsg = 'Failed to close PR - Permission denied';
+              errorMsg = "Failed to close PR - Permission denied";
             } else {
               try {
                 const error = await response.json();
-                errorMsg = error.message || error.error || `Failed to close PR: ${response.statusText}`;
+                errorMsg =
+                  error.message ||
+                  error.error ||
+                  `Failed to close PR: ${response.statusText}`;
               } catch (e) {
                 errorMsg = `Failed to close PR: ${response.statusText}`;
               }
             }
-            showToast(errorMsg, 'error');
+            showToast(errorMsg, "error");
           }
           break;
       }
     } catch (error) {
-      console.error('Error performing PR action:', error);
+      console.error("Error performing PR action:", error);
       // Show the actual error message to the user
-      const errorMessage = error.message || 'An error occurred';
-      showToast(`Error: ${errorMessage}`, 'error');
+      const errorMessage = error.message || "An error occurred";
+      showToast(`Error: ${errorMessage}`, "error");
     }
   };
 
-  const handleKeyboardShortcuts = e => {
-    if (e.target.matches('input, textarea')) return;
-    
-    const cards = Array.from($$('.pr-card:not([style*="display: none"])')); 
-    const currentFocus = document.querySelector('.pr-card.focused');
+  const handleKeyboardShortcuts = (e) => {
+    if (e.target.matches("input, textarea")) return;
+
+    const cards = Array.from($$('.pr-card:not([style*="display: none"])'));
+    const currentFocus = document.querySelector(".pr-card.focused");
     const currentIndex = currentFocus ? cards.indexOf(currentFocus) : -1;
-    
-    switch(e.key) {
-      case 'j':
+
+    switch (e.key) {
+      case "j":
         e.preventDefault();
         if (currentIndex < cards.length - 1) {
-          currentFocus?.classList.remove('focused');
-          cards[currentIndex + 1].classList.add('focused');
-          cards[currentIndex + 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          currentFocus?.classList.remove("focused");
+          cards[currentIndex + 1].classList.add("focused");
+          cards[currentIndex + 1].scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
         } else if (cards.length > 0 && currentIndex === -1) {
-          cards[0].classList.add('focused');
-          cards[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          cards[0].classList.add("focused");
+          cards[0].scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
         break;
-        
-      case 'k':
+
+      case "k":
         e.preventDefault();
         if (currentIndex > 0) {
-          currentFocus?.classList.remove('focused');
-          cards[currentIndex - 1].classList.add('focused');
-          cards[currentIndex - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          currentFocus?.classList.remove("focused");
+          cards[currentIndex - 1].classList.add("focused");
+          cards[currentIndex - 1].scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
         }
         break;
-        
-      case 'Enter':
+
+      case "Enter":
         if (currentFocus) {
-          const link = currentFocus.querySelector('.pr-title');
-          if (link) window.open(link.href, '_blank');
+          const link = currentFocus.querySelector(".pr-title");
+          if (link) window.open(link.href, "_blank");
         }
         break;
-        
-      case '/':
+
+      case "/":
         e.preventDefault();
-        $('searchInput')?.focus();
+        $("searchInput")?.focus();
         break;
     }
   };
@@ -1233,23 +1479,31 @@ const App = (() => {
   // Auth Functions
   const initiateOAuthLogin = () => {
     // Use the Go backend's OAuth endpoint
-    const authWindow = window.open('/oauth/login', 'github-oauth', 'width=600,height=700');
-    
+    const authWindow = window.open(
+      "/oauth/login",
+      "github-oauth",
+      "width=600,height=700",
+    );
+
     // Listen for OAuth callback
-    window.addEventListener('message', async (event) => {
-      if (event.data && event.data.type === 'oauth-callback' && event.data.token) {
+    window.addEventListener("message", async (event) => {
+      if (
+        event.data &&
+        event.data.type === "oauth-callback" &&
+        event.data.token
+      ) {
         storeToken(event.data.token);
         authWindow.close();
-        
+
         // Load user info and redirect to their dashboard
         try {
           state.accessToken = event.data.token;
           await loadCurrentUser();
-          
+
           // Check if we're already on the correct page to avoid loops
           const currentPath = window.location.pathname;
           const expectedPath = `/github/all/${state.currentUser.login}`;
-          
+
           if (currentPath !== expectedPath) {
             window.location.href = expectedPath;
           } else {
@@ -1260,12 +1514,13 @@ const App = (() => {
             updateOrgFilter();
           }
         } catch (error) {
-          console.error('Failed to load user after OAuth:', error);
+          console.error("Failed to load user after OAuth:", error);
           // Use the detailed error message if available
-          const errorMessage = error.message && error.message.startsWith('GitHub error:') 
-            ? error.message 
-            : 'Authentication succeeded but failed to load user info';
-          showToast(errorMessage, 'error');
+          const errorMessage =
+            error.message && error.message.startsWith("GitHub error:")
+              ? error.message
+              : "Authentication succeeded but failed to load user info";
+          showToast(errorMessage, "error");
           // Don't redirect on error
           updateUserDisplay();
           showMainContent();
@@ -1275,19 +1530,19 @@ const App = (() => {
   };
 
   const initiatePATLogin = () => {
-    show($('patModal'));
-    $('patInput').focus();
+    show($("patModal"));
+    $("patInput").focus();
   };
 
   const closePATModal = () => {
-    hide($('patModal'));
-    $('patInput').value = '';
+    hide($("patModal"));
+    $("patInput").value = "";
   };
 
   const submitPAT = async () => {
-    const token = $('patInput').value.trim();
+    const token = $("patInput").value.trim();
     if (!token) {
-      showToast('Please enter a valid token', 'error');
+      showToast("Please enter a valid token", "error");
       return;
     }
 
@@ -1295,24 +1550,24 @@ const App = (() => {
     try {
       const testResponse = await fetch(`${CONFIG.API_BASE}/user`, {
         headers: {
-          'Authorization': `token ${token}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
+          Authorization: `token ${token}`,
+          Accept: "application/vnd.github.v3+json",
+        },
       });
 
       if (testResponse.ok) {
         const user = await testResponse.json();
         storeToken(token, true); // Store in cookie
         closePATModal();
-        
+
         // Update state
         state.accessToken = token;
         state.currentUser = user;
-        
+
         // Check if we're already on the correct page to avoid loops
         const currentPath = window.location.pathname;
         const expectedPath = `/github/all/${user.login}`;
-        
+
         if (currentPath !== expectedPath) {
           window.location.href = expectedPath;
         } else {
@@ -1323,10 +1578,10 @@ const App = (() => {
           updateOrgFilter();
         }
       } else {
-        showToast('Invalid token. Please check and try again.', 'error');
+        showToast("Invalid token. Please check and try again.", "error");
       }
     } catch (error) {
-      showToast('Failed to validate token. Please try again.', 'error');
+      showToast("Failed to validate token. Please try again.", "error");
     }
   };
 
@@ -1343,284 +1598,295 @@ const App = (() => {
   const handleAuthError = () => {
     clearToken();
     showLoginPrompt();
-    showToast('Authentication failed. Please login again.', 'error');
+    showToast("Authentication failed. Please login again.", "error");
   };
 
   const logout = () => {
     clearToken();
-    window.location.href = '/';
+    window.location.href = "/";
   };
 
   // UI State Management
   const showLoginPrompt = () => {
-    hide($('prSections'));
-    show($('loginPrompt'));
+    hide($("prSections"));
+    show($("loginPrompt"));
   };
 
   const showMainContent = () => {
-    hide($('loginPrompt'));
-    show($('prSections'));
+    hide($("loginPrompt"));
+    show($("prSections"));
   };
 
-  const showToast = (message, type = 'info') => {
-    const toast = document.createElement('div');
+  const showToast = (message, type = "info") => {
+    const toast = document.createElement("div");
     toast.className = `toast toast-${type}`;
     toast.textContent = message;
     document.body.appendChild(toast);
-    
+
     requestAnimationFrame(() => {
-      toast.classList.add('show');
+      toast.classList.add("show");
     });
-    
+
     setTimeout(() => {
-      toast.classList.remove('show');
+      toast.classList.remove("show");
       setTimeout(() => toast.remove(), 300);
     }, 3000);
   };
 
   // Demo Mode
   const initializeDemoMode = () => {
-    if (typeof DEMO_DATA === 'undefined') {
-      console.error('Demo data not loaded');
+    if (typeof DEMO_DATA === "undefined") {
+      console.error("Demo data not loaded");
       return;
     }
-    
+
     state.isDemoMode = true;
     state.currentUser = DEMO_DATA.user;
     state.viewingUser = DEMO_DATA.user; // Set viewingUser for consistency
     state.pullRequests = DEMO_DATA.pullRequests;
-    
+
     // Enhance demo PRs
     const allPRs = [
       ...state.pullRequests.incoming,
-      ...state.pullRequests.outgoing
+      ...state.pullRequests.outgoing,
     ];
-    
-    allPRs.forEach(pr => {
-      pr.age_days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
-      
+
+    allPRs.forEach((pr) => {
+      pr.age_days = Math.floor(
+        (Date.now() - new Date(pr.created_at)) / 86400000,
+      );
+
       // Simulate new API structure from labels
-      const labelNames = (pr.labels || []).map(l => l.name);
-      
+      const labelNames = (pr.labels || []).map((l) => l.name);
+
       // Build unblock_action based on labels
       const unblockAction = {};
-      if (labelNames.includes('blocked on you')) {
+      if (labelNames.includes("blocked on you")) {
         unblockAction[state.currentUser.login] = {
-          kind: 'review',
+          kind: "review",
           critical: true,
-          reason: 'Requested changes need to be addressed',
-          ready_to_notify: true
+          reason: "Requested changes need to be addressed",
+          ready_to_notify: true,
         };
       }
-      
+
       // Simulate check status
       const checks = {
         total: 5,
-        passing: labelNames.includes('tests passing') ? 5 : 3,
-        failing: labelNames.includes('tests failing') ? 2 : 0,
+        passing: labelNames.includes("tests passing") ? 5 : 3,
+        failing: labelNames.includes("tests failing") ? 2 : 0,
         pending: 0,
         waiting: 0,
-        ignored: 0
+        ignored: 0,
       };
-      
+
       // Simulate PR size
       const sizeMap = {
-        'size/XS': 'XS',
-        'size/S': 'S',
-        'size/M': 'M',
-        'size/L': 'L',
-        'size/XL': 'XL'
+        "size/XS": "XS",
+        "size/S": "S",
+        "size/M": "M",
+        "size/L": "L",
+        "size/XL": "XL",
       };
-      let size = 'M'; // default
+      let size = "M"; // default
       for (const [label, sizeValue] of Object.entries(sizeMap)) {
         if (labelNames.includes(label)) {
           size = sizeValue;
           break;
         }
       }
-      
+
       // Create pr_state with all fields
       pr.turnData = {
         pr_state: {
           unblock_action: unblockAction,
           updated_at: pr.updated_at,
           last_activity: {
-            kind: 'comment',
+            kind: "comment",
             author: pr.user.login,
-            message: 'Latest activity on this PR',
-            timestamp: pr.updated_at
+            message: "Latest activity on this PR",
+            timestamp: pr.updated_at,
           },
           checks: checks,
-          unresolved_comments: labelNames.includes('unresolved comments') ? 3 : 0,
+          unresolved_comments: labelNames.includes("unresolved comments")
+            ? 3
+            : 0,
           size: size,
           draft: pr.draft || false,
-          ready_to_merge: labelNames.includes('ready') && !labelNames.includes('blocked on you'),
-          merge_conflict: labelNames.includes('merge conflict'),
-          approved: labelNames.includes('approved'),
-          tags: [] // Tags are now computed from other fields
+          ready_to_merge:
+            labelNames.includes("ready") &&
+            !labelNames.includes("blocked on you"),
+          merge_conflict: labelNames.includes("merge conflict"),
+          approved: labelNames.includes("approved"),
+          tags: [], // Tags are now computed from other fields
         },
         timestamp: new Date().toISOString(),
-        commit: 'demo-version'
+        commit: "demo-version",
       };
-      
+
       // Also set prState for consistency
       pr.prState = pr.turnData.pr_state;
-      
+
       pr.status_tags = getStatusTags(pr);
     });
-    
+
     // If we're not already on a user URL, redirect to demo user's dashboard
     const urlContext = parseURL();
     if (!urlContext || !urlContext.username) {
       window.location.href = `/github/all/${DEMO_DATA.user.login}?demo=true`;
       return;
     }
-    
+
     updateUserDisplay();
     updatePRSections();
     updateOrgFilter();
     showMainContent();
   };
 
-
   // Initialize
   const init = async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const demo = urlParams.get('demo');
-    
+    const demo = urlParams.get("demo");
+
     // Parse URL for viewing context
     const urlContext = parseURL();
-    
+
     // Handle stats page routing
     if (urlContext && urlContext.isStats) {
       showStatsPage();
       return;
     }
-    
+
     // Setup event listeners
-    const orgSelect = $('orgSelect');
-    const searchInput = $('searchInput');
-    const loginBtn = $('loginBtn');
-    
-    if (orgSelect) orgSelect.addEventListener('change', handleOrgChange);
+    const orgSelect = $("orgSelect");
+    const searchInput = $("searchInput");
+    const loginBtn = $("loginBtn");
+
+    if (orgSelect) orgSelect.addEventListener("change", handleOrgChange);
     if (searchInput) {
-      searchInput.addEventListener('input', handleSearch);
-      searchInput.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-          searchInput.value = '';
+      searchInput.addEventListener("input", handleSearch);
+      searchInput.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          searchInput.value = "";
           handleSearch();
           searchInput.blur();
         }
       });
     }
-    if (loginBtn) loginBtn.addEventListener('click', initiateLogin);
-    
+    if (loginBtn) loginBtn.addEventListener("click", initiateLogin);
+
     // Setup hamburger menu
     setupHamburgerMenu();
-    
+
     // Setup filter event listeners for each section
-    ['incoming', 'outgoing'].forEach(section => {
+    ["incoming", "outgoing"].forEach((section) => {
       const staleFilter = $(`${section}FilterStale`);
       const blockedOthersFilter = $(`${section}FilterBlockedOthers`);
-      
+
       if (staleFilter) {
-        staleFilter.addEventListener('change', (e) => {
+        staleFilter.addEventListener("change", (e) => {
           setCookie(`${section}FilterStale`, e.target.checked.toString(), 365);
           updatePRSections();
         });
       }
-      
+
       if (blockedOthersFilter) {
-        blockedOthersFilter.addEventListener('change', (e) => {
-          setCookie(`${section}FilterBlockedOthers`, e.target.checked.toString(), 365);
+        blockedOthersFilter.addEventListener("change", (e) => {
+          setCookie(
+            `${section}FilterBlockedOthers`,
+            e.target.checked.toString(),
+            365,
+          );
           updatePRSections();
         });
       }
     });
-    
+
     // Add event listener for PAT input Enter key
-    const patInput = $('patInput');
+    const patInput = $("patInput");
     if (patInput) {
-      patInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+      patInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
           submitPAT();
         }
       });
     }
-    
-    document.addEventListener('keydown', handleKeyboardShortcuts);
-    
+
+    document.addEventListener("keydown", handleKeyboardShortcuts);
+
     // Add event delegation for PR action buttons
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('.pr-action-btn')) {
-        const btn = e.target.closest('.pr-action-btn');
+    document.addEventListener("click", (e) => {
+      if (e.target.closest(".pr-action-btn")) {
+        const btn = e.target.closest(".pr-action-btn");
         const action = btn.dataset.action;
         const prId = btn.dataset.prId;
         handlePRAction(action, prId);
       }
     });
-    
+
     // Check for OAuth callback
-    if (urlParams.get('code')) {
+    if (urlParams.get("code")) {
       handleOAuthCallback();
       return;
     }
-    
+
     // Check for demo mode
-    if (demo === 'true') {
+    if (demo === "true") {
       initializeDemoMode();
       return;
     }
-    
+
     // Check if we're viewing another user's dashboard
     if (urlContext && urlContext.username) {
       // Load the user we're viewing
       try {
         state.viewingUser = await githubAPI(`/users/${urlContext.username}`);
-        
+
         // Check if we have auth (for logged in features)
         if (state.accessToken) {
           await loadCurrentUser();
         }
-        
+
         updateUserDisplay();
         showMainContent();
         await loadPullRequests();
         updateOrgFilter();
-        
+
         // Set org filter from URL
         if (urlContext.org && orgSelect) {
           orgSelect.value = urlContext.org;
         }
       } catch (error) {
-        console.error('Error loading user dashboard:', error);
+        console.error("Error loading user dashboard:", error);
         // Use the detailed error message from githubAPI
-        const errorMessage = error.message || `Failed to load dashboard for ${urlContext.username}`;
-        showToast(errorMessage, 'error');
-        
+        const errorMessage =
+          error.message ||
+          `Failed to load dashboard for ${urlContext.username}`;
+        showToast(errorMessage, "error");
+
         // Don't redirect on error to prevent loops
         // Just show what we can with the error message
         showMainContent();
       }
       return;
     }
-    
+
     // Regular auth flow - user needs to log in to see their own dashboard
     if (!state.accessToken) {
       showLoginPrompt();
       return;
     }
-    
+
     // Initialize app for logged in user
     try {
       await loadCurrentUser();
       updateUserDisplay();
-      
+
       // Only redirect if we're not already on a dashboard page
       const currentPath = window.location.pathname;
       const expectedPath = `/github/all/${state.currentUser.login}`;
-      
-      if (currentPath !== expectedPath && !currentPath.startsWith('/github/')) {
+
+      if (currentPath !== expectedPath && !currentPath.startsWith("/github/")) {
         // Redirect to user's dashboard URL
         window.location.href = expectedPath;
       } else {
@@ -1630,11 +1896,11 @@ const App = (() => {
         updateOrgFilter();
       }
     } catch (error) {
-      console.error('Error initializing app:', error);
+      console.error("Error initializing app:", error);
       // The error message from githubAPI already includes "GitHub error:" prefix
-      const errorMessage = error.message || 'Failed to load data';
-      showToast(errorMessage, 'error');
-      
+      const errorMessage = error.message || "Failed to load data";
+      showToast(errorMessage, "error");
+
       // Don't redirect on error to prevent loops
       showMainContent();
     }
@@ -1644,240 +1910,582 @@ const App = (() => {
   const showStatsPage = async () => {
     // Ensure user is authenticated first
     if (!state.accessToken) {
-      const loginPrompt = $('loginPrompt');
+      const loginPrompt = $("loginPrompt");
       show(loginPrompt);
-      hide($('prSections'));
-      hide($('emptyState'));
-      hide($('statsPage'));
+      hide($("prSections"));
+      hide($("emptyState"));
+      hide($("statsPage"));
       return;
     }
-    
+
     // Load user data if needed
     if (!state.currentUser) {
       await loadCurrentUser();
     }
-    
+
     // Parse URL context to set viewing user
     const urlContext = parseURL();
     if (urlContext && urlContext.username) {
       // If viewingUser is not already set or is just a string, fetch the user object
-      if (!state.viewingUser || typeof state.viewingUser === 'string') {
+      if (!state.viewingUser || typeof state.viewingUser === "string") {
         try {
           state.viewingUser = await githubAPI(`/users/${urlContext.username}`);
         } catch (error) {
-          console.error('Error loading viewing user:', error);
+          console.error("Error loading viewing user:", error);
           // Fall back to using current user if we can't load the viewing user
           state.viewingUser = state.currentUser;
         }
       }
     }
-    
+
     // Update UI elements (header, user info, etc.)
     updateUserDisplay();
-    
+
     // Setup hamburger menu if not already done
     setupHamburgerMenu();
-    
+
     // Load PRs if not already loaded (needed for org filter)
-    if (state.pullRequests.incoming.length === 0 && state.pullRequests.outgoing.length === 0) {
+    if (
+      state.pullRequests.incoming.length === 0 &&
+      state.pullRequests.outgoing.length === 0
+    ) {
       await loadPullRequests();
     }
-    
+
     // Setup event listeners for org filter and search
-    const orgSelect = $('orgSelect');
-    const searchInput = $('searchInput');
-    
-    if (orgSelect && !orgSelect.hasAttribute('data-listener')) {
-      orgSelect.addEventListener('change', handleOrgChange);
-      orgSelect.setAttribute('data-listener', 'true');
+    const orgSelect = $("orgSelect");
+    const searchInput = $("searchInput");
+
+    if (orgSelect && !orgSelect.hasAttribute("data-listener")) {
+      orgSelect.addEventListener("change", handleOrgChange);
+      orgSelect.setAttribute("data-listener", "true");
     }
-    
-    if (searchInput && !searchInput.hasAttribute('data-listener')) {
-      searchInput.addEventListener('input', handleSearch);
-      searchInput.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-          searchInput.value = '';
+
+    if (searchInput && !searchInput.hasAttribute("data-listener")) {
+      searchInput.addEventListener("input", handleSearch);
+      searchInput.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          searchInput.value = "";
           handleSearch();
           searchInput.blur();
         }
       });
-      searchInput.setAttribute('data-listener', 'true');
+      searchInput.setAttribute("data-listener", "true");
     }
-    
+
     // Load organizations for filter
     updateOrgFilter();
-    
+
     // Hide main content and show stats page
-    hide($('loginPrompt'));
-    hide($('prSections'));
-    hide($('emptyState'));
-    show($('statsPage'));
-    
+    hide($("loginPrompt"));
+    hide($("prSections"));
+    hide($("emptyState"));
+    show($("statsPage"));
+
     // Fetch and display stats
     await loadStatsData();
   };
-  
+
   const loadStatsData = async () => {
     try {
       const urlContext = parseURL();
       if (!urlContext) return;
-      
-      const { org, username } = urlContext;
-      
-      // Build search query
-      let searchQuery = `type:pr involves:${username}`;
-      if (org) {
-        searchQuery += ` org:${org}`;
-      } else {
-        searchQuery += ` user:${username}`;
-      }
-      
-      // Fetch all PRs
-      const response = await githubAPI(`/search/issues?q=${encodeURIComponent(searchQuery)}&per_page=100&sort=updated`);
-      const allPRs = response.items || [];
-      
-      // Calculate stats
-      const now = new Date();
-      const tenDaysAgo = new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000));
-      
-      let mergedLast10Days = 0;
-      let currentlyOpen = 0;
-      let openMoreThan10Days = 0;
-      let totalMergeTime = 0;
-      let mergeCount = 0;
-      
-      allPRs.forEach(pr => {
-        const createdAt = new Date(pr.created_at);
-        const updatedAt = new Date(pr.updated_at);
-        
-        if (pr.state === 'closed' && pr.pull_request.merged_at) {
-          const mergedAt = new Date(pr.pull_request.merged_at);
-          if (mergedAt >= tenDaysAgo) {
-            mergedLast10Days++;
-          }
-          
-          // Calculate merge time
-          const mergeTime = mergedAt - createdAt;
-          totalMergeTime += mergeTime;
-          mergeCount++;
-        } else if (pr.state === 'open') {
-          currentlyOpen++;
-          const age = now - createdAt;
-          const daysOld = age / (24 * 60 * 60 * 1000);
-          if (daysOld > 10) {
-            openMoreThan10Days++;
-          }
+
+      const { username, org } = urlContext;
+
+      // Show loading state immediately
+      const container = $("orgStatsContainer");
+
+      // If viewing "all", show organization list instead of stats
+      if (!org) {
+        container.innerHTML =
+          '<div class="loading-indicator">Loading organizations...</div>';
+
+        // Get a list of organizations the user has access to
+        // We still need to use involves:username here to discover which orgs the user can access
+        const orgQuery = `type:pr involves:${username} updated:>=${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]}`;
+        const orgResponse = await githubSearchAll(
+          `/search/issues?q=${encodeURIComponent(orgQuery)}&per_page=100`,
+          3,
+        );
+
+        // Extract unique organizations with PR counts
+        const orgCounts = {};
+        orgResponse.items.forEach((pr) => {
+          const orgName = pr.repository_url.split("/repos/")[1].split("/")[0];
+          orgCounts[orgName] = (orgCounts[orgName] || 0) + 1;
+        });
+
+        // Sort by PR count (descending) then alphabetically
+        const sortedOrgs = Object.entries(orgCounts).sort(
+          (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+        );
+
+        if (sortedOrgs.length === 0) {
+          container.innerHTML =
+            '<div class="empty-state">No organizations found with recent PR activity</div>';
+          return;
         }
-      });
-      
-      // Update stats display
-      $('totalPRs').textContent = allPRs.length;
-      $('mergedPRs').textContent = mergedLast10Days;
-      $('stalePRs').textContent = openMoreThan10Days;
-      
-      // Calculate average merge time
-      if (mergeCount > 0) {
-        const avgMergeMs = totalMergeTime / mergeCount;
-        const avgMergeDays = Math.round(avgMergeMs / (24 * 60 * 60 * 1000));
-        $('avgMergeTime').textContent = `${avgMergeDays}d`;
-      } else {
-        $('avgMergeTime').textContent = '-';
+
+        // Show organization selector
+        container.innerHTML = `
+          <div class="org-selector">
+            <h2 class="org-selector-title">Select an organization to view statistics</h2>
+            <p class="org-selector-subtitle">Choose from your organizations with recent PR activity</p>
+            <div class="org-list">
+              ${sortedOrgs
+                .map(
+                  ([orgName, count]) => `
+                <a href="/github/${escapeHtml(orgName)}/stats" class="org-list-item">
+                  <div class="org-list-name">${escapeHtml(orgName)}</div>
+                  <div class="org-list-count">${count} recent PRs</div>
+                </a>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+        `;
+        return;
       }
-      
-      // Calculate and display merge:open ratio
-      const ratio = currentlyOpen > 0 ? (mergedLast10Days / currentlyOpen).toFixed(1) : mergedLast10Days;
-      $('ratioDisplay').textContent = `${ratio}:1`;
-      
-      // Draw pie chart showing merged in last 10 days vs open over 10 days
-      drawPieChart(mergedLast10Days, openMoreThan10Days);
-      
+
+      // Single org selected - show stats for just this org
+      container.innerHTML =
+        '<div class="loading-indicator">Loading statistics...</div>';
+
+      // Clear container and create section for this org
+      container.innerHTML = "";
+      const orgSection = createOrgSection(org);
+      container.appendChild(orgSection);
+
+      // Process this organization's stats
+      await processOrgStats(org, username);
     } catch (error) {
-      console.error('Error loading stats:', error);
-      showToast('Failed to load statistics', 'error');
+      console.error("Error loading stats:", error);
+
+      const container = $("orgStatsContainer");
+      if (error.isRateLimit) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 6v6l4 2"/>
+            </svg>
+            <p>GitHub API rate limit exceeded</p>
+            <p class="text-secondary">Please wait ${error.minutesUntilReset} minutes before refreshing</p>
+            <p class="text-secondary" style="font-size: 0.8rem; margin-top: 0.5rem;">Reset time: ${error.resetTime.toLocaleTimeString()}</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <div class="empty-state">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="15" y1="9" x2="9" y2="15"/>
+              <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            <p>Failed to load statistics</p>
+            <p class="text-secondary">${error.message}</p>
+          </div>
+        `;
+      }
     }
   };
-  
-  const drawPieChart = (merged, stale) => {
-    const canvas = $('prRatioChart');
+
+  const createOrgSection = (org) => {
+    const section = document.createElement("div");
+    section.className = "org-section";
+    section.id = `org-section-${org}`;
+
+    section.innerHTML = `
+      <div class="org-header">
+        <h2 class="org-name">${escapeHtml(org)}</h2>
+      </div>
+      <div class="stats-container">
+        <!-- PR Ratio Chart -->
+        <div class="stat-card">
+          <h3 class="stat-card-title">PR Review Ratio (10 day merged vs 10 day open)</h3>
+          <p class="stat-card-subtitle">Healthy orgs have a 3:1 or higher ratio of PRs merged within the last 10 days compared to PRs stuck open for over 10 days</p>
+          <div class="ratio-display loading" id="ratioDisplay-${org}">Loading...</div>
+          <div class="chart-container">
+            <canvas id="prRatioChart-${org}" width="300" height="300"></canvas>
+          </div>
+          <div class="chart-legend" id="chartLegend-${org}"></div>
+        </div>
+
+        <!-- Stats Summary -->
+        <div class="stat-card">
+          <h3 class="stat-card-title">Summary</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <a href="#" class="stat-link" id="totalOpenLink-${org}" target="_blank" rel="noopener">
+                <div class="stat-value loading" id="totalOpen-${org}">-</div>
+                <div class="stat-label">Total Open PRs</div>
+              </a>
+            </div>
+            <div class="stat-item">
+              <a href="#" class="stat-link" id="avgOpenAgeLink-${org}" target="_blank" rel="noopener">
+                <div class="stat-value loading" id="avgOpenAge-${org}">-</div>
+                <div class="stat-label">Avg Open PR Age</div>
+              </a>
+            </div>
+            <div class="stat-item">
+              <a href="#" class="stat-link" id="mergedPRsLink-${org}" target="_blank" rel="noopener">
+                <div class="stat-value loading" id="mergedPRs-${org}">-</div>
+                <div class="stat-label">Merged (10 days)</div>
+              </a>
+            </div>
+            <div class="stat-item">
+              <a href="#" class="stat-link" id="openPRsLink-${org}" target="_blank" rel="noopener">
+                <div class="stat-value loading" id="openPRs-${org}">-</div>
+                <div class="stat-label">Open >10 days</div>
+              </a>
+            </div>
+            <div class="stat-item">
+              <a href="#" class="stat-link" id="avgMergeTimeLink-${org}" target="_blank" rel="noopener">
+                <div class="stat-value loading" id="avgMergeTime-${org}">-</div>
+                <div class="stat-label">Avg Push→Merge Delay</div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return section;
+  };
+
+  const processOrgStats = async (org, username) => {
+    try {
+      const now = new Date();
+      const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+      const tenDaysAgoISO = tenDaysAgo.toISOString().split("T")[0];
+
+      // Build queries for this organization (org-wide, not user-specific)
+      // 1. All open PRs (we'll filter for stale ones in JS)
+      const openAllQuery = `type:pr is:open org:${org}`;
+
+      // 2. Merged PRs within the last 10 days (use is:merged to match GitHub link)
+      const mergedRecentQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgoISO}`;
+
+      // Run both queries in parallel with pagination (20 pages = up to 2000 results each)
+      const [openAllResponse, mergedRecentResponse] = await Promise.all([
+        githubSearchAll(
+          `/search/issues?q=${encodeURIComponent(openAllQuery)}&per_page=100`,
+          20,
+        ),
+        githubSearchAll(
+          `/search/issues?q=${encodeURIComponent(mergedRecentQuery)}&per_page=100`,
+          20,
+        ),
+      ]);
+
+      const openAllPRs = openAllResponse.items || [];
+      const mergedRecentPRs = mergedRecentResponse.items || [];
+
+      // Filter open PRs for stale ones (not updated in last 10 days)
+      const openStalePRs = openAllPRs.filter((pr) => {
+        const updatedAt = new Date(pr.updated_at);
+        return updatedAt < tenDaysAgo;
+      });
+
+      // All merged PRs are already filtered by the query
+      const mergedLast10Days = mergedRecentPRs.length;
+      let totalMergeTime = 0;
+
+      // Calculate average merge time for merged PRs
+      mergedRecentPRs.forEach((pr) => {
+        if (pr.pull_request?.merged_at) {
+          const createdAt = new Date(pr.created_at);
+          const mergedAt = new Date(pr.pull_request.merged_at);
+          const mergeTime = mergedAt - createdAt;
+          totalMergeTime += mergeTime;
+        }
+      });
+
+      // Calculate average age of open PRs
+      let totalOpenAge = 0;
+      openAllPRs.forEach((pr) => {
+        const createdAt = new Date(pr.created_at);
+        const age = now - createdAt;
+        totalOpenAge += age;
+      });
+
+      // Stats
+      const currentlyOpen = openAllPRs.length;
+      const openMoreThan10Days = openStalePRs.length;
+
+      // Update stats display
+      const totalOpenElement = $(`totalOpen-${org}`);
+      const avgOpenAgeElement = $(`avgOpenAge-${org}`);
+      const mergedElement = $(`mergedPRs-${org}`);
+      const openElement = $(`openPRs-${org}`);
+      const avgElement = $(`avgMergeTime-${org}`);
+      const ratioElement = $(`ratioDisplay-${org}`);
+
+      // Update total open PRs count and link
+      if (totalOpenElement) {
+        totalOpenElement.classList.remove("loading");
+        totalOpenElement.textContent = currentlyOpen;
+
+        const totalOpenLink = $(`totalOpenLink-${org}`);
+        if (totalOpenLink) {
+          if (currentlyOpen > 0) {
+            const openQuery = `type:pr is:open org:${org}`;
+            totalOpenLink.href = `https://github.com/search?q=${encodeURIComponent(openQuery)}&type=pullrequests`;
+          } else {
+            totalOpenLink.removeAttribute("href");
+            totalOpenLink.style.cursor = "default";
+          }
+        }
+      }
+
+      // Update average open PR age and link
+      if (avgOpenAgeElement) {
+        avgOpenAgeElement.classList.remove("loading");
+        const avgOpenAgeLink = $(`avgOpenAgeLink-${org}`);
+
+        if (currentlyOpen > 0) {
+          const avgOpenAgeMs = totalOpenAge / currentlyOpen;
+          const avgOpenAgeMinutes = avgOpenAgeMs / (60 * 1000);
+          const avgOpenAgeHours = avgOpenAgeMs / (60 * 60 * 1000);
+          const avgOpenAgeDays = avgOpenAgeMs / (24 * 60 * 60 * 1000);
+
+          // Display in most appropriate unit
+          let displayText;
+          if (avgOpenAgeMinutes < 60) {
+            displayText = `${Math.round(avgOpenAgeMinutes)}m`;
+          } else if (avgOpenAgeHours < 24) {
+            displayText = `${Math.round(avgOpenAgeHours)}h`;
+          } else {
+            displayText = `${Math.round(avgOpenAgeDays)}d`;
+          }
+          avgOpenAgeElement.textContent = displayText;
+
+          // Set up GitHub search link for all open PRs
+          if (avgOpenAgeLink) {
+            const openQuery = `type:pr is:open org:${org}`;
+            avgOpenAgeLink.href = `https://github.com/search?q=${encodeURIComponent(openQuery)}&type=pullrequests`;
+          }
+        } else {
+          avgOpenAgeElement.textContent = "-";
+          if (avgOpenAgeLink) {
+            avgOpenAgeLink.removeAttribute("href");
+            avgOpenAgeLink.style.cursor = "default";
+          }
+        }
+      }
+
+      // Update merged PRs count and link
+      if (mergedElement) {
+        mergedElement.classList.remove("loading");
+        mergedElement.textContent = mergedLast10Days;
+
+        const mergedLink = $(`mergedPRsLink-${org}`);
+        if (mergedLink) {
+          if (mergedLast10Days > 0) {
+            const mergedQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgoISO}`;
+            mergedLink.href = `https://github.com/search?q=${encodeURIComponent(mergedQuery)}&type=pullrequests`;
+          } else {
+            mergedLink.removeAttribute("href");
+            mergedLink.style.cursor = "default";
+          }
+        }
+      }
+
+      // Update open >10 days count and link
+      if (openElement) {
+        openElement.classList.remove("loading");
+        openElement.textContent = openMoreThan10Days;
+
+        const openLink = $(`openPRsLink-${org}`);
+        if (openLink) {
+          if (openMoreThan10Days > 0) {
+            const openQuery = `type:pr is:open org:${org} updated:<${tenDaysAgoISO}`;
+            openLink.href = `https://github.com/search?q=${encodeURIComponent(openQuery)}&type=pullrequests`;
+          } else {
+            openLink.removeAttribute("href");
+            openLink.style.cursor = "default";
+          }
+        }
+      }
+
+      // Calculate average merge time and set up link
+      if (avgElement) {
+        avgElement.classList.remove("loading");
+        const avgLink = $(`avgMergeTimeLink-${org}`);
+
+        if (mergedLast10Days > 0) {
+          const avgMergeMs = totalMergeTime / mergedLast10Days;
+          const avgMergeMinutes = avgMergeMs / (60 * 1000);
+          const avgMergeHours = avgMergeMs / (60 * 60 * 1000);
+          const avgMergeDays = avgMergeMs / (24 * 60 * 60 * 1000);
+
+          // Display in most appropriate unit
+          let displayText;
+          if (avgMergeMinutes < 60) {
+            displayText = `${Math.round(avgMergeMinutes)}m`;
+          } else if (avgMergeHours <= 120) {
+            // Show hours up to 120h (5 days)
+            displayText = `${Math.round(avgMergeHours)}h`;
+          } else {
+            displayText = `${Math.round(avgMergeDays)}d`;
+          }
+          avgElement.textContent = displayText;
+
+          // Set up GitHub search link for merged PRs in last 10 days (org-wide)
+          if (avgLink) {
+            const mergedQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgoISO}`;
+            avgLink.href = `https://github.com/search?q=${encodeURIComponent(mergedQuery)}&type=pullrequests`;
+          }
+        } else {
+          avgElement.textContent = "-";
+          if (avgLink) {
+            avgLink.removeAttribute("href");
+            avgLink.style.cursor = "default";
+          }
+        }
+      }
+
+      // Calculate and display merge:open ratio (comparing to open >10 days to match pie chart)
+      if (ratioElement) {
+        ratioElement.classList.remove("loading");
+        if (openMoreThan10Days === 0 && mergedLast10Days > 0) {
+          ratioElement.textContent = "∞:1";
+        } else if (openMoreThan10Days === 0 && mergedLast10Days === 0) {
+          ratioElement.textContent = "-";
+        } else {
+          const ratio = (mergedLast10Days / openMoreThan10Days).toFixed(1);
+          ratioElement.textContent = `${ratio}:1`;
+        }
+      }
+
+      // Draw pie chart
+      drawOrgPieChart(org, mergedLast10Days, openMoreThan10Days);
+    } catch (error) {
+      console.error(`Error processing stats for ${org}:`, error);
+
+      // Show error state for this org
+      const elements = [
+        "totalOpen",
+        "avgOpenAge",
+        "mergedPRs",
+        "openPRs",
+        "avgMergeTime",
+        "ratioDisplay",
+      ].map((id) => $(`${id}-${org}`));
+      elements.forEach((el) => {
+        if (el) {
+          el.classList.remove("loading");
+          el.textContent = error.isRateLimit ? "Rate Limited" : "Error";
+        }
+      });
+
+      // Add error message to the chart area
+      const canvas = $(`prRatioChart-${org}`);
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#e2e8f0";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ef4444";
+        ctx.font = "14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          error.isRateLimit ? "Rate limit exceeded" : "Error loading data",
+          canvas.width / 2,
+          canvas.height / 2,
+        );
+      }
+    }
+  };
+
+  const drawOrgPieChart = (org, merged, openOld) => {
+    const canvas = $(`prRatioChart-${org}`);
     if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    const total = merged + stale;
-    
+
+    const ctx = canvas.getContext("2d");
+    const total = merged + openOld;
+
     if (total === 0) {
       // No data to display
-      ctx.fillStyle = '#e2e8f0';
+      ctx.fillStyle = "#e2e8f0";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#475569';
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('No PR data available', canvas.width / 2, canvas.height / 2);
+      ctx.fillStyle = "#475569";
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("No PR data available", canvas.width / 2, canvas.height / 2);
       return;
     }
-    
+
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
     const radius = Math.min(centerX, centerY) - 20;
-    
+
     // Calculate angles
     const mergedAngle = (merged / total) * 2 * Math.PI;
-    const staleAngle = (stale / total) * 2 * Math.PI;
-    
+    const openAngle = (openOld / total) * 2 * Math.PI;
+
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // Draw merged slice
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + mergedAngle);
     ctx.closePath();
-    ctx.fillStyle = '#10b981';
+    ctx.fillStyle = "#10b981";
     ctx.fill();
-    
-    // Draw stale slice
+
+    // Draw open old slice
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
-    ctx.arc(centerX, centerY, radius, -Math.PI / 2 + mergedAngle, -Math.PI / 2 + mergedAngle + staleAngle);
+    ctx.arc(
+      centerX,
+      centerY,
+      radius,
+      -Math.PI / 2 + mergedAngle,
+      -Math.PI / 2 + mergedAngle + openAngle,
+    );
     ctx.closePath();
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = "#f59e0b";
     ctx.fill();
-    
+
     // Add border
-    ctx.strokeStyle = '#e2e8f0';
+    ctx.strokeStyle = "#e2e8f0";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     ctx.stroke();
-    
+
     // Update legend
     const legendHtml = `
       <div class="legend-item">
         <div class="legend-color" style="background: #10b981;"></div>
-        <span>Merged in 10 days (${merged} - ${Math.round(merged / total * 100)}%)</span>
+        <span>Merged in 10 days (${merged} - ${Math.round((merged / total) * 100)}%)</span>
       </div>
       <div class="legend-item">
         <div class="legend-color" style="background: #f59e0b;"></div>
-        <span>Open over 10 days (${stale} - ${Math.round(stale / total * 100)}%)</span>
+        <span>Open over 10 days (${openOld} - ${Math.round((openOld / total) * 100)}%)</span>
       </div>
     `;
-    $('chartLegend').innerHTML = legendHtml;
+    $(`chartLegend-${org}`).innerHTML = legendHtml;
   };
 
   // Public API
   return {
     init,
     logout,
-    initiateLogin: () => window.initiateLogin = initiateLogin,
+    initiateLogin: () => (window.initiateLogin = initiateLogin),
     initiateOAuthLogin,
     initiatePATLogin,
     closePATModal,
-    submitPAT
+    submitPAT,
   };
 })();
 
 // Start the app
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', App.init);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", App.init);
 } else {
   App.init();
 }
