@@ -371,9 +371,13 @@ a {
 }
 
 .header-title {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  white-space: nowrap;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
 }
 
 .controls {
@@ -595,23 +599,23 @@ a {
 
 /* PR Card */
 .pr-card {
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(203, 213, 225, 1);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  transition: all var(--transition);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  padding: 18px 20px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   border-left: 3px solid transparent;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  animation: cardEntry 0.3s ease-out;
+  cursor: pointer;
 }
 
 .pr-card:hover {
-  background: rgba(255, 255, 255, 1);
-  border-color: rgba(186, 199, 213, 1);
-  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.12);
-  transform: translateX(2px);
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  transform: translateY(-2px);
 }
 
 .pr-card.focused {
@@ -620,26 +624,30 @@ a {
 
 /* PR States */
 .pr-card[data-state="blocked"] {
-  border-left-color: var(--color-danger);
-  background: rgba(254, 242, 242, 0.98);
+  border-left-color: #ff453a;
+  background: rgba(255, 69, 58, 0.08);
+  border-color: rgba(255, 69, 58, 0.3);
 }
 
 .pr-card[data-state="blocked"]:hover {
-  background: rgba(254, 242, 242, 1);
+  background: rgba(255, 69, 58, 0.12);
+  border-color: rgba(255, 69, 58, 0.4);
 }
 
 .pr-card[data-state="ready"] {
-  border-left-color: var(--color-success);
-  background: rgba(240, 253, 244, 0.98);
+  border-left-color: #30d158;
+  background: rgba(52, 199, 89, 0.08);
+  border-color: rgba(52, 199, 89, 0.3);
 }
 
 .pr-card[data-state="ready"]:hover {
-  background: rgba(240, 253, 244, 1);
+  background: rgba(52, 199, 89, 0.12);
+  border-color: rgba(52, 199, 89, 0.4);
 }
 
 .pr-card[data-state="stale"] {
-  border-left-color: #8b6914;
-  background: rgba(254, 249, 235, 0.98);
+  border-left-color: #ff9500;
+  background: #ffffff;
 }
 
 .pr-card[data-state="stale"]:hover {
@@ -647,8 +655,10 @@ a {
 }
 
 .pr-card[data-needs-action="true"] {
-  border-left-color: var(--color-primary);
-  border-left-width: 4px;
+  border-left-color: #007aff;
+  border-left-width: 3px;
+  background: rgba(0, 122, 255, 0.06);
+  border-color: rgba(0, 122, 255, 0.25);
 }
 
 /* Draft PR cards */
@@ -681,20 +691,22 @@ a {
 }
 
 .pr-title {
-  font-size: var(--text-lg);
-  font-weight: 500;
-  line-height: var(--leading-tight);
-  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #1d1d1f;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
+  letter-spacing: -0.01em;
 }
 
 .pr-title:hover {
-  color: var(--color-primary);
+  color: #0066cc;
+  text-decoration: none;
 }
 
 .pr-badges {
@@ -707,14 +719,15 @@ a {
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 0 var(--space-2);
-  height: 1rem;
-  font-size: 0.625rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  height: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 10px;
   line-height: 1;
+  background: rgba(0, 0, 0, 0.04);
+  color: #3c3c43;
+  border: none;
   white-space: nowrap;
   transition: opacity 0.3s ease-out, transform 0.3s ease-out;
 }
@@ -726,18 +739,18 @@ a {
 }
 
 .badge-blocked {
-  background: rgb(239 68 68 / 0.1);
-  color: var(--color-danger);
+  background: linear-gradient(135deg, #ff453a 0%, #ff3b30 100%);
+  color: #ffffff;
 }
 
 .badge-ready {
-  background: rgb(16 185 129 / 0.1);
-  color: var(--color-success);
+  background: linear-gradient(135deg, #34c759 0%, #30d158 100%);
+  color: #ffffff;
 }
 
 .badge-draft {
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-secondary);
+  background: rgba(142, 142, 147, 0.16);
+  color: #3c3c43;
 }
 
 .badge-new {
@@ -884,14 +897,25 @@ a {
   }
 }
 
+@keyframes cardEntry {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* PR Meta */
 .pr-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
-  gap: var(--space-3);
+  font-size: 13px;
+  color: #6e6e73;
+  gap: 12px;
 }
 
 .pr-meta-left,
@@ -902,18 +926,20 @@ a {
 }
 
 .author-avatar {
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: var(--radius-full);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
 .pr-repo {
   font-weight: 500;
-  color: var(--color-text);
+  color: #1d1d1f;
 }
 
 .pr-number {
-  color: var(--color-text-tertiary);
+  color: #8e8e93;
 }
 
 .activity-text {
@@ -922,7 +948,8 @@ a {
 }
 
 .pr-age {
-  color: var(--color-text-tertiary);
+  color: #8e8e93;
+  font-size: 13px;
   white-space: nowrap;
 }
 

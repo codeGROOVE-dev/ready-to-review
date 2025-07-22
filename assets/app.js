@@ -1834,13 +1834,25 @@ const App = (() => {
 
     document.addEventListener("keydown", handleKeyboardShortcuts);
 
-    // Add event delegation for PR action buttons
+    // Add event delegation for PR action buttons and card clicks
     document.addEventListener("click", (e) => {
+      // Handle action button clicks
       if (e.target.closest(".pr-action-btn")) {
+        e.stopPropagation();
         const btn = e.target.closest(".pr-action-btn");
         const action = btn.dataset.action;
         const prId = btn.dataset.prId;
         handlePRAction(action, prId);
+        return;
+      }
+      
+      // Handle PR card clicks (but not on links or buttons)
+      const prCard = e.target.closest(".pr-card");
+      if (prCard && !e.target.closest("a") && !e.target.closest("button")) {
+        const prTitle = prCard.querySelector(".pr-title");
+        if (prTitle && prTitle.href) {
+          window.open(prTitle.href, "_blank", "noopener");
+        }
       }
     });
 
