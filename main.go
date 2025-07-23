@@ -251,7 +251,11 @@ func main() {
 	// Serve static files and handle SPA routing
 	mux.HandleFunc("/", serveStaticFiles)
 	mux.HandleFunc("/assets/", serveStaticFiles)
-	mux.HandleFunc("/github/", serveStaticFiles) // Handle /github/* routes
+	mux.HandleFunc("/user/", serveStaticFiles) // Handle /user/* routes
+	mux.HandleFunc("/stats", serveStaticFiles) // Handle /stats route
+	mux.HandleFunc("/stats/", serveStaticFiles) // Handle /stats/* routes
+	mux.HandleFunc("/robot-army", serveStaticFiles) // Handle /robot-army route
+	mux.HandleFunc("/robot-army/", serveStaticFiles) // Handle /robot-army/* routes
 	mux.HandleFunc("/notifications", serveStaticFiles) // Handle /notifications route
 
 	// OAuth endpoints with rate limiting
@@ -317,8 +321,14 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 	path := filepath.Clean(r.URL.Path)
 	if path == "/" || path == "." {
 		path = "index.html"
-	} else if strings.HasPrefix(path, "/github/") {
-		// Serve index.html for all /github/* routes (SPA routing)
+	} else if strings.HasPrefix(path, "/user/") {
+		// Serve index.html for all /user/* routes (SPA routing)
+		path = "index.html"
+	} else if strings.HasPrefix(path, "/stats/") || path == "/stats" {
+		// Serve index.html for all /stats/* routes (SPA routing)
+		path = "index.html"
+	} else if strings.HasPrefix(path, "/robot-army/") || path == "/robot-army" {
+		// Serve index.html for all /robot-army/* routes (SPA routing)
 		path = "index.html"
 	} else if path == "/notifications" {
 		// Serve index.html for /notifications route (SPA routing)

@@ -76,51 +76,39 @@ const App = (() => {
   const parseURL = () => {
     const path = window.location.pathname;
 
-    // Check for settings page pattern: /github/(all|org)/settings
-    const settingsMatch = path.match(/^\/github\/(all|[^\/]+)\/settings$/);
-    if (settingsMatch) {
-      const [, orgOrAll] = settingsMatch;
+    // Check for robot-army page patterns: /robot-army or /robot-army/org
+    const robotArmyMatch = path.match(/^\/robot-army(?:\/([^\/]+))?$/);
+    if (robotArmyMatch) {
+      const [, org] = robotArmyMatch;
       return {
-        org: orgOrAll === "all" ? null : orgOrAll,
+        org: org || null,
         username: state.currentUser?.login,
         isSettings: true,
       };
     }
 
-    // Check for stats page pattern: /github/(all|org)/stats
-    const statsMatch = path.match(/^\/github\/(all|[^\/]+)\/stats$/);
+    // Check for stats page patterns: /stats or /stats/org
+    const statsMatch = path.match(/^\/stats(?:\/([^\/]+))?$/);
     if (statsMatch) {
-      const [, orgOrAll] = statsMatch;
+      const [, org] = statsMatch;
       return {
-        org: orgOrAll === "all" ? null : orgOrAll,
+        org: org || null,
         username: state.viewingUser?.login || state.currentUser?.login,
         isStats: true,
       };
     }
 
-    // Check for legacy stats pattern: /github/(all|org)/username/stats
-    const legacyStatsMatch = path.match(
-      /^\/github\/(all|[^\/]+)\/([^\/]+)\/stats$/,
-    );
-    if (legacyStatsMatch) {
-      const [, orgOrAll, username] = legacyStatsMatch;
+    // Check for user dashboard pattern: /user/username or /user/org/username
+    const userMatch = path.match(/^\/user\/(?:([^\/]+)\/)?([^\/]+)$/);
+    if (userMatch) {
+      const [, org, username] = userMatch;
       return {
-        org: orgOrAll === "all" ? null : orgOrAll,
-        username: username,
-        isStats: true,
-      };
-    }
-
-    // Check for regular dashboard pattern: /github/(all|org)/username
-    const match = path.match(/^\/github\/(all|[^\/]+)\/([^\/]+)$/);
-    if (match) {
-      const [, orgOrAll, username] = match;
-      return {
-        org: orgOrAll === "all" ? null : orgOrAll,
+        org: org || null,
         username: username,
         isStats: false,
       };
     }
+
 
     return null;
   };
@@ -1154,16 +1142,16 @@ const App = (() => {
     if (isStats) {
       // For stats page, use the new URL format without username
       if (selectedOrg) {
-        newPath = `/github/${selectedOrg}/stats`;
+        newPath = `/stats/${selectedOrg}`;
       } else {
-        newPath = `/github/all/stats`;
+        newPath = `/stats`;
       }
     } else {
       // For dashboard page, keep the username in the URL
       if (selectedOrg) {
-        newPath = `/github/${selectedOrg}/${username}`;
+        newPath = `/user/${selectedOrg}/${username}`;
       } else {
-        newPath = `/github/all/${username}`;
+        newPath = `/user/${username}`;
       }
     }
 
@@ -1255,9 +1243,9 @@ const App = (() => {
     if (urlContext && urlContext.username) {
       const { org, username } = urlContext;
       const basePath = org
-        ? `/github/${org}/${username}`
-        : `/github/all/${username}`;
-      const statsPath = org ? `/github/${org}/stats` : `/github/all/stats`;
+        ? `/user/${org}/${username}`
+        : `/user/${username}`;
+      const statsPath = org ? `/stats/${org}` : `/stats`;
 
       // Update links
       if (dashboardLink) {
@@ -1301,7 +1289,7 @@ const App = (() => {
         settingsLink.addEventListener("click", (e) => {
           e.preventDefault();
           closeMenu();
-          window.location.href = '/github/all/settings';
+          window.location.href = '/robot-army';
         });
       }
     }
@@ -1536,7 +1524,7 @@ const App = (() => {
 
           // Check if we're already on the correct page to avoid loops
           const currentPath = window.location.pathname;
-          const expectedPath = `/github/all/${state.currentUser.login}`;
+          const expectedPath = `/user/${state.currentUser.login}`;
 
           if (currentPath !== expectedPath) {
             window.location.href = expectedPath;
@@ -1617,7 +1605,7 @@ const App = (() => {
 
         // Check if we're already on the correct page to avoid loops
         const currentPath = window.location.pathname;
-        const expectedPath = `/github/all/${user.login}`;
+        const expectedPath = `/user/${user.login}`;
 
         if (currentPath !== expectedPath) {
           window.location.href = expectedPath;
@@ -1787,7 +1775,7 @@ const App = (() => {
     // If we're not already on a user URL, redirect to demo user's dashboard
     const urlContext = parseURL();
     if (!urlContext || !urlContext.username) {
-      window.location.href = `/github/all/${DEMO_DATA.user.login}?demo=true`;
+      window.location.href = `/user/${DEMO_DATA.user.login}?demo=true`;
       return;
     }
 
@@ -1829,8 +1817,8 @@ const App = (() => {
       return;
     }
 
-    // Handle settings page routing
-    if (path.match(/^\/github\/(all|[^\/]+)\/settings$/)) {
+    // Handle robot-army page routing
+    if (path.match(/^\/robot-army(?:\/[^\/]+)?$/)) {
       // Load user first if not already loaded
       const token = getStoredToken();
       if (token) {
@@ -1985,9 +1973,9 @@ const App = (() => {
 
       // Only redirect if we're not already on a dashboard page
       const currentPath = window.location.pathname;
-      const expectedPath = `/github/all/${state.currentUser.login}`;
+      const expectedPath = `/user/${state.currentUser.login}`;
 
-      if (currentPath !== expectedPath && !currentPath.startsWith("/github/")) {
+      if (currentPath !== expectedPath && !currentPath.startsWith("/user/")) {
         // Redirect to user's dashboard URL
         window.location.href = expectedPath;
       } else {
@@ -2137,7 +2125,7 @@ const App = (() => {
               ${sortedOrgs
                 .map(
                   ([orgName, count]) => `
-                <a href="/github/${escapeHtml(orgName)}/stats" class="org-list-item">
+                <a href="/stats/${escapeHtml(orgName)}" class="org-list-item">
                   <div class="org-list-name">${escapeHtml(orgName)}</div>
                   <div class="org-list-count">${count} recent PRs</div>
                 </a>
@@ -2754,7 +2742,7 @@ const App = (() => {
     
     // Check if we're on an org-specific settings URL
     const path = window.location.pathname;
-    const settingsMatch = path.match(/^\/github\/([^\/]+)\/settings$/);
+    const settingsMatch = path.match(/^\/robot-army\/([^\/]+)$/);
     
     if (settingsMatch && settingsMatch[1] !== 'all') {
       const [, org] = settingsMatch;
@@ -2788,7 +2776,7 @@ const App = (() => {
       show($("robotConfig"));
       renderRobotCards();
     } else {
-      // We're on /github/all/settings - show org selection
+      // We're on /robot-army - show org selection
       document.title = "Robot Army Configuration";
       show($("orgSelectSettings").parentElement.parentElement);
       hide($("robotConfig"));
@@ -2872,7 +2860,7 @@ const App = (() => {
     // Redirect to org-specific settings URL
     const user = state.currentUser || state.viewingUser;
     if (user) {
-      window.location.href = `/github/${selectedOrg}/settings`;
+      window.location.href = `/robot-army/${selectedOrg}`;
       return;
     }
     
