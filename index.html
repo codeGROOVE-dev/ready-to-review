@@ -1,514 +1,1098 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="A modern dashboard for managing GitHub pull requests">
-    <title>Ready To Review - GitHub PR Dashboard</title>
-    <link rel="stylesheet" href="/assets/styles.css">
-    <link rel="icon" href="/favicon.ico">
-    <link rel="preconnect" href="https://api.github.com">
-</head>
-<body>
-    <div id="app">
-        <!-- Header -->
-        <header class="dashboard-header">
-            <div class="container">
-                <div class="header-content">
-                    <div class="header-left">
-                        <button id="hamburgerMenu" class="hamburger-menu" aria-label="Menu" aria-expanded="false">
-                            <span class="hamburger-line"></span>
-                            <span class="hamburger-line"></span>
-                            <span class="hamburger-line"></span>
-                        </button>
-                        <h1 class="header-title"><a href="/" style="text-decoration: none; color: inherit;">🚀 Ready To Review <span style="font-size: 11px; color: #dc2626; font-weight: 500; vertical-align: super; margin-left: 2px;">beta</span></a></h1>
-                        <div class="controls">
-                            <select id="orgSelect" class="org-select" aria-label="Filter by organization">
-                                <option value="">All Organizations</option>
-                            </select>
-                            <input type="search" id="searchInput" class="search-input" placeholder="Search PRs..." aria-label="Search pull requests">
-                        </div>
-                    </div>
-                    <div class="header-right">
-                        <div id="userInfo" class="user-info">
-                            <button id="loginBtn" class="btn btn-primary">Login with GitHub</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <!-- Slide-out Menu -->
-        <aside id="slideMenu" class="slide-menu">
-            <div class="slide-menu-header">
-                <h2 class="slide-menu-title">Menu</h2>
-                <button id="closeMenu" class="close-menu" aria-label="Close menu">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M18 6L6 18M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-            <nav class="slide-menu-nav">
-                <a href="/" id="dashboardLink" class="menu-link">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M16 3h5v5M8 3H3v5M16 21h5v-5M8 21H3v-5M12 8v8M8 12h8"/>
-                    </svg>
-                    Pull Requests
-                </a>
-                <a href="/stats" id="statsLink" class="menu-link">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 20V10M6 20V4m12 16v-6"/>
-                        <rect x="3" y="20" width="18" height="1" fill="currentColor"/>
-                    </svg>
-                    Stats
-                </a>
-                <a href="/notifications" id="notificationsLink" class="menu-link">
-                    <span style="font-size: 20px;">📢</span>
-                    Notifications
-                </a>
-                <a href="/robot-army" id="settingsLink" class="menu-link">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m20.5-6.5L17 9l-4.5-4.5M20.5 17.5L17 14l-4.5 4.5M3.5 6.5L8 11l4.5-4.5M3.5 17.5L8 14l4.5 4.5"/>
-                    </svg>
-                    Robot Army
-                </a>
-            </nav>
-        </aside>
-        
-        <!-- Menu Backdrop -->
-        <div id="menuBackdrop" class="menu-backdrop"></div>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <div class="container">
-                <!-- Login Prompt -->
-                <div id="loginPrompt" class="login-prompt" hidden>
-                    <div class="card login-card">
-                        <svg class="login-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-                        </svg>
-                        <h2>Welcome to Ready To Review</h2>
-                        <p>Choose how you'd like to access your GitHub pull requests</p>
-                        
-                        <div class="login-options">
-                            <a href="?demo=true" class="btn btn-secondary btn-large">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-                                    <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                Try Demo Mode
-                            </a>
-                            
-                            <button class="btn btn-primary btn-large" onclick="console.log('[HTML] GitHub App button clicked, window.App:', window.App); window.App.showGitHubAppModal()">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-                                </svg>
-                                Login with GitHub App
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+            name="description"
+            content="A modern dashboard for managing GitHub pull requests"
+        />
+        <title>Ready To Review - GitHub PR Dashboard</title>
+        <link rel="stylesheet" href="/assets/styles.css" />
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="preconnect" href="https://api.github.com" />
+    </head>
+    <body>
+        <div id="app">
+            <!-- Header -->
+            <header class="dashboard-header">
+                <div class="container">
+                    <div class="header-content">
+                        <div class="header-left">
+                            <button
+                                id="hamburgerMenu"
+                                class="hamburger-menu"
+                                aria-label="Menu"
+                                aria-expanded="false"
+                            >
+                                <span class="hamburger-line"></span>
+                                <span class="hamburger-line"></span>
+                                <span class="hamburger-line"></span>
                             </button>
-                            
-                            <button class="btn btn-outline btn-large" onclick="console.log('[HTML] PAT button clicked, window.App:', window.App); window.App.initiatePATLogin()">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M15 7h3a5 5 0 015 5 5 5 0 01-5 5h-3m-6 0H6a5 5 0 01-5-5 5 5 0 015-5h3"/>
-                                    <line x1="8" y1="12" x2="16" y2="12"/>
-                                </svg>
-                                Use Personal Access Token
-                            </button>
+                            <h1 class="header-title">
+                                <a
+                                    href="/"
+                                    style="
+                                        text-decoration: none;
+                                        color: inherit;
+                                    "
+                                    >🚀 Ready To Review
+                                    <span
+                                        style="
+                                            font-size: 11px;
+                                            color: #dc2626;
+                                            font-weight: 500;
+                                            vertical-align: super;
+                                            margin-left: 2px;
+                                        "
+                                        >beta</span
+                                    ></a
+                                >
+                            </h1>
+                            <div class="controls">
+                                <select
+                                    id="orgSelect"
+                                    class="org-select"
+                                    aria-label="Filter by organization"
+                                >
+                                    <option value="">All Organizations</option>
+                                </select>
+                                <input
+                                    type="search"
+                                    id="searchInput"
+                                    class="search-input"
+                                    placeholder="Search PRs..."
+                                    aria-label="Search pull requests"
+                                />
+                            </div>
                         </div>
-                        
-                        <div style="margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 0.5rem; font-size: 0.8125rem; color: #475569;">
-                            <strong>Note:</strong> GitHub OAuth Apps may not show all PRs in your repositories, particularly those created by bots (like Dependabot). For complete access, use a Personal Access Token.
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- GitHub App Installation Modal -->
-                <div id="githubAppModal" class="modal" hidden>
-                    <div class="modal-backdrop" onclick="window.App.closeGitHubAppModal()"></div>
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3>Install Ready to Review GitHub App</h3>
-                            <button class="modal-close" onclick="window.App.closeGitHubAppModal()">&times;</button>
-                        </div>
-                        <div class="modal-body">
-                            <p>To use the GitHub App authentication, you need to first install the Ready to Review app on your GitHub account or organization.</p>
-                            <ol>
-                                <li>Visit <a href="https://github.com/apps/ready-to-review-beta" target="_blank" rel="noopener">Ready to Review Beta GitHub App</a></li>
-                                <li>Click "Install" or "Configure" to add it to your repositories</li>
-                                <li>Select the repositories you want to access</li>
-                                <li>Complete the installation</li>
-                                <li>Come back here and click "Continue to Login"</li>
-                            </ol>
-                            <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
-                                <button class="btn btn-secondary" onclick="window.App.closeGitHubAppModal()">Cancel</button>
-                                <button class="btn btn-primary" onclick="window.App.proceedWithOAuth()">Continue to Login</button>
+                        <div class="header-right">
+                            <div id="userInfo" class="user-info">
+                                <button id="loginBtn" class="btn btn-primary">
+                                    Login with GitHub
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
+            </header>
 
-                <!-- PAT Instructions Modal -->
-                <div id="patModal" class="modal" hidden>
-                    <div class="modal-backdrop" onclick="window.App.closePATModal()"></div>
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3>Create a GitHub Personal Access Token</h3>
-                            <button class="modal-close" onclick="window.App.closePATModal()">&times;</button>
-                        </div>
-                        <div class="modal-body">
-                            <p><strong>Quick method:</strong> If you have the GitHub CLI installed, run:</p>
-                            <pre style="background: #f3f4f6; padding: 0.75rem; border-radius: 0.375rem; margin: 1rem 0;"><code>gh auth token</code></pre>
-                            <p>Then paste the token below.</p>
-                            
-                            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
-                            
-                            <p><strong>Alternative:</strong> Visit <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">GitHub Personal Access Tokens</a> to create a longer-lived token with these permissions:</p>
-                            <ul style="margin: 0.5rem 0 1rem 1.5rem;">
-                                <li><strong>Pull requests:</strong> Read-only</li>
-                            </ul>
-                            
-                            <div class="pat-input-group">
-                                <input type="password" id="patInput" class="pat-input" placeholder="Paste your token here">
-                                <button class="btn btn-primary" onclick="window.App.submitPAT()">Save Token</button>
-                            </div>
-                            <div id="patError" class="error-message" style="display: none; color: #dc2626; margin-top: 0.5rem;"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- PR Sections -->
-                <div id="prSections" class="pr-sections" hidden>
-                    <!-- Incoming PRs -->
-                    <section class="pr-section">
-                        <header class="section-header">
-                            <div class="section-title">
-                                <svg class="section-icon icon-incoming" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
-                                </svg>
-                                <h2>Incoming</h2>
-                                <span id="incomingCount" class="count">0</span>
-                                <label class="filter-checkbox">
-                                    <input type="checkbox" id="incomingFilterStale" checked>
-                                    <span>Include stale</span>
-                                </label>
-                                <label class="filter-checkbox">
-                                    <input type="checkbox" id="incomingFilterBlockedOthers">
-                                    <span>Include blocked on others</span>
-                                </label>
-                            </div>
-                            <div class="section-stats">
-                                <span id="incomingAverage" class="stat-text"></span>
-                            </div>
-                        </header>
-                        <div id="incomingPRs" class="pr-list"></div>
-                    </section>
-
-                    <!-- Outgoing PRs -->
-                    <section class="pr-section">
-                        <header class="section-header">
-                            <div class="section-title">
-                                <svg class="section-icon icon-outgoing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M5 10l7-7m0 0l7 7m-7-7v18"/>
-                                </svg>
-                                <h2>Outgoing</h2>
-                                <span id="outgoingCount" class="count">0</span>
-                                <label class="filter-checkbox">
-                                    <input type="checkbox" id="outgoingFilterStale" checked>
-                                    <span>Include stale</span>
-                                </label>
-                                <label class="filter-checkbox">
-                                    <input type="checkbox" id="outgoingFilterBlockedOthers" checked>
-                                    <span>Include blocked on others</span>
-                                </label>
-                            </div>
-                            <div class="section-stats">
-                                <span id="outgoingAverage" class="stat-text"></span>
-                            </div>
-                        </header>
-                        <div id="outgoingPRs" class="pr-list"></div>
-                    </section>
-
-                    <!-- Empty State -->
-                    <div id="emptyState" class="empty-state" hidden>
-                        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 01-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 01.53-.88 10 10 0 019.94 0A1 1 0 0115 6v7"/>
-                            <circle cx="12" cy="12" r="1"/>
+            <!-- Slide-out Menu -->
+            <aside id="slideMenu" class="slide-menu">
+                <div class="slide-menu-header">
+                    <h2 class="slide-menu-title">Menu</h2>
+                    <button
+                        id="closeMenu"
+                        class="close-menu"
+                        aria-label="Close menu"
+                    >
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path d="M18 6L6 18M6 6l12 12" />
                         </svg>
-                        <p>No pull requests found</p>
-                        <p class="text-secondary">Pull requests will appear here when they're ready for review</p>
-                    </div>
+                    </button>
                 </div>
-                
-                <!-- Stats Page -->
-                <div id="statsPage" class="stats-page" hidden>
-                    <header class="stats-header">
-                        <h1 class="stats-title">Pull Request Health Dashboard</h1>
-                        <p class="stats-subtitle">Track your organization's PR review efficiency and throughput</p>
-                    </header>
-                    
-                    <div id="orgStatsContainer" class="org-stats-container">
-                        <!-- Organization sections will be dynamically added here -->
-                    </div>
-                </div>
-                
-                <!-- Notifications Page -->
-                <div id="notificationsPage" class="notifications-page" hidden>
-                    <div class="notifications-hero">
-                        <div class="notifications-hero-content">
-                            <div class="hero-icon-wrapper">
-                                <span style="font-size: 80px;">📢</span>
-                                <div class="hero-icon-badge">✨</div>
+                <nav class="slide-menu-nav">
+                    <a href="/" id="dashboardLink" class="menu-link">
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path
+                                d="M16 3h5v5M8 3H3v5M16 21h5v-5M8 21H3v-5M12 8v8M8 12h8"
+                            />
+                        </svg>
+                        Pull Requests
+                    </a>
+                    <a href="/stats" id="statsLink" class="menu-link">
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path d="M12 20V10M6 20V4m12 16v-6" />
+                            <rect
+                                x="3"
+                                y="20"
+                                width="18"
+                                height="1"
+                                fill="currentColor"
+                            />
+                        </svg>
+                        Stats
+                    </a>
+                    <a
+                        href="/notifications"
+                        id="notificationsLink"
+                        class="menu-link"
+                    >
+                        <span style="font-size: 20px">📢</span>
+                        Notifications
+                    </a>
+                    <a href="/robot-army" id="settingsLink" class="menu-link">
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <circle cx="12" cy="12" r="3" />
+                            <path
+                                d="M12 1v6m0 6v6m11-7h-6m-6 0H1m20.5-6.5L17 9l-4.5-4.5M20.5 17.5L17 14l-4.5 4.5M3.5 6.5L8 11l4.5-4.5M3.5 17.5L8 14l4.5 4.5"
+                            />
+                        </svg>
+                        Robot Army
+                    </a>
+                </nav>
+            </aside>
+
+            <!-- Menu Backdrop -->
+            <div id="menuBackdrop" class="menu-backdrop"></div>
+
+            <!-- Main Content -->
+            <main class="main-content">
+                <div class="container">
+                    <!-- Login Prompt -->
+                    <div id="loginPrompt" class="login-prompt" hidden>
+                        <div class="card login-card">
+                            <svg
+                                class="login-icon"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
+                                />
+                            </svg>
+                            <h2>Welcome to Ready To Review</h2>
+                            <p>
+                                Choose how you'd like to access your GitHub pull
+                                requests
+                            </p>
+
+                            <div class="login-options">
+                                <a
+                                    href="?demo=true"
+                                    class="btn btn-secondary btn-large"
+                                >
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                                        />
+                                        <path
+                                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                        />
+                                    </svg>
+                                    Try Demo Mode
+                                </a>
+
+                                <button
+                                    class="btn btn-primary btn-large"
+                                    onclick="console.log('[HTML] GitHub App button clicked, window.App:', window.App); window.App.showGitHubAppModal()"
+                                >
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
+                                        />
+                                    </svg>
+                                    Login with GitHub App
+                                </button>
+
+                                <button
+                                    class="btn btn-outline btn-large"
+                                    onclick="console.log('[HTML] PAT button clicked, window.App:', window.App); window.App.initiatePATLogin()"
+                                >
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            d="M15 7h3a5 5 0 015 5 5 5 0 01-5 5h-3m-6 0H6a5 5 0 01-5-5 5 5 0 015-5h3"
+                                        />
+                                        <line x1="8" y1="12" x2="16" y2="12" />
+                                    </svg>
+                                    Use Personal Access Token
+                                </button>
                             </div>
-                            <h1 class="notifications-title">Stay in the Loop</h1>
-                            <p class="notifications-subtitle">Never miss an important pull request with our real-time notification system</p>
+
+                            <div
+                                style="
+                                    margin-top: 1rem;
+                                    padding: 1rem;
+                                    background: #f8fafc;
+                                    border-radius: 0.5rem;
+                                    font-size: 0.8125rem;
+                                    color: #475569;
+                                "
+                            >
+                                <strong>Note:</strong> GitHub OAuth Apps may not
+                                show all PRs in your repositories, particularly
+                                those created by bots (like Dependabot). For
+                                complete access, use a Personal Access Token.
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="notifications-content">
-                        <div class="notification-methods">
-                            <!-- Desktop App Card -->
-                            <div class="notification-card desktop-card">
-                                <div class="card-decoration">
-                                    <div class="floating-icon">
-                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                                            <line x1="8" y1="21" x2="16" y2="21"/>
-                                            <line x1="12" y1="17" x2="12" y2="21"/>
-                                        </svg>
-                                    </div>
-                                </div>
-                                <div class="card-content">
-                                    <div class="card-header">
-                                        <h3>Desktop App</h3>
-                                        <span class="badge-new">NEW</span>
-                                    </div>
-                                    <p class="card-description">Get instant notifications right in your menu bar. Never miss a PR that needs your attention.</p>
-                                    <div class="feature-grid">
-                                        <div class="feature-item">
-                                            <svg class="feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                                            </svg>
-                                            <span>Native notifications</span>
-                                        </div>
-                                        <div class="feature-item">
-                                            <svg class="feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <circle cx="12" cy="12" r="10"/>
-                                                <polyline points="12 6 12 12 16 14"/>
-                                            </svg>
-                                            <span>Real-time updates</span>
-                                        </div>
-                                        <div class="feature-item">
-                                            <svg class="feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                                            </svg>
-                                            <span>Lightning fast</span>
-                                        </div>
-                                        <div class="feature-item">
-                                            <svg class="feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <rect x="3" y="11" width="18" height="10" rx="2" ry="2"/>
-                                                <path d="M7 11V7a5 5 0 0110 0v4"/>
-                                            </svg>
-                                            <span>Secure & private</span>
-                                        </div>
-                                    </div>
-                                    <a href="https://github.com/ready-to-review/pr-menubar" target="_blank" rel="noopener" class="action-button primary">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                                            <polyline points="7 10 12 15 17 10"/>
-                                            <line x1="12" y1="15" x2="12" y2="3"/>
-                                        </svg>
-                                        Download for macOS
-                                    </a>
-                                </div>
+
+                    <!-- GitHub App Installation Modal -->
+                    <div id="githubAppModal" class="modal" hidden>
+                        <div
+                            class="modal-backdrop"
+                            onclick="window.App.closeGitHubAppModal()"
+                        ></div>
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3>Install Ready to Review GitHub App</h3>
+                                <button
+                                    class="modal-close"
+                                    onclick="window.App.closeGitHubAppModal()"
+                                >
+                                    &times;
+                                </button>
                             </div>
-                            
-                            <!-- Command Line Card -->
-                            <div class="notification-card cli-card">
-                                <div class="card-decoration">
-                                    <div class="floating-icon">
-                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                            <rect x="2" y="4" width="20" height="16" rx="2"/>
-                                            <path d="M6 8l4 4-4 4"/>
-                                            <path d="M12 16h6"/>
-                                        </svg>
-                                    </div>
-                                </div>
-                                <div class="card-content">
-                                    <div class="card-header">
-                                        <h3>Command Line Tool</h3>
-                                        <span class="badge-dev">DEV</span>
-                                    </div>
-                                    <p class="card-description">Access your PR dashboard directly from the terminal with powerful filtering and notification options.</p>
-                                    <div class="cli-commands">
-                                        <div class="cli-command">
-                                            <code>prs</code>
-                                            <span>Show all PRs (same as web dashboard)</span>
-                                        </div>
-                                        <div class="cli-command">
-                                            <code>prs --blocked</code>
-                                            <span>Show only blocked PRs</span>
-                                        </div>
-                                        <div class="cli-command">
-                                            <code>prs --notify</code>
-                                            <span>Get notified when PRs become blocked</span>
-                                        </div>
-                                    </div>
-                                    <a href="https://github.com/ready-to-review/prs" target="_blank" rel="noopener" class="action-button secondary">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-                                        </svg>
-                                        View on GitHub
-                                    </a>
-                                </div>
-                            </div>
-                        
-                            <!-- Slack Card -->
-                            <div class="notification-card slack-card">
-                                <div class="card-decoration">
-                                    <div class="floating-icon">
-                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                            <path d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"/>
-                                            <path d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
-                                            <path d="M9.5 14c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5S8 21.33 8 20.5v-5c0-.83.67-1.5 1.5-1.5z"/>
-                                            <path d="M3.5 14H5v1.5c0 .83-.67 1.5-1.5 1.5S2 16.33 2 15.5 2.67 14 3.5 14z"/>
-                                            <path d="M14 14.5c0-.83.67-1.5 1.5-1.5h5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-5c-.83 0-1.5-.67-1.5-1.5z"/>
-                                            <path d="M14 20.5V19h1.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5z"/>
-                                            <path d="M10 9.5C10 8.67 9.33 8 8.5 8h-5C2.67 8 2 8.67 2 9.5S2.67 11 3.5 11h5c.83 0 1.5-.67 1.5-1.5z"/>
-                                            <path d="M10 3.5V5H8.5C7.67 5 7 4.33 7 3.5S7.67 2 8.5 2s1.5.67 1.5 1.5z"/>
-                                        </svg>
-                                    </div>
-                                </div>
-                                <div class="card-content">
-                                    <div class="card-header">
-                                        <h3>Slack Integration</h3>
-                                        <span class="badge-dev">IN DEVELOPMENT</span>
-                                    </div>
-                                    <p class="card-description">Connect your workflow to Slack for team-wide visibility and collaboration.</p>
-                                    <div class="bot-preview">
-                                        <div class="bot-item">
-                                            <div class="bot-icon">🤖</div>
-                                            <div class="bot-info">
-                                                <strong>SlackChan 4000</strong>
-                                                <span>Channel notifications</span>
-                                            </div>
-                                        </div>
-                                        <div class="bot-item">
-                                            <div class="bot-icon">💬</div>
-                                            <div class="bot-info">
-                                                <strong>SlackDM 4001</strong>
-                                                <span>Direct messages</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <button id="goToRobotArmy" class="action-button secondary">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <circle cx="12" cy="12" r="3"/>
-                                            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m20.5-6.5L17 9l-4.5-4.5M20.5 17.5L17 14l-4.5 4.5M3.5 6.5L8 11l4.5-4.5M3.5 17.5L8 14l4.5 4.5"/>
-                                        </svg>
-                                        Configure Slack Bots
+                            <div class="modal-body">
+                                <p>
+                                    To use the GitHub App authentication, you
+                                    need to first install the Ready to Review
+                                    app on your GitHub account or organization.
+                                </p>
+                                <ol>
+                                    <li>
+                                        Visit
+                                        <a
+                                            href="https://github.com/apps/ready-to-review-beta"
+                                            target="_blank"
+                                            rel="noopener"
+                                            >Ready to Review Beta GitHub App</a
+                                        >
+                                    </li>
+                                    <li>
+                                        Click "Install" or "Configure" to add it
+                                        to your repositories
+                                    </li>
+                                    <li>
+                                        Select the repositories you want to
+                                        access
+                                    </li>
+                                    <li>Complete the installation</li>
+                                    <li>
+                                        Come back here and click "Continue to
+                                        Login"
+                                    </li>
+                                </ol>
+                                <div
+                                    style="
+                                        margin-top: 1.5rem;
+                                        display: flex;
+                                        gap: 1rem;
+                                        justify-content: flex-end;
+                                    "
+                                >
+                                    <button
+                                        class="btn btn-secondary"
+                                        onclick="window.App.closeGitHubAppModal()"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        class="btn btn-primary"
+                                        onclick="window.App.proceedWithOAuth()"
+                                    >
+                                        Continue to Login
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
 
-                            <!-- Coming Soon Card -->
-                            <div class="notification-card coming-soon-card">
-                                <div class="card-decoration">
-                                    <div class="floating-icon pulse">
-                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                                        </svg>
-                                    </div>
-                                </div>
-                                <div class="card-content">
-                                    <div class="card-header">
-                                        <h3>More Coming Soon</h3>
-                                        <span class="badge-coming">SOON</span>
-                                    </div>
-                                    <p class="card-description">We're working on exciting new ways to keep you connected.</p>
-                                    <div class="coming-soon-list">
-                                        <div class="coming-item">
-                                            <span class="coming-icon">📧</span>
-                                            <span>Email digests</span>
-                                        </div>
-                                        <div class="coming-item">
-                                            <span class="coming-icon">📱</span>
-                                            <span>Mobile app</span>
-                                        </div>
-                                        <div class="coming-item">
-                                            <span class="coming-icon">🔌</span>
-                                            <span>Webhooks API</span>
-                                        </div>
-                                        <div class="coming-item">
-                                            <span class="coming-icon">🎯</span>
-                                            <span>Custom rules</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Settings Page -->
-                <div id="settingsPage" class="settings-page" hidden>
-                    <header class="settings-header">
-                        <h1 class="settings-title">🤖 Robot Army Configuration</h1>
-                        <p class="settings-subtitle">Configure automated workflows for your repositories</p>
-                    </header>
-                    
-                    <div class="settings-content">
-                        <!-- Robot Configuration -->
-                        <div id="robotConfig" class="robot-config" hidden>
-                            <!-- Robot cards will be dynamically added here -->
-                            <div id="robotCards" class="robot-cards">
-                            </div>
-                            
-                            <!-- Export Section -->
-                            <div class="export-section">
-                                <button id="exportConfig" class="btn btn-primary btn-large">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                                        <polyline points="7 10 12 15 17 10"/>
-                                        <line x1="12" y1="15" x2="12" y2="3"/>
-                                    </svg>
-                                    Export Configuration
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- YAML Export Modal -->
-                    <div id="yamlModal" class="modal" hidden>
-                        <div class="modal-backdrop" onclick="window.App.closeYAMLModal()"></div>
-                        <div class="modal-content modal-large">
+                    <!-- PAT Instructions Modal -->
+                    <div id="patModal" class="modal" hidden>
+                        <div
+                            class="modal-backdrop"
+                            onclick="window.App.closePATModal()"
+                        ></div>
+                        <div class="modal-content">
                             <div class="modal-header">
-                                <h3>Export Robot Configuration</h3>
-                                <button class="modal-close" onclick="window.App.closeYAMLModal()">&times;</button>
+                                <h3>Create a GitHub Personal Access Token</h3>
+                                <button
+                                    class="modal-close"
+                                    onclick="window.App.closePATModal()"
+                                >
+                                    &times;
+                                </button>
                             </div>
                             <div class="modal-body">
-                                <p>Copy the configuration below and commit it to:</p>
-                                <code class="yaml-path" id="yamlPathModal"></code>
-                                <pre id="yamlContent" class="yaml-content"></pre>
-                                <button id="copyYaml" class="btn btn-primary" onclick="window.App.copyYAML()">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                                <p>
+                                    <strong>Quick method:</strong> If you have
+                                    the GitHub CLI installed, run:
+                                </p>
+                                <pre
+                                    style="
+                                        background: #f3f4f6;
+                                        padding: 0.75rem;
+                                        border-radius: 0.375rem;
+                                        margin: 1rem 0;
+                                    "
+                                ><code>gh auth token</code></pre>
+                                <p>Then paste the token below.</p>
+
+                                <hr
+                                    style="
+                                        margin: 1.5rem 0;
+                                        border: none;
+                                        border-top: 1px solid #e5e7eb;
+                                    "
+                                />
+
+                                <p>
+                                    <strong>Alternative:</strong> Visit
+                                    <a
+                                        href="https://github.com/settings/personal-access-tokens"
+                                        target="_blank"
+                                        rel="noopener"
+                                        >GitHub Personal Access Tokens</a
+                                    >
+                                    to create a longer-lived token with these
+                                    permissions:
+                                </p>
+                                <ul style="margin: 0.5rem 0 1rem 1.5rem">
+                                    <li>
+                                        <strong>Pull requests:</strong>
+                                        Read-only
+                                    </li>
+                                </ul>
+
+                                <div class="pat-input-group">
+                                    <input
+                                        type="password"
+                                        id="patInput"
+                                        class="pat-input"
+                                        placeholder="Paste your token here"
+                                    />
+                                    <button
+                                        class="btn btn-primary"
+                                        onclick="window.App.submitPAT()"
+                                    >
+                                        Save Token
+                                    </button>
+                                </div>
+                                <div
+                                    id="patError"
+                                    class="error-message"
+                                    style="
+                                        display: none;
+                                        color: #dc2626;
+                                        margin-top: 0.5rem;
+                                    "
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PR Sections -->
+                    <div id="prSections" class="pr-sections" hidden>
+                        <!-- Incoming PRs -->
+                        <section class="pr-section">
+                            <header class="section-header">
+                                <div class="section-title">
+                                    <svg
+                                        class="section-icon icon-incoming"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                                     </svg>
-                                    Copy to Clipboard
-                                </button>
+                                    <h2>Incoming</h2>
+                                    <span id="incomingCount" class="count"
+                                        >0</span
+                                    >
+                                    <label class="filter-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            id="incomingFilterStale"
+                                            checked
+                                        />
+                                        <span>Include stale</span>
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            id="incomingFilterBlockedOthers"
+                                        />
+                                        <span>Include blocked on others</span>
+                                    </label>
+                                </div>
+                                <div class="section-stats">
+                                    <span
+                                        id="incomingAverage"
+                                        class="stat-text"
+                                    ></span>
+                                </div>
+                            </header>
+                            <div id="incomingPRs" class="pr-list"></div>
+                        </section>
+
+                        <!-- Outgoing PRs -->
+                        <section class="pr-section">
+                            <header class="section-header">
+                                <div class="section-title">
+                                    <svg
+                                        class="section-icon icon-outgoing"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                    </svg>
+                                    <h2>Outgoing</h2>
+                                    <span id="outgoingCount" class="count"
+                                        >0</span
+                                    >
+                                    <label class="filter-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            id="outgoingFilterStale"
+                                            checked
+                                        />
+                                        <span>Include stale</span>
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            id="outgoingFilterBlockedOthers"
+                                            checked
+                                        />
+                                        <span>Include blocked on others</span>
+                                    </label>
+                                </div>
+                                <div class="section-stats">
+                                    <span
+                                        id="outgoingAverage"
+                                        class="stat-text"
+                                    ></span>
+                                </div>
+                            </header>
+                            <div id="outgoingPRs" class="pr-list"></div>
+                        </section>
+
+                        <!-- Empty State -->
+                        <div id="emptyState" class="empty-state" hidden>
+                            <svg
+                                class="empty-icon"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 01-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 01.53-.88 10 10 0 019.94 0A1 1 0 0115 6v7"
+                                />
+                                <circle cx="12" cy="12" r="1" />
+                            </svg>
+                            <p>No pull requests found</p>
+                            <p class="text-secondary">
+                                Pull requests will appear here when they're
+                                ready for review
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Stats Page -->
+                    <div id="statsPage" class="stats-page" hidden>
+                        <header class="stats-header">
+                            <h1 class="stats-title">
+                                Pull Request Health Dashboard
+                            </h1>
+                            <p class="stats-subtitle">
+                                Track your organization's PR review efficiency
+                                and throughput
+                            </p>
+                        </header>
+
+                        <div id="orgStatsContainer" class="org-stats-container">
+                            <!-- Organization sections will be dynamically added here -->
+                        </div>
+                    </div>
+
+                    <!-- Notifications Page -->
+                    <div
+                        id="notificationsPage"
+                        class="notifications-page"
+                        hidden
+                    >
+                        <div class="notifications-hero">
+                            <div class="notifications-hero-content">
+                                <h1 class="notifications-title">
+                                    Unblock your team without sacrificing focus
+                                </h1>
+                                <p class="notifications-subtitle">
+                                    Never miss a pull request with our smart
+                                    real-time notification system.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="notifications-content">
+                            <div class="notification-methods">
+                                <!-- Desktop App Card -->
+                                <div class="notification-card desktop-card">
+                                    <div class="card-decoration">
+                                        <div class="floating-icon">
+                                            <svg
+                                                width="40"
+                                                height="40"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                            >
+                                                <rect
+                                                    x="2"
+                                                    y="3"
+                                                    width="20"
+                                                    height="14"
+                                                    rx="2"
+                                                    ry="2"
+                                                />
+                                                <line
+                                                    x1="8"
+                                                    y1="21"
+                                                    x2="16"
+                                                    y2="21"
+                                                />
+                                                <line
+                                                    x1="12"
+                                                    y1="17"
+                                                    x2="12"
+                                                    y2="21"
+                                                />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="card-content">
+                                        <div class="card-header">
+                                            <h3>Desktop App</h3>
+                                            <span class="badge-new">NEW</span>
+                                        </div>
+                                        <p class="card-description">
+                                            Get instant notifications right in
+                                            your menu bar. Never miss a PR that
+                                            needs your attention.
+                                        </p>
+                                        <div class="feature-grid">
+                                            <div class="feature-item">
+                                                <svg
+                                                    class="feature-icon"
+                                                    width="20"
+                                                    height="20"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <path
+                                                        d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                                                    />
+                                                </svg>
+                                                <span
+                                                    >Native notifications</span
+                                                >
+                                            </div>
+                                            <div class="feature-item">
+                                                <svg
+                                                    class="feature-icon"
+                                                    width="20"
+                                                    height="20"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <circle
+                                                        cx="12"
+                                                        cy="12"
+                                                        r="10"
+                                                    />
+                                                    <polyline
+                                                        points="12 6 12 12 16 14"
+                                                    />
+                                                </svg>
+                                                <span>Real-time updates</span>
+                                            </div>
+                                            <div class="feature-item">
+                                                <svg
+                                                    class="feature-icon"
+                                                    width="20"
+                                                    height="20"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <path
+                                                        d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"
+                                                    />
+                                                </svg>
+                                                <span>Lightning fast</span>
+                                            </div>
+                                            <div class="feature-item">
+                                                <svg
+                                                    class="feature-icon"
+                                                    width="20"
+                                                    height="20"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <rect
+                                                        x="3"
+                                                        y="11"
+                                                        width="18"
+                                                        height="10"
+                                                        rx="2"
+                                                        ry="2"
+                                                    />
+                                                    <path
+                                                        d="M7 11V7a5 5 0 0110 0v4"
+                                                    />
+                                                </svg>
+                                                <span>Secure & private</span>
+                                            </div>
+                                        </div>
+                                        <a
+                                            href="https://github.com/ready-to-review/pr-menubar"
+                                            target="_blank"
+                                            rel="noopener"
+                                            class="action-button primary"
+                                        >
+                                            <svg
+                                                width="20"
+                                                height="20"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path
+                                                    d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
+                                                />
+                                                <polyline
+                                                    points="7 10 12 15 17 10"
+                                                />
+                                                <line
+                                                    x1="12"
+                                                    y1="15"
+                                                    x2="12"
+                                                    y2="3"
+                                                />
+                                            </svg>
+                                            Available for macOS, UNIX, and
+                                            Windows
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <!-- Command Line Card -->
+                                <div class="notification-card cli-card">
+                                    <div class="card-decoration">
+                                        <div class="floating-icon">
+                                            <svg
+                                                width="40"
+                                                height="40"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                            >
+                                                <rect
+                                                    x="2"
+                                                    y="4"
+                                                    width="20"
+                                                    height="16"
+                                                    rx="2"
+                                                />
+                                                <path d="M6 8l4 4-4 4" />
+                                                <path d="M12 16h6" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="card-content">
+                                        <div class="card-header">
+                                            <h3>Command Line Tool</h3>
+                                            <span class="badge-dev">DEV</span>
+                                        </div>
+                                        <p class="card-description">
+                                            Access your PR dashboard directly
+                                            from the terminal with powerful
+                                            filtering and notification options.
+                                        </p>
+                                        <div class="cli-commands">
+                                            <div class="cli-command">
+                                                <code>prs</code>
+                                                <span
+                                                    >Show all PRs (same as web
+                                                    dashboard)</span
+                                                >
+                                            </div>
+                                            <div class="cli-command">
+                                                <code>prs --blocked</code>
+                                                <span
+                                                    >Show only blocked PRs</span
+                                                >
+                                            </div>
+                                            <div class="cli-command">
+                                                <code>prs --notify</code>
+                                                <span
+                                                    >Get notified when PRs
+                                                    become blocked</span
+                                                >
+                                            </div>
+                                        </div>
+                                        <a
+                                            href="https://github.com/ready-to-review/prs"
+                                            target="_blank"
+                                            rel="noopener"
+                                            class="action-button secondary"
+                                        >
+                                            <svg
+                                                width="20"
+                                                height="20"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path
+                                                    d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
+                                                />
+                                            </svg>
+                                            View on GitHub
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <!-- Slack Card -->
+                                <div class="notification-card slack-card">
+                                    <div class="card-decoration">
+                                        <div class="floating-icon">
+                                            <svg
+                                                width="40"
+                                                height="40"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                            >
+                                                <path
+                                                    d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"
+                                                />
+                                                <path
+                                                    d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"
+                                                />
+                                                <path
+                                                    d="M9.5 14c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5S8 21.33 8 20.5v-5c0-.83.67-1.5 1.5-1.5z"
+                                                />
+                                                <path
+                                                    d="M3.5 14H5v1.5c0 .83-.67 1.5-1.5 1.5S2 16.33 2 15.5 2.67 14 3.5 14z"
+                                                />
+                                                <path
+                                                    d="M14 14.5c0-.83.67-1.5 1.5-1.5h5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-5c-.83 0-1.5-.67-1.5-1.5z"
+                                                />
+                                                <path
+                                                    d="M14 20.5V19h1.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5z"
+                                                />
+                                                <path
+                                                    d="M10 9.5C10 8.67 9.33 8 8.5 8h-5C2.67 8 2 8.67 2 9.5S2.67 11 3.5 11h5c.83 0 1.5-.67 1.5-1.5z"
+                                                />
+                                                <path
+                                                    d="M10 3.5V5H8.5C7.67 5 7 4.33 7 3.5S7.67 2 8.5 2s1.5.67 1.5 1.5z"
+                                                />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="card-content">
+                                        <div class="card-header">
+                                            <h3>Slack Integration</h3>
+                                            <span class="badge-dev"
+                                                >IN DEVELOPMENT</span
+                                            >
+                                        </div>
+                                        <p class="card-description">
+                                            Connect your workflow to Slack for
+                                            team-wide visibility and
+                                            collaboration.
+                                        </p>
+                                        <div class="bot-preview">
+                                            <div class="bot-item">
+                                                <div class="bot-icon">🤖</div>
+                                                <div class="bot-info">
+                                                    <strong
+                                                        >SlackChan 4000</strong
+                                                    >
+                                                    <span
+                                                        >Channel
+                                                        notifications</span
+                                                    >
+                                                </div>
+                                            </div>
+                                            <div class="bot-item">
+                                                <div class="bot-icon">💬</div>
+                                                <div class="bot-info">
+                                                    <strong
+                                                        >SlackDM 4001</strong
+                                                    >
+                                                    <span>Direct messages</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            id="goToRobotArmy"
+                                            class="action-button secondary"
+                                        >
+                                            <svg
+                                                width="20"
+                                                height="20"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <circle cx="12" cy="12" r="3" />
+                                                <path
+                                                    d="M12 1v6m0 6v6m11-7h-6m-6 0H1m20.5-6.5L17 9l-4.5-4.5M20.5 17.5L17 14l-4.5 4.5M3.5 6.5L8 11l4.5-4.5M3.5 17.5L8 14l4.5 4.5"
+                                                />
+                                            </svg>
+                                            Configure Slack Bots
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Coming Soon Card -->
+                                <div class="notification-card coming-soon-card">
+                                    <div class="card-decoration">
+                                        <div class="floating-icon pulse">
+                                            <svg
+                                                width="40"
+                                                height="40"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                            >
+                                                <path
+                                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                                />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="card-content">
+                                        <div class="card-header">
+                                            <h3>More Coming Soon</h3>
+                                            <span class="badge-coming"
+                                                >SOON</span
+                                            >
+                                        </div>
+                                        <p class="card-description">
+                                            We're working on exciting new ways
+                                            to keep you connected.
+                                        </p>
+                                        <div class="coming-soon-list">
+                                            <div class="coming-item">
+                                                <span class="coming-icon"
+                                                    >🧩</span
+                                                >
+                                                <span>Browser Extensions</span>
+                                            </div>
+                                            <div class="coming-item">
+                                                <span class="coming-icon"
+                                                    >💬</span
+                                                >
+                                                <span>Discord</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Settings Page -->
+                    <div id="settingsPage" class="settings-page" hidden>
+                        <header class="settings-header">
+                            <h1 class="settings-title">
+                                🤖 Robot Army Configuration
+                            </h1>
+                            <p class="settings-subtitle">
+                                Configure automated workflows for your
+                                repositories
+                            </p>
+                        </header>
+
+                        <div class="settings-content">
+                            <!-- Robot Configuration -->
+                            <div id="robotConfig" class="robot-config" hidden>
+                                <!-- Robot cards will be dynamically added here -->
+                                <div id="robotCards" class="robot-cards"></div>
+
+                                <!-- Export Section -->
+                                <div class="export-section">
+                                    <button
+                                        id="exportConfig"
+                                        class="btn btn-primary btn-large"
+                                    >
+                                        <svg
+                                            width="20"
+                                            height="20"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
+                                            />
+                                            <polyline
+                                                points="7 10 12 15 17 10"
+                                            />
+                                            <line
+                                                x1="12"
+                                                y1="15"
+                                                x2="12"
+                                                y2="3"
+                                            />
+                                        </svg>
+                                        Export Configuration
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- YAML Export Modal -->
+                        <div id="yamlModal" class="modal" hidden>
+                            <div
+                                class="modal-backdrop"
+                                onclick="window.App.closeYAMLModal()"
+                            ></div>
+                            <div class="modal-content modal-large">
+                                <div class="modal-header">
+                                    <h3>Export Robot Configuration</h3>
+                                    <button
+                                        class="modal-close"
+                                        onclick="window.App.closeYAMLModal()"
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>
+                                        Copy the configuration below and commit
+                                        it to:
+                                    </p>
+                                    <code
+                                        class="yaml-path"
+                                        id="yamlPathModal"
+                                    ></code>
+                                    <pre
+                                        id="yamlContent"
+                                        class="yaml-content"
+                                    ></pre>
+                                    <button
+                                        id="copyYaml"
+                                        class="btn btn-primary"
+                                        onclick="window.App.copyYAML()"
+                                    >
+                                        <svg
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <rect
+                                                x="9"
+                                                y="9"
+                                                width="13"
+                                                height="13"
+                                                rx="2"
+                                                ry="2"
+                                            />
+                                            <path
+                                                d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
+                                            />
+                                        </svg>
+                                        Copy to Clipboard
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </main>
-        
-        <footer class="dashboard-footer">
-            <span>Want real-time notifications on your desktop? Try the new <a href="https://github.com/ready-to-review/pr-menubar" target="_blank" rel="noopener" style="color: #0969da; text-decoration: underline; font-weight: 500;">Ready to Review.app</a> <span style="background: #f3f4f6; color: #475569; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 500; vertical-align: middle;">(beta)</span></span>
-        </footer>
-    </div>
+            </main>
 
-    <script src="/assets/demo-data.js"></script>
-    <script type="module" src="/assets/app.js"></script>
-</body>
+            <footer class="dashboard-footer">
+                <span
+                    >Want real-time notifications on your desktop? Try the new
+                    <a
+                        href="https://github.com/ready-to-review/pr-menubar"
+                        target="_blank"
+                        rel="noopener"
+                        style="
+                            color: #0969da;
+                            text-decoration: underline;
+                            font-weight: 500;
+                        "
+                        >Ready to Review.app</a
+                    >
+                    <span
+                        style="
+                            background: #f3f4f6;
+                            color: #475569;
+                            padding: 0.125rem 0.375rem;
+                            border-radius: 0.25rem;
+                            font-size: 0.75rem;
+                            font-weight: 500;
+                            vertical-align: middle;
+                        "
+                        >(beta)</span
+                    ></span
+                >
+            </footer>
+        </div>
+
+        <script src="/assets/demo-data.js"></script>
+        <script type="module" src="/assets/app.js"></script>
+    </body>
 </html>
