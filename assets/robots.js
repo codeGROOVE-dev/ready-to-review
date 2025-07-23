@@ -1,5 +1,5 @@
 // Robot Army Module for Ready To Review
-import { $, show, hide } from './utils.js';
+import { $, show, hide, escapeHtml } from './utils.js';
 
 export const Robots = (() => {
   "use strict";
@@ -164,6 +164,11 @@ export const Robots = (() => {
     // Update org filter dropdown
     await updateOrgFilter(state, parseURL, githubAPI);
     
+    // Update hamburger menu links to reflect URL org
+    if (window.App && window.App.updateHamburgerMenuLinks) {
+      window.App.updateHamburgerMenuLinks();
+    }
+    
     // Add change handler for org dropdown to navigate
     const orgSelect = $("orgSelect");
     if (orgSelect) {
@@ -215,11 +220,14 @@ export const Robots = (() => {
       const org = urlContext.org;
       console.log("[showSettingsPage] Parsed org from URL:", org || "no org");
       
-      const orgSelection = document.querySelector('.org-selection');
+      // Update hamburger menu links to reflect URL org
+      if (window.App && window.App.updateHamburgerMenuLinks) {
+        window.App.updateHamburgerMenuLinks();
+      }
+      
       const robotConfig = $("robotConfig");
       
       console.log("[showSettingsPage] Elements found:", {
-        orgSelection: !!orgSelection,
         robotConfig: !!robotConfig,
         robotConfigInitiallyHidden: robotConfig?.hasAttribute("hidden")
       });
@@ -234,21 +242,17 @@ export const Robots = (() => {
           settingsTitle.textContent = `🤖 Robot Army Configuration`;
         }
         if (settingsSubtitle) {
-          settingsSubtitle.textContent = `Select an organization to configure robots`;
+          settingsSubtitle.textContent = `Select an organization to configure automated helpers`;
         }
         
-        // Show org selection, hide robot config
-        if (orgSelection) {
-          console.log("[showSettingsPage] Showing org selection");
-          show(orgSelection);
-        }
+        // Hide robot config
         if (robotConfig) {
           console.log("[showSettingsPage] Hiding robot config");
           hide(robotConfig);
         }
         
-        // Update org selector to handle navigation
-        await loadOrganizationsForSettings(state, githubAPI, loadUserOrganizations);
+        // Show organization list similar to stats page
+        await showOrganizationList(state, githubAPI, loadUserOrganizations, settingsContent);
         
         return; // Don't proceed with robot config
       }
@@ -267,11 +271,7 @@ export const Robots = (() => {
         settingsSubtitle.textContent = `Configure automated helpers to handle repetitive GitHub tasks`;
       }
         
-      // Hide org selection and show robot config
-      if (orgSelection) {
-        console.log("[showSettingsPage] Hiding org selection");
-        hide(orgSelection);
-      }
+      // Show robot config
       if (robotConfig) {
         console.log("[showSettingsPage] Showing robot config");
         show(robotConfig);
@@ -312,6 +312,45 @@ export const Robots = (() => {
     }
   };
 
+  const showOrganizationList = async (state, githubAPI, loadUserOrganizations, container) => {
+    try {
+      // Show loading indicator
+      const orgListContainer = document.createElement('div');
+      orgListContainer.innerHTML = '<div class="loading-indicator">Loading organizations...</div>';
+      container.appendChild(orgListContainer);
+      
+      // Use the same cached organizations as the dropdown
+      const orgs = await loadUserOrganizations(state, githubAPI);
+      
+      if (orgs.length === 0) {
+        orgListContainer.innerHTML = '<div class="empty-state">No organizations found</div>';
+        return;
+      }
+      
+      // Create organization list similar to stats page
+      orgListContainer.innerHTML = `
+        <div class="org-selector">
+          <h2 class="org-selector-title">Select an organization to configure robots</h2>
+          <p class="org-selector-subtitle">Choose from your organizations where you've been active</p>
+          <div class="org-list">
+            ${orgs
+              .map(
+                (orgName) => `
+              <a href="/robots/gh/${escapeHtml(orgName)}" class="org-list-item">
+                <div class="org-list-name">${escapeHtml(orgName)}</div>
+              </a>
+            `,
+              )
+              .join("")}
+          </div>
+        </div>
+      `;
+    } catch (error) {
+      console.error("Failed to load organizations:", error);
+      container.innerHTML = '<div class="empty-state">Failed to load organizations</div>';
+    }
+  };
+  
   const loadOrganizationsForSettings = async (state, githubAPI, loadUserOrganizations) => {
     const orgSelect = $("orgSelectSettings");
     if (!orgSelect) return;

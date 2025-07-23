@@ -64,8 +64,33 @@ export const User = (() => {
     document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
   };
 
-  // Turn API integration
+  // Turn API integration with caching
   const turnAPI = async (prUrl, updatedAt, accessToken, currentUser) => {
+    // Extract repo and PR number from URL for cache key
+    const urlMatch = prUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/);
+    if (!urlMatch) {
+      console.warn(`Invalid PR URL format: ${prUrl}`);
+      return null;
+    }
+    
+    const [, owner, repo, prNumber] = urlMatch;
+    const TURN_CACHE_KEY = `r2r_turn_${owner}_${repo}_${prNumber}`;
+    const TURN_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours
+    
+    // Check cache first
+    try {
+      const cached = localStorage.getItem(TURN_CACHE_KEY);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < TURN_CACHE_DURATION) {
+          console.log(`Using cached turn data for ${owner}/${repo}#${prNumber} (${Math.round((Date.now() - timestamp) / 60000)}m old)`);
+          return data;
+        }
+      }
+    } catch (e) {
+      console.log("Error reading turn cache:", e);
+    }
+
     const headers = {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -96,6 +121,17 @@ export const User = (() => {
       }
 
       const data = await response.json();
+      
+      // Cache the result
+      try {
+        localStorage.setItem(TURN_CACHE_KEY, JSON.stringify({
+          data: data,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        console.log("Error caching turn data:", e);
+      }
+      
       return data;
     } catch (error) {
       console.warn(`Turn API request failed for ${prUrl}:`, error);
@@ -142,6 +178,47 @@ export const User = (() => {
     if (!targetUser) {
       console.error("No user to load PRs for");
       return;
+    }
+
+    const CACHE_KEY = `r2r_prs_${targetUser.login}`;
+    const CACHE_DURATION = 5 * 1000; // 5 seconds
+    
+    // Check cache first
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { prs, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          console.log(`Using cached PRs for ${targetUser.login} (${Math.round((Date.now() - timestamp) / 1000)}s old)`);
+          
+          // Apply cached data
+          state.pullRequests = {
+            incoming: [],
+            outgoing: [],
+          };
+          
+          for (const pr of prs) {
+            if (pr.user.login === targetUser.login) {
+              state.pullRequests.outgoing.push(pr);
+            } else {
+              state.pullRequests.incoming.push(pr);
+            }
+          }
+          
+          updatePRSections(state);
+          
+          // Still fetch turn data and PR details in background
+          setTimeout(() => {
+            prs.forEach(pr => {
+              fetchPRDetailsBackground(pr, state, githubAPI, isDemoMode);
+            });
+          }, 0);
+          
+          return;
+        }
+      }
+    } catch (e) {
+      console.log("Error reading PR cache:", e);
     }
 
     const query1 = `is:open is:pr involves:${targetUser.login} archived:false`;
@@ -221,6 +298,21 @@ export const User = (() => {
         state.pullRequests.incoming.push(pr);
       }
     }
+    
+    // Cache the basic PR data
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        prs: prs.map(pr => ({
+          ...pr,
+          // Don't cache heavy data that changes frequently
+          turnData: undefined,
+          prState: undefined
+        })),
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      console.log("Error caching PRs:", e);
+    }
 
     updatePRSections(state);
 
@@ -284,6 +376,61 @@ export const User = (() => {
     }
 
     await Promise.all(detailPromises);
+  };
+  
+  const fetchPRDetailsBackground = async (pr, state, githubAPI, isDemoMode) => {
+    // Fetch PR details
+    try {
+      const urlParts = pr.repository_url.split("/");
+      const owner = urlParts[urlParts.length - 2];
+      const repo = urlParts[urlParts.length - 1];
+
+      const prDetails = await githubAPI(
+        `/repos/${owner}/${repo}/pulls/${pr.number}`,
+      );
+      pr.additions = prDetails.additions;
+      pr.deletions = prDetails.deletions;
+
+      updateSinglePRCard(pr, state);
+    } catch (error) {
+      console.error(`Failed to fetch PR details for ${pr.html_url}:`, error);
+    }
+    
+    // Fetch turn data
+    if (!isDemoMode) {
+      try {
+        const turnResponse = await turnAPI(
+          pr.html_url,
+          new Date(pr.updated_at).toISOString(),
+          state.accessToken,
+          state.currentUser
+        );
+
+        pr.turnData = turnResponse;
+        pr.prState = turnResponse?.pr_state;
+        pr.status_tags = getStatusTags(pr);
+
+        const lastActivity = turnResponse?.pr_state?.last_activity;
+        if (lastActivity) {
+          pr.last_activity = {
+            type: lastActivity.kind,
+            message: lastActivity.message,
+            timestamp: lastActivity.timestamp,
+            actor: lastActivity.author,
+          };
+        }
+
+        updateSinglePRCard(pr, state);
+      } catch (error) {
+        console.error(
+          `Failed to load turn data for PR ${pr.html_url}:`,
+          error,
+        );
+        pr.turnData = null;
+        pr.status_tags = getStatusTags(pr);
+        updateSinglePRCard(pr, state);
+      }
+    }
   };
 
   const getStatusTags = (pr) => {
@@ -377,7 +524,7 @@ export const User = (() => {
 
   const loadUserOrganizations = async (state, githubAPI) => {
     const CACHE_KEY = 'r2r_user_orgs_cache';
-    const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+    const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
     
     // Check cache first
     try {
@@ -389,7 +536,34 @@ export const User = (() => {
         
         // Return cached data if it's fresh and for the same user
         if (Date.now() - timestamp < CACHE_DURATION && userId === currentUserId) {
-          console.log("Using cached organizations");
+          console.log("Using cached organizations:", orgs);
+          
+          // On PR page, still merge in orgs from loaded PRs
+          const urlPath = window.location.pathname;
+          if (urlPath === '/' || urlPath.startsWith('/u/')) {
+            const prOrgs = new Set(orgs);
+            const allPRs = [
+              ...state.pullRequests.incoming,
+              ...state.pullRequests.outgoing,
+            ];
+            
+            console.log(`Found ${allPRs.length} PRs to check for organizations`);
+            
+            allPRs.forEach((pr) => {
+              if (pr.repository && pr.repository.full_name) {
+                const org = pr.repository.full_name.split("/")[0];
+                if (!prOrgs.has(org)) {
+                  console.log(`Adding org from PR: ${org}`);
+                }
+                prOrgs.add(org);
+              }
+            });
+            
+            const finalOrgs = Array.from(prOrgs).sort();
+            console.log("Final organizations list:", finalOrgs);
+            return finalOrgs;
+          }
+          
           return orgs;
         }
       }
@@ -434,7 +608,7 @@ export const User = (() => {
       console.log("Could not load user events");
     }
     
-    // Also include orgs from loaded PRs
+    // Always include orgs from loaded PRs
     const allPRs = [
       ...state.pullRequests.incoming,
       ...state.pullRequests.outgoing,
@@ -468,6 +642,11 @@ export const User = (() => {
   const updateOrgFilter = async (state, parseURL, githubAPI) => {
     const orgSelect = $("orgSelect");
     if (!orgSelect) return;
+    
+    console.log("updateOrgFilter called, current PRs:", {
+      incoming: state.pullRequests.incoming.length,
+      outgoing: state.pullRequests.outgoing.length
+    });
 
     // Load organizations
     const uniqueOrgs = await loadUserOrganizations(state, githubAPI);
@@ -488,6 +667,11 @@ export const User = (() => {
     } else {
       // Clear selection if no org in URL or org is '*'
       orgSelect.value = "";
+    }
+    
+    // Update hamburger menu links to reflect org selection
+    if (window.App && window.App.updateHamburgerMenuLinks) {
+      window.App.updateHamburgerMenuLinks();
     }
   };
 

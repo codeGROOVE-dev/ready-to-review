@@ -1333,6 +1333,13 @@ a {
 .stat-label {
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
+  margin-bottom: 0.125rem;
+}
+
+.stat-sublabel {
+  font-size: 0.75rem;
+  color: var(--color-text-tertiary);
+  font-weight: 400;
 }
 
 .stat-link {

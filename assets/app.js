@@ -120,10 +120,13 @@ const App = (() => {
     const dashboardLink = $("dashboardLink");
     const statsLink = $("statsLink");
     const settingsLink = $("settingsLink");
+    const notificationsLink = $("notificationsLink");
     const orgSelect = $("orgSelect");
-    const selectedOrg = orgSelect?.value;
     const urlContext = parseURL();
-    const { username } = urlContext || {};
+    const { username, org: urlOrg } = urlContext || {};
+    
+    // Prefer org from URL over dropdown value
+    const selectedOrg = urlOrg || orgSelect?.value;
     
     const currentUser = state.currentUser || state.viewingUser;
     const defaultUsername = currentUser?.login || '';
@@ -139,6 +142,10 @@ const App = (() => {
     
     if (settingsLink) {
       settingsLink.href = selectedOrg ? `/robots/gh/${selectedOrg}` : '/robots';
+    }
+    
+    if (notificationsLink) {
+      notificationsLink.href = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
     }
   };
   
@@ -218,10 +225,7 @@ const App = (() => {
       notificationsLink.addEventListener("click", (e) => {
         e.preventDefault();
         closeMenu();
-        const orgSelect = $("orgSelect");
-        const selectedOrg = orgSelect?.value;
-        const notificationsPath = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
-        window.location.href = notificationsPath;
+        window.location.href = notificationsLink.href;
       });
     }
     
@@ -260,6 +264,9 @@ const App = (() => {
       
       return;
     }
+    
+    // Update hamburger menu links when org changes
+    updateHamburgerMenuLinks();
     
     // Navigate for other page types that require full reload
     if (path.startsWith('/stats')) {
@@ -349,53 +356,66 @@ const App = (() => {
 
   // GitHub API wrapper that uses Auth module
   const githubAPI = async (endpoint, options = {}) => {
-    const response = await Auth.githubAPI(endpoint, options);
-    
-    if (!response.ok) {
-      if (response.status === 403) {
-        const rateLimitRemaining = response.headers.get(
-          "X-RateLimit-Remaining",
-        );
-        const rateLimitReset = response.headers.get("X-RateLimit-Reset");
-
-        if (rateLimitRemaining === "0") {
-          const resetTime = new Date(parseInt(rateLimitReset) * 1000);
-          const now = new Date();
-          const minutesUntilReset = Math.ceil((resetTime - now) / 60000);
-
-          const error = new Error(
-            `GitHub API rate limit exceeded. Resets in ${minutesUntilReset} minutes.`,
+    try {
+      const response = await Auth.githubAPI(endpoint, options);
+      
+      if (!response.ok) {
+        if (response.status === 403) {
+          const rateLimitRemaining = response.headers.get(
+            "X-RateLimit-Remaining",
           );
-          error.isRateLimit = true;
-          error.resetTime = resetTime;
-          error.minutesUntilReset = minutesUntilReset;
-          throw error;
-        }
-      }
+          const rateLimitReset = response.headers.get("X-RateLimit-Reset");
 
-      let errorMessage = `API Error: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.message) {
-          errorMessage = `GitHub error: ${errorData.message}`;
-        } else if (
-          errorData.errors &&
-          Array.isArray(errorData.errors) &&
-          errorData.errors.length > 0
-        ) {
-          const firstError = errorData.errors[0];
-          if (firstError.message) {
-            errorMessage = `GitHub error: ${firstError.message}`;
+          if (rateLimitRemaining === "0") {
+            const resetTime = new Date(parseInt(rateLimitReset) * 1000);
+            const now = new Date();
+            const minutesUntilReset = Math.ceil((resetTime - now) / 60000);
+
+            const error = new Error(
+              `GitHub API rate limit exceeded. Resets in ${minutesUntilReset} minutes.`,
+            );
+            error.isRateLimit = true;
+            error.resetTime = resetTime;
+            error.minutesUntilReset = minutesUntilReset;
+            throw error;
           }
         }
-      } catch (e) {
-        // Use default message
+
+        let errorMessage = `API Error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.message) {
+            errorMessage = `GitHub error: ${errorData.message}`;
+          } else if (
+            errorData.errors &&
+            Array.isArray(errorData.errors) &&
+            errorData.errors.length > 0
+          ) {
+            const firstError = errorData.errors[0];
+            if (firstError.message) {
+              errorMessage = `GitHub error: ${firstError.message}`;
+            }
+          }
+        } catch (e) {
+          // Use default message
+        }
+
+        throw new Error(errorMessage);
       }
 
-      throw new Error(errorMessage);
+      return response.json();
+    } catch (error) {
+      // Show toast notification for API errors
+      if (error.isRateLimit) {
+        showToast(`Rate limit exceeded. Try again in ${error.minutesUntilReset} minutes.`, "error");
+      } else if (error.message.includes("secondary rate limit")) {
+        showToast("GitHub API limit reached. Please wait a few minutes.", "error");
+      } else if (!error.message.includes("401")) {
+        // Don't show toast for auth errors as they're handled elsewhere
+        showToast(error.message, "error");
+      }
+      throw error;
     }
-
-    return response.json();
   };
 
   // Demo Mode
@@ -517,7 +537,6 @@ const App = (() => {
       await Stats.showStatsPage(state, githubAPI, loadCurrentUser, 
         () => User.updateUserDisplay(state, initiateLogin), 
         setupHamburgerMenu, 
-        () => User.loadPullRequests(state, githubAPI, state.isDemoMode),
         () => User.updateOrgFilter(state, parseURL, githubAPI),
         handleOrgChange, handleSearch, parseURL, User.loadUserOrganizations);
       return;
@@ -562,10 +581,8 @@ const App = (() => {
 
       User.updateUserDisplay(state, initiateLogin);
       
-      // Only update org filter if we have an org selected
-      if (path !== '/robots') {
-        await User.updateOrgFilter(state, parseURL, githubAPI);
-      }
+      // Always update org filter to ensure dropdown is populated
+      await User.updateOrgFilter(state, parseURL, githubAPI);
       
       console.log("[Robot Army] Calling showSettingsPage...");
       await Robots.showSettingsPage(state, setupHamburgerMenu, githubAPI, User.loadUserOrganizations, parseURL);
@@ -635,7 +652,8 @@ const App = (() => {
 
     // Check for authentication
     if (!state.accessToken) {
-      if (urlContext && urlContext.username) {
+      if (urlContext && urlContext.username && !urlContext.isStats && !urlContext.isSettings && !urlContext.isNotifications) {
+        // Only load PRs for actual user PR dashboard pages
         try {
           state.viewingUser = await githubAPI(`/users/${urlContext.username}`);
           
@@ -645,6 +663,8 @@ const App = (() => {
           // Load public data
           await User.updateOrgFilter(state, parseURL, githubAPI);
           await User.loadPullRequests(state, githubAPI, state.isDemoMode);
+          // Update org filter again after PRs are loaded to include PR organizations
+          await User.updateOrgFilter(state, parseURL, githubAPI);
           showMainContent();
         } catch (error) {
           console.error("Failed to load user:", error);
@@ -683,7 +703,14 @@ const App = (() => {
 
       User.updateUserDisplay(state, initiateLogin);
       await User.updateOrgFilter(state, parseURL, githubAPI);
-      await User.loadPullRequests(state, githubAPI, state.isDemoMode);
+      
+      // Only load PRs if we're on the PR dashboard page
+      if (!urlContext || (!urlContext.isStats && !urlContext.isSettings && !urlContext.isNotifications)) {
+        await User.loadPullRequests(state, githubAPI, state.isDemoMode);
+        // Update org filter again after PRs are loaded to include PR organizations
+        await User.updateOrgFilter(state, parseURL, githubAPI);
+      }
+      
       showMainContent();
 
       if (urlRedirect) {
@@ -753,6 +780,7 @@ const App = (() => {
     closeYAMLModal,
     copyYAML,
     debugModals, // Expose debug function
+    updateHamburgerMenuLinks, // Expose for stats page
   };
 })();
 
