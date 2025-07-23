@@ -1273,6 +1273,26 @@ const App = (() => {
           window.location.href = statsLink.href;
         });
       }
+      
+      // Notifications link
+      const notificationsLink = $("notificationsLink");
+      if (notificationsLink) {
+        notificationsLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          closeMenu();
+          showNotificationsPage();
+        });
+      }
+      
+      // Settings link
+      const settingsLink = $("settingsLink");
+      if (settingsLink) {
+        settingsLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          closeMenu();
+          showSettingsPage();
+        });
+      }
     }
   };
 
@@ -1634,6 +1654,9 @@ const App = (() => {
 
   const showMainContent = () => {
     hide($("loginPrompt"));
+    hide($("statsPage"));
+    hide($("settingsPage"));
+    hide($("notificationsPage"));
     show($("prSections"));
   };
 
@@ -2503,6 +2526,667 @@ const App = (() => {
     $(`chartLegend-${org}`).innerHTML = legendHtml;
   };
 
+  // Settings Page Functions
+  const robotDefinitions = [
+    {
+      id: "autoassign",
+      name: "AutoAssign 2000",
+      icon: "🤖",
+      description: "Automatically assign reviewers based on who has active expertise with the lines the PR is modifying",
+      config: {
+        type: "select",
+        label: "Number of reviewers",
+        options: [
+          { value: "disabled", label: "Disabled" },
+          { value: "1", label: "1 reviewer" },
+          { value: "2", label: "2 reviewers" },
+          { value: "3", label: "3 reviewers" },
+          { value: "4", label: "4 reviewers" }
+        ],
+        default: "disabled"
+      }
+    },
+    {
+      id: "autoapprove",
+      name: "AutoApprove 2001",
+      icon: "✅",
+      description: "Automatically approve trivial PRs based on author and size",
+      config: [
+        {
+          type: "checkboxes",
+          label: "Automatically approve PRs authored by:",
+          options: [
+            { id: "dependabot", label: "Dependabot", default: true },
+            { id: "owners", label: "Project owners", default: false },
+            { id: "contributors", label: "Project contributors", default: false }
+          ]
+        },
+        {
+          type: "select",
+          label: "Maximum delta (lines changed)",
+          options: [
+            { value: "1", label: "1 line" },
+            { value: "2", label: "2 lines" },
+            { value: "3", label: "3 lines" },
+            { value: "4", label: "4 lines" },
+            { value: "5", label: "5 lines" },
+            { value: "6", label: "6 lines" },
+            { value: "7", label: "7 lines" },
+            { value: "8", label: "8 lines" }
+          ],
+          default: "3"
+        }
+      ]
+    },
+    {
+      id: "compliancebot",
+      name: "ComplianceBot 3000",
+      icon: "📋",
+      description: "Track pull requests that get merged without approval, and ensure that reviewers are found and notified. Adds TBR (to be reviewed) label to unapproved PRs that have been merged. Useful for SOC 2.",
+      config: {
+        type: "text",
+        label: "Only applies to repositories with the following topic label",
+        placeholder: "e.g., soc2-required"
+      }
+    },
+    {
+      id: "slackchan",
+      name: "SlackChan 4000",
+      icon: "📢",
+      description: "Send code review requests to Slack channels",
+      config: [
+        {
+          type: "mappings",
+          label: "GitHub project → Slack channel mapping",
+          placeholder1: "GitHub project (e.g., myorg/myrepo)",
+          placeholder2: "Slack channel (e.g., #dev-reviews)"
+        },
+        {
+          type: "checkbox",
+          label: "Wait until PR passes tests",
+          default: true
+        }
+      ]
+    },
+    {
+      id: "slackdm",
+      name: "SlackDM 4001",
+      icon: "💬",
+      description: "Send code review requests to assignees on Slack",
+      config: [
+        {
+          type: "mappings",
+          label: "GitHub username → Slack user mapping",
+          placeholder1: "GitHub username",
+          placeholder2: "Slack user ID or @username"
+        },
+        {
+          type: "checkbox",
+          label: "Wait until PR passes tests",
+          default: true
+        }
+      ]
+    },
+    {
+      id: "reassign",
+      name: "ReAssign 5000",
+      icon: "🔄",
+      description: "Re-assign reviewers after X days of blocking without an update",
+      config: {
+        type: "select",
+        label: "Re-assign after",
+        options: [
+          { value: "3", label: "3 days" },
+          { value: "5", label: "5 days" },
+          { value: "7", label: "7 days" },
+          { value: "10", label: "10 days" }
+        ],
+        default: "5"
+      }
+    },
+    {
+      id: "testbot",
+      name: "TestBot 6000",
+      icon: "🧪",
+      description: "Guide users through resolving pull requests with broken tests",
+      config: {
+        type: "toggle",
+        label: "Enable TestBot"
+      }
+    },
+    {
+      id: "autoclose",
+      name: "AutoClose 9000",
+      icon: "🗑️",
+      description: "Automatically close stale PRs after a specified period",
+      config: {
+        type: "select",
+        label: "Close PRs after",
+        options: [
+          { value: "disabled", label: "Disabled" },
+          { value: "60", label: "60 days" },
+          { value: "90", label: "90 days" },
+          { value: "120", label: "120 days" }
+        ],
+        default: "disabled"
+      }
+    }
+  ];
+
+  let robotConfigs = {};
+  let selectedOrg = null;
+
+  const showNotificationsPage = () => {
+    hide($("prSections"));
+    hide($("statsPage"));
+    hide($("settingsPage"));
+    show($("notificationsPage"));
+    
+    // Add click handler for "Configure in Robot Army" button
+    const goToRobotArmyBtn = $("goToRobotArmy");
+    if (goToRobotArmyBtn) {
+      goToRobotArmyBtn.onclick = () => {
+        showSettingsPage();
+      };
+    }
+  };
+  
+  const showSettingsPage = async () => {
+    hide($("prSections"));
+    hide($("statsPage"));
+    hide($("notificationsPage"));
+    show($("settingsPage"));
+    
+    // Load organizations
+    await loadOrganizationsForSettings();
+  };
+
+  const loadOrganizationsForSettings = async () => {
+    const orgSelect = $("orgSelectSettings");
+    if (!orgSelect) return;
+    
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      // Get user's recent activity
+      const user = state.currentUser || state.viewingUser;
+      if (!user) {
+        orgSelect.innerHTML = '<option value="">Please login to view organizations</option>';
+        return;
+      }
+      
+      // Fetch recent events
+      const events = await githubAPI(`/users/${user.login}/events/public?per_page=100`);
+      
+      // Extract unique organizations where user has been active
+      const orgSet = new Set();
+      events.forEach(event => {
+        if (event.created_at < thirtyDaysAgo.toISOString()) return;
+        
+        if (
+          event.type === "PullRequestEvent" ||
+          event.type === "PullRequestReviewEvent" ||
+          event.type === "PullRequestReviewCommentEvent" ||
+          event.type === "PushEvent" ||
+          event.type === "IssuesEvent"
+        ) {
+          const org = event.repo.name.split('/')[0];
+          orgSet.add(org);
+        }
+      });
+      
+      // Also add user's organizations
+      try {
+        const userOrgs = await githubAPI('/user/orgs');
+        userOrgs.forEach(org => orgSet.add(org.login));
+      } catch (e) {
+        // User might not have org access
+      }
+      
+      const orgs = Array.from(orgSet).sort();
+      
+      if (orgs.length === 0) {
+        orgSelect.innerHTML = '<option value="">No organizations found</option>';
+        return;
+      }
+      
+      orgSelect.innerHTML = '<option value="">Select an organization</option>';
+      orgs.forEach(org => {
+        const option = document.createElement("option");
+        option.value = org;
+        option.textContent = org;
+        orgSelect.appendChild(option);
+      });
+      
+      orgSelect.addEventListener("change", onOrgSelected);
+    } catch (error) {
+      console.error("Failed to load organizations:", error);
+      orgSelect.innerHTML = '<option value="">Failed to load organizations</option>';
+    }
+  };
+
+  const onOrgSelected = (e) => {
+    selectedOrg = e.target.value;
+    if (!selectedOrg) {
+      hide($("robotConfig"));
+      return;
+    }
+    
+    // Update YAML path displays
+    const yamlPath = `${selectedOrg}/.github/.github/codegroove.yaml`;
+    const yamlPathEl = $("yamlPath");
+    const yamlPathModalEl = $("yamlPathModal");
+    if (yamlPathEl) yamlPathEl.textContent = yamlPath;
+    if (yamlPathModalEl) yamlPathModalEl.textContent = yamlPath;
+    
+    // Show robot configuration
+    show($("robotConfig"));
+    renderRobotCards();
+  };
+
+  const renderRobotCards = () => {
+    const container = $("robotCards");
+    if (!container) return;
+    
+    container.innerHTML = robotDefinitions.map(robot => createRobotCard(robot)).join("");
+    
+    // Add event listeners
+    robotDefinitions.forEach(robot => {
+      const toggle = $(`toggle-${robot.id}`);
+      if (toggle) {
+        toggle.addEventListener("change", (e) => {
+          onRobotToggle(robot.id, e.target.checked);
+        });
+      }
+      
+      const previewBtn = $(`preview-${robot.id}`);
+      if (previewBtn) {
+        previewBtn.addEventListener("click", () => showRobotPreview(robot));
+      }
+      
+      // Handle specific config types
+      if (robot.id === "slackchan" || robot.id === "slackdm") {
+        const addBtn = $(`add-mapping-${robot.id}`);
+        if (addBtn) {
+          addBtn.addEventListener("click", () => addMapping(robot.id));
+        }
+      }
+    });
+    
+    // Add export button listener
+    const exportBtn = $("exportConfig");
+    if (exportBtn) {
+      exportBtn.addEventListener("click", exportConfiguration);
+    }
+  };
+
+  const createRobotCard = (robot) => {
+    const isEnabled = robotConfigs[robot.id]?.enabled || false;
+    const configHtml = renderRobotConfig(robot);
+    
+    return `
+      <div class="robot-card ${isEnabled ? 'robot-enabled' : ''}">
+        <div class="robot-header">
+          <div class="robot-main">
+            <div class="robot-icon">${robot.icon}</div>
+            <div class="robot-info">
+              <div class="robot-title-row">
+                <h3 class="robot-name">${robot.name}</h3>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-${robot.id}" ${isEnabled ? 'checked' : ''}>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <p class="robot-description">${robot.description}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="robot-content">
+          <div class="robot-config ${isEnabled ? '' : 'robot-config-disabled'}">
+            ${configHtml}
+          </div>
+          <div class="robot-actions">
+            <button id="preview-${robot.id}" class="btn-text">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              Preview Steps
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  const renderRobotConfig = (robot) => {
+    if (!robot.config) return '';
+    
+    const configs = Array.isArray(robot.config) ? robot.config : [robot.config];
+    
+    return configs.map(config => {
+      switch (config.type) {
+        case 'select':
+          return `
+            <div class="robot-option">
+              <label>${config.label}</label>
+              <select id="config-${robot.id}-select">
+                ${config.options.map(opt => 
+                  `<option value="${opt.value}" ${opt.value === config.default ? 'selected' : ''}>${opt.label}</option>`
+                ).join('')}
+              </select>
+            </div>
+          `;
+          
+        case 'checkboxes':
+          return `
+            <div class="robot-option">
+              <label>${config.label}</label>
+              <div class="robot-checkbox-group">
+                ${config.options.map(opt => `
+                  <div class="robot-checkbox">
+                    <input type="checkbox" id="config-${robot.id}-${opt.id}" ${opt.default ? 'checked' : ''}>
+                    <label for="config-${robot.id}-${opt.id}">${opt.label}</label>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+          
+        case 'checkbox':
+          return `
+            <div class="robot-option">
+              <div class="robot-checkbox">
+                <input type="checkbox" id="config-${robot.id}-checkbox" ${config.default ? 'checked' : ''}>
+                <label for="config-${robot.id}-checkbox">${config.label}</label>
+              </div>
+            </div>
+          `;
+          
+        case 'text':
+          return `
+            <div class="robot-option">
+              <label>${config.label}</label>
+              <input type="text" id="config-${robot.id}-text" placeholder="${config.placeholder || ''}">
+            </div>
+          `;
+          
+        case 'mappings':
+          return `
+            <div class="robot-option">
+              <label>${config.label}</label>
+              <div id="mappings-${robot.id}" class="robot-mappings">
+                <!-- Mappings will be added here -->
+              </div>
+              <a href="#" id="add-mapping-${robot.id}" class="add-mapping">
+                Add mapping
+              </a>
+            </div>
+          `;
+          
+        case 'toggle':
+          return ''; // Toggle is handled by the main switch
+          
+        default:
+          return '';
+      }
+    }).join('');
+  };
+
+  const onRobotToggle = (robotId, enabled) => {
+    if (!robotConfigs[robotId]) {
+      robotConfigs[robotId] = {};
+    }
+    robotConfigs[robotId].enabled = enabled;
+    
+    // Update the card's visual state without re-rendering
+    const card = document.querySelector(`#toggle-${robotId}`).closest('.robot-card');
+    const config = card.querySelector('.robot-config');
+    
+    if (enabled) {
+      card.classList.add('robot-enabled');
+      config.classList.remove('robot-config-disabled');
+    } else {
+      card.classList.remove('robot-enabled');
+      config.classList.add('robot-config-disabled');
+    }
+  };
+
+  const addMapping = (robotId) => {
+    const container = $(`mappings-${robotId}`);
+    if (!container) return;
+    
+    const mappingId = `mapping-${robotId}-${Date.now()}`;
+    const robot = robotDefinitions.find(r => r.id === robotId);
+    const config = Array.isArray(robot.config) ? robot.config.find(c => c.type === 'mappings') : null;
+    
+    if (!config) return;
+    
+    const mappingHtml = `
+      <div class="robot-mapping" id="${mappingId}">
+        <input type="text" placeholder="${config.placeholder1}">
+        <input type="text" placeholder="${config.placeholder2}">
+        <button onclick="window.App.removeMapping('${mappingId}')" aria-label="Remove mapping"></button>
+      </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', mappingHtml);
+  };
+
+  const removeMapping = (mappingId) => {
+    const mapping = $(mappingId);
+    if (mapping) mapping.remove();
+  };
+
+  const showRobotPreview = (robot) => {
+    const previewSteps = generatePreviewSteps(robot);
+    const message = `
+${robot.name} Preview:
+
+${previewSteps.join('\n')}
+    `;
+    alert(message);
+  };
+
+  const generatePreviewSteps = (robot) => {
+    switch (robot.id) {
+      case 'autoassign':
+        const reviewerCount = document.getElementById(`config-${robot.id}-select`)?.value || 'disabled';
+        if (reviewerCount === 'disabled') {
+          return ['❌ AutoAssign is disabled'];
+        }
+        return [
+          `1. Analyze changed files in the PR`,
+          `2. Find contributors who have recently modified the same files`,
+          `3. Calculate expertise score based on commit frequency and recency`,
+          `4. Select top ${reviewerCount} reviewer(s) based on expertise`,
+          `5. Automatically assign selected reviewer(s) to the PR`
+        ];
+        
+      case 'autoapprove':
+        return [
+          `1. Check if PR author matches approval criteria`,
+          `2. Calculate total lines changed (additions + deletions)`,
+          `3. If criteria met and changes are within limit, add approval`,
+          `4. Add comment explaining automatic approval`
+        ];
+        
+      case 'compliancebot':
+        return [
+          `1. Monitor for merged pull requests`,
+          `2. Check if PR had required approvals`,
+          `3. If merged without approval, add "TBR" label`,
+          `4. Find suitable reviewers for post-merge review`,
+          `5. Notify reviewers and create audit trail`
+        ];
+        
+      case 'slackchan':
+        return [
+          `1. Detect new pull request or review request`,
+          `2. Match repository to configured Slack channel`,
+          `3. Wait for CI tests to pass (if enabled)`,
+          `4. Send formatted message to Slack channel`,
+          `5. Include PR title, author, and review link`
+        ];
+        
+      case 'slackdm':
+        return [
+          `1. Detect when user is assigned as reviewer`,
+          `2. Look up user's Slack handle in mapping`,
+          `3. Wait for CI tests to pass (if enabled)`,
+          `4. Send direct message on Slack`,
+          `5. Include PR details and direct review link`
+        ];
+        
+      case 'reassign':
+        const days = document.getElementById(`config-${robot.id}-select`)?.value || '5';
+        return [
+          `1. Check age of all open PRs with pending reviews`,
+          `2. Identify PRs blocked for more than ${days} days`,
+          `3. Remove inactive reviewers`,
+          `4. Find and assign new suitable reviewers`,
+          `5. Notify both old and new reviewers of the change`
+        ];
+        
+      case 'testbot':
+        return [
+          `1. Monitor PRs for failing tests`,
+          `2. Analyze test failure patterns`,
+          `3. Suggest common fixes based on error type`,
+          `4. Add helpful comments with debugging steps`,
+          `5. Link to relevant documentation or similar fixes`
+        ];
+        
+      case 'autoclose':
+        const closeDays = document.getElementById(`config-${robot.id}-select`)?.value || 'disabled';
+        if (closeDays === 'disabled') {
+          return ['❌ AutoClose is disabled'];
+        }
+        return [
+          `1. Scan all open pull requests`,
+          `2. Check last activity date on each PR`,
+          `3. Identify PRs with no activity for ${closeDays} days`,
+          `4. Add warning comment 7 days before closing`,
+          `5. Close PR and add explanation comment`
+        ];
+        
+      default:
+        return ['No preview available'];
+    }
+  };
+
+  const exportConfiguration = () => {
+    const config = generateYAMLConfig();
+    const yamlContent = $("yamlContent");
+    if (yamlContent) {
+      yamlContent.textContent = config;
+    }
+    show($("yamlModal"));
+  };
+
+  const generateYAMLConfig = () => {
+    const enabledRobots = robotDefinitions.filter(robot => 
+      robotConfigs[robot.id]?.enabled
+    );
+    
+    if (enabledRobots.length === 0) {
+      return '# No robots enabled\n';
+    }
+    
+    let yaml = `# CodeGroove Configuration
+# Generated by Ready to Review Dashboard
+# Organization: ${selectedOrg}
+
+version: 1
+robots:
+`;
+    
+    enabledRobots.forEach(robot => {
+      yaml += `\n  ${robot.id}:\n`;
+      yaml += `    enabled: true\n`;
+      
+      // Add robot-specific configuration
+      const configs = Array.isArray(robot.config) ? robot.config : [robot.config];
+      
+      configs.forEach(config => {
+        switch (config.type) {
+          case 'select':
+            const selectValue = document.getElementById(`config-${robot.id}-select`)?.value;
+            if (selectValue && selectValue !== 'disabled') {
+              yaml += `    ${robot.id === 'autoassign' ? 'reviewers' : robot.id === 'reassign' ? 'days' : robot.id === 'autoclose' ? 'days' : 'value'}: ${selectValue}\n`;
+            }
+            break;
+            
+          case 'checkboxes':
+            if (config.options) {
+              const selected = config.options.filter(opt => 
+                document.getElementById(`config-${robot.id}-${opt.id}`)?.checked
+              );
+              if (selected.length > 0) {
+                yaml += `    approve_authors:\n`;
+                selected.forEach(opt => {
+                  yaml += `      - ${opt.id}\n`;
+                });
+              }
+            }
+            break;
+            
+          case 'checkbox':
+            const isChecked = document.getElementById(`config-${robot.id}-checkbox`)?.checked;
+            yaml += `    wait_for_tests: ${isChecked}\n`;
+            break;
+            
+          case 'text':
+            const textValue = document.getElementById(`config-${robot.id}-text`)?.value;
+            if (textValue) {
+              yaml += `    topic_filter: "${textValue}"\n`;
+            }
+            break;
+            
+          case 'mappings':
+            const mappingsContainer = $(`mappings-${robot.id}`);
+            if (mappingsContainer) {
+              const mappings = Array.from(mappingsContainer.querySelectorAll('.robot-mapping'));
+              if (mappings.length > 0) {
+                yaml += `    mappings:\n`;
+                mappings.forEach(mapping => {
+                  const inputs = mapping.querySelectorAll('input');
+                  if (inputs[0]?.value && inputs[1]?.value) {
+                    yaml += `      "${inputs[0].value}": "${inputs[1].value}"\n`;
+                  }
+                });
+              }
+            }
+            break;
+        }
+      });
+    });
+    
+    return yaml;
+  };
+
+  const closeYamlModal = () => {
+    hide($("yamlModal"));
+  };
+
+  const copyYaml = async () => {
+    const yamlContent = $("yamlContent")?.textContent;
+    if (!yamlContent) return;
+    
+    try {
+      await navigator.clipboard.writeText(yamlContent);
+      showToast("Configuration copied to clipboard!", "success");
+    } catch (error) {
+      console.error("Failed to copy:", error);
+      showToast("Failed to copy to clipboard", "error");
+    }
+  };
+
   // Public API
   return {
     init,
@@ -2515,6 +3199,9 @@ const App = (() => {
     initiatePATLogin,
     closePATModal,
     submitPAT,
+    removeMapping,
+    closeYamlModal,
+    copyYaml,
   };
 })();
 
