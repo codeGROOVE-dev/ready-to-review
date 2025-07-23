@@ -1355,73 +1355,98 @@ a {
 
 /* Notifications Page */
 .notifications-page {
-  max-width: 1200px;
+  max-width: 1000px;
   margin: 0 auto;
-  padding: var(--space-6);
+  padding: var(--space-8) var(--space-6);
 }
 
 .notifications-header {
   text-align: center;
-  margin-bottom: var(--space-12);
+  margin-bottom: 3.5rem;
 }
 
 .notifications-title {
-  font-size: 2.5rem;
-  font-weight: 700;
+  font-size: 3rem;
+  font-weight: 800;
   margin-bottom: var(--space-3);
   color: var(--color-text);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
 }
 
 .notifications-subtitle {
-  font-size: var(--text-lg);
+  font-size: 1.25rem;
   color: var(--color-text-secondary);
+  line-height: 1.5;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .notifications-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: 1.5rem;
 }
 
 .desktop-app-section, .slack-section {
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 16px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  padding: var(--space-8);
+  background: var(--color-surface-primary);
+  border-radius: 20px;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  padding: 2.5rem;
+  transition: all 0.3s ease;
+}
+
+.desktop-app-section:hover, .slack-section:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
 }
 
 .desktop-app-header, .slack-header {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
 }
 
 .desktop-icon, .slack-icon {
   flex-shrink: 0;
   color: var(--color-primary);
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 12px;
 }
 
 .desktop-app-header h2, .slack-header h2 {
-  font-size: var(--text-xl);
-  font-weight: 600;
-  margin: 0 0 var(--space-1) 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.375rem 0;
   color: var(--color-text);
+  letter-spacing: -0.02em;
 }
 
 .desktop-app-header p, .slack-header p {
-  font-size: var(--text-base);
+  font-size: 1.0625rem;
   color: var(--color-text-secondary);
   margin: 0;
+  line-height: 1.5;
 }
 
 .desktop-app-info, .slack-info {
-  margin-left: 48px;
+  margin-left: 60px;
+}
+
+.desktop-app-info > p:first-child, .slack-info > p:first-child {
+  font-size: 1.0625rem;
+  margin-bottom: 1.5rem;
+  color: var(--color-text-secondary);
+  line-height: 1.65;
 }
 
 .desktop-app-info p, .slack-info p {
-  margin-bottom: var(--space-4);
+  margin-bottom: 1rem;
   color: var(--color-text-secondary);
   line-height: 1.6;
 }
@@ -1429,51 +1454,76 @@ a {
 .feature-list {
   list-style: none;
   padding: 0;
-  margin: var(--space-4) 0;
+  margin: 1.5rem 0 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
 }
 
 .feature-list li {
-  padding: var(--space-2) 0;
-  color: var(--color-text-secondary);
+  padding: 0.625rem 0;
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.feature-list li:before {
+  content: "✓";
+  color: var(--color-success);
+  font-weight: 700;
+  font-size: 1.125rem;
 }
 
 .badge-beta {
   display: inline-block;
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-secondary);
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
   font-size: 0.75rem;
-  font-weight: 500;
-  margin-left: var(--space-2);
+  font-weight: 600;
+  margin-left: 0.75rem;
   vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .slack-bot-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--space-4);
-  margin: var(--space-6) 0;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.25rem;
+  margin: 2rem 0;
 }
 
 .slack-bot-card {
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: var(--space-6);
+  border-radius: 16px;
+  padding: 1.75rem;
+  transition: all 0.2s ease;
+}
+
+.slack-bot-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
 }
 
 .slack-bot-card h3 {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  margin: 0 0 var(--space-2) 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
   color: var(--color-text);
+  letter-spacing: -0.01em;
 }
 
 .slack-bot-card p {
-  font-size: var(--text-sm);
+  font-size: 0.9375rem;
   color: var(--color-text-secondary);
-  margin-bottom: var(--space-4);
+  margin-bottom: 1rem;
+  line-height: 1.5;
 }
 
 .config-list {
@@ -1483,27 +1533,31 @@ a {
 }
 
 .config-list li {
-  padding: var(--space-1) 0;
-  font-size: var(--text-sm);
+  padding: 0.375rem 0;
+  font-size: 0.875rem;
   color: var(--color-text-tertiary);
   position: relative;
-  padding-left: var(--space-4);
+  padding-left: 1.25rem;
+  line-height: 1.5;
 }
 
 .config-list li:before {
-  content: "•";
+  content: "→";
   position: absolute;
   left: 0;
-  color: var(--color-text-muted);
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .slack-note {
-  background: var(--color-bg-tertiary);
-  border-radius: 8px;
-  padding: var(--space-4);
-  font-size: var(--text-sm);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  padding: 1.25rem;
+  font-size: 0.9375rem;
   color: var(--color-text-secondary);
-  margin-top: var(--space-6);
+  margin-top: 2rem;
+  line-height: 1.6;
 }
 
 /* Settings Page */
@@ -1751,70 +1805,108 @@ a {
 .robot-option input[type="text"],
 .robot-option input[type="number"] {
   width: 100%;
-  padding: 10px 12px;
-  font-size: 15px;
-  border: 1px solid rgba(0, 0, 0, 0.16);
-  border-radius: 8px;
-  background: white;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface-primary);
   transition: all 0.2s ease;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+}
+
+.robot-option select:hover,
+.robot-option input[type="text"]:hover,
+.robot-option input[type="number"]:hover {
+  border-color: var(--color-text-tertiary);
 }
 
 .robot-option select:focus,
 .robot-option input[type="text"]:focus,
 .robot-option input[type="number"]:focus {
   outline: none;
-  border-color: #007aff;
-  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
 .robot-checkbox-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 0.875rem;
+  margin-top: 0.5rem;
 }
 
 .robot-checkbox {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 0;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
 }
 
 .robot-checkbox input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   cursor: pointer;
-  accent-color: #007aff;
+  accent-color: var(--color-primary);
+  flex-shrink: 0;
 }
 
 .robot-checkbox label {
-  font-size: 15px;
+  font-size: 1rem;
   margin: 0;
   cursor: pointer;
   font-weight: normal;
   text-transform: none;
   letter-spacing: normal;
-  color: #1d1d1f;
+  color: var(--color-text);
+  line-height: 1.5;
 }
 
 .robot-mapping {
   display: flex;
-  gap: 12px;
+  gap: 0.75rem;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
+  padding: 0.875rem;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.robot-mapping:hover {
+  border-color: var(--color-primary);
+  background: var(--color-surface-primary);
 }
 
 .robot-mapping input {
   flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9375rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface-primary);
+  transition: all 0.2s ease;
+}
+
+.robot-mapping input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 .robot-mapping button {
-  padding: 0;
-  background: transparent;
-  color: #dc2626;
+  padding: 0.5rem;
+  background: none;
   border: none;
-  border-radius: 50%;
-  font-size: 20px;
+  color: var(--color-danger);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
   line-height: 1;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1838,23 +1930,30 @@ a {
 .add-mapping {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 15px;
-  color: #007aff;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  color: var(--color-primary);
   cursor: pointer;
-  margin-top: 12px;
-  padding: 4px 0;
-  transition: opacity 0.2s ease;
+  margin-top: 0.75rem;
+  padding: 0.625rem 1rem;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  text-decoration: none;
 }
 
 .add-mapping:hover {
-  opacity: 0.7;
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.2);
+  transform: translateY(-1px);
 }
 
 .add-mapping::before {
   content: '+';
-  font-size: 18px;
-  font-weight: 400;
+  font-size: 1.125rem;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -1870,15 +1969,19 @@ a {
 
 .export-section {
   text-align: center;
-  padding: 48px 0;
+  padding: 3rem 0;
+  margin-top: 2rem;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .export-section .btn-primary.btn-large {
-  font-size: 17px;
-  padding: 14px 28px;
+  font-size: 1.0625rem;
+  padding: 1rem 2rem;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   background: #007aff;
   border: none;
   border-radius: 12px;
@@ -2094,6 +2197,65 @@ a {
   color: white;
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
+}
+
+/* Button Styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+}
+
+.btn-secondary {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-text-tertiary);
+  transform: translateY(-1px);
+}
+
+.btn-large {
+  padding: 0.875rem 1.75rem;
+  font-size: 1.0625rem;
+}
+
+.btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* Modal */

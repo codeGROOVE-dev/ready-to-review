@@ -2809,7 +2809,10 @@ const App = (() => {
       if (robot.id === "slackchan" || robot.id === "slackdm") {
         const addBtn = $(`add-mapping-${robot.id}`);
         if (addBtn) {
-          addBtn.addEventListener("click", () => addMapping(robot.id));
+          addBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            addMapping(robot.id);
+          });
         }
       }
     });
