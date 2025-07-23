@@ -191,7 +191,7 @@ export const User = (() => {
     }
 
     const CACHE_KEY = `r2r_prs_${targetUser.login}`;
-    const CACHE_DURATION = 5 * 1000; // 5 seconds
+    const CACHE_DURATION = 10 * 1000; // 10 seconds
     
     // Check cache first
     try {
@@ -1036,7 +1036,7 @@ export const User = (() => {
     }
 
     if (pr.status_tags?.includes("loading")) {
-      badges.push('<span class="badge badge-loading">loading...</span>');
+      badges.push('<span class="badge badge-loading">Loading</span>');
     } else if (pr.status_tags && pr.status_tags.length > 0) {
       const needsBadges = pr.status_tags
         .filter((tag) => tag.startsWith("needs-") || tag === "blocked on you")
