@@ -460,7 +460,7 @@ export const Stats = (() => {
                  onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 12px rgba(0,0,0,0.06)';">
               <div style="font-size: 0.8125rem; color: #86868b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Forgotten Work</div>
               <div class="stat-value loading" id="openPRs-${org}" style="font-size: 3rem; font-weight: 300; color: #FF3B30; margin: 0.25rem 0;">-</div>
-              <div style="font-size: 0.9375rem; color: #515154;">PRs stuck >7 days</div>
+              <div style="font-size: 0.9375rem; color: #515154;">PRs stuck >10 days</div>
             </div>
           </a>
           
@@ -493,7 +493,7 @@ export const Stats = (() => {
                  onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 12px rgba(0,0,0,0.06)';">
               <div style="font-size: 0.8125rem; color: #86868b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Shipped</div>
               <div class="stat-value loading" id="mergedPRs-${org}" style="font-size: 3rem; font-weight: 300; color: #34C759; margin: 0.25rem 0;">-</div>
-              <div style="font-size: 0.9375rem; color: #515154;">Last 7 days</div>
+              <div style="font-size: 0.9375rem; color: #515154;">Last 10 days</div>
             </div>
           </a>
         </div>
@@ -621,16 +621,16 @@ export const Stats = (() => {
       console.log(`[Stats Debug] Stale PRs (updated before ${sevenDaysAgoISO}):`, openStalePRs.length);
 
       // Use actual total count for merged PRs when available
-      const mergedLast7Days = mergedTotalCount || mergedRecentPRs.length;
+      const mergedLast10Days = mergedTotalCount || mergedRecentPRs.length;
       
       // Extrapolate open stale PRs if we're sampling
-      let openMoreThan7Days = openStalePRs.length;
+      let openMoreThan10Days = openStalePRs.length;
       if (openAllResponse.sampled && openAllPRs.length > 0) {
         // Calculate the proportion of stale PRs in our sample
         const staleProportion = openStalePRs.length / openAllPRs.length;
         // Extrapolate to the total
-        openMoreThan7Days = Math.round(staleProportion * openTotalCount);
-        console.log(`[Stats Debug] Extrapolating stale PRs: ${openStalePRs.length} of ${openAllPRs.length} sample = ${(staleProportion * 100).toFixed(1)}% -> estimated ${openMoreThan7Days} of ${openTotalCount} total`);
+        openMoreThan10Days = Math.round(staleProportion * openTotalCount);
+        console.log(`[Stats Debug] Extrapolating stale PRs: ${openStalePRs.length} of ${openAllPRs.length} sample = ${(staleProportion * 100).toFixed(1)}% -> estimated ${openMoreThan10Days} of ${openTotalCount} total`);
       }
       let totalMergeTime = 0;
       let mergedWithTimes = 0;
@@ -678,17 +678,17 @@ export const Stats = (() => {
       
       console.log(`[Stats Debug] Final calculations:`, {
         currentlyOpen,
-        openMoreThan7Days,
-        mergedLast7Days,
+        openMoreThan10Days,
+        mergedLast10Days,
         avgOpenAge: currentlyOpen > 0 ? totalOpenAge / currentlyOpen / (24*60*60*1000) : 0,
-        ratio: openMoreThan7Days > 0 ? mergedLast7Days / openMoreThan7Days : 'infinity'
+        ratio: openMoreThan10Days > 0 ? mergedLast10Days / openMoreThan10Days : 'infinity'
       });
       
       // Calculate stats data
       const statsData = {
         currentlyOpen,
-        openMoreThan7Days,
-        mergedLast7Days,
+        openMoreThan10Days,
+        mergedLast10Days,
         totalOpenAge,
         totalMergeTime,
         sevenDaysAgoISO,
@@ -725,8 +725,8 @@ export const Stats = (() => {
     
     const {
       currentlyOpen,
-      openMoreThan7Days,
-      mergedLast7Days,
+      openMoreThan10Days,
+      mergedLast10Days,
       totalOpenAge,
       totalMergeTime,
       sevenDaysAgoISO,
@@ -740,8 +740,8 @@ export const Stats = (() => {
     
     console.log(`[Stats Debug] Extracted values:`, {
       currentlyOpen,
-      openMoreThan7Days,
-      mergedLast7Days,
+      openMoreThan10Days,
+      mergedLast10Days,
       totalOpenAge,
       totalMergeTime,
       sevenDaysAgoISO,
@@ -800,10 +800,10 @@ export const Stats = (() => {
             warningColor = "#34C759"; // Green for < 1 day
           } else {
             displayText = `${Math.round(avgOpenAgeDays)}d`;
-            // Color coding for days: <7 green, 7-14 orange, >14 red
-            if (avgOpenAgeDays < 7) {
+            // Color coding for days: <10 green, 10-20 orange, >20 red
+            if (avgOpenAgeDays < 10) {
               warningColor = "#34C759"; // Green
-            } else if (avgOpenAgeDays <= 14) {
+            } else if (avgOpenAgeDays <= 20) {
               warningColor = "#FF9500"; // Orange
             } else {
               warningColor = "#FF3B30"; // Red
@@ -828,15 +828,15 @@ export const Stats = (() => {
       if (mergedElement) {
         mergedElement.classList.remove("loading");
         // Show actual total if it's different from the sample size
-        if (mergedTotalCount && mergedTotalCount > mergedLast7Days) {
+        if (mergedTotalCount && mergedTotalCount > mergedLast10Days) {
           mergedElement.textContent = mergedTotalCount.toLocaleString();
         } else {
-          mergedElement.textContent = mergedLast7Days;
+          mergedElement.textContent = mergedLast10Days;
         }
 
         const mergedLink = $(`mergedPRsLink-${org}`);
         if (mergedLink) {
-          if (mergedLast7Days > 0) {
+          if (mergedLast10Days > 0) {
             const mergedQuery = `type:pr is:merged org:${org} merged:>=${sevenDaysAgoISO}`;
             mergedLink.href = `https://github.com/search?q=${encodeURIComponent(mergedQuery)}&type=pullrequests`;
           } else {
@@ -848,11 +848,11 @@ export const Stats = (() => {
 
       if (openElement) {
         openElement.classList.remove("loading");
-        openElement.textContent = openMoreThan7Days;
+        openElement.textContent = openMoreThan10Days;
 
         const openLink = $(`openPRsLink-${org}`);
         if (openLink) {
-          if (openMoreThan7Days > 0) {
+          if (openMoreThan10Days > 0) {
             const openQuery = `type:pr is:open org:${org} updated:<${sevenDaysAgoISO}`;
             openLink.href = `https://github.com/search?q=${encodeURIComponent(openQuery)}&type=pullrequests`;
           } else {
@@ -866,10 +866,10 @@ export const Stats = (() => {
         avgElement.classList.remove("loading");
         const avgLink = $(`avgMergeTimeLink-${org}`);
 
-        if (mergedLast7Days > 0 && totalMergeTime > 0) {
+        if (mergedLast10Days > 0 && totalMergeTime > 0) {
           // When sampling, totalMergeTime is sum of sample merge times, so divide by sample size
-          const sampleSize = mergedSampleSize || mergedLast7Days;
-          const avgMergeMs = totalMergeTime / Math.min(sampleSize, mergedLast7Days);
+          const sampleSize = mergedSampleSize || mergedLast10Days;
+          const avgMergeMs = totalMergeTime / Math.min(sampleSize, mergedLast10Days);
           const avgMergeMinutes = avgMergeMs / (60 * 1000);
           const avgMergeHours = avgMergeMs / (60 * 60 * 1000);
           const avgMergeDays = avgMergeMs / (24 * 60 * 60 * 1000);
@@ -917,27 +917,27 @@ export const Stats = (() => {
         let description = "";
         
         console.log(`[Stats Debug] Ratio calculation:`, {
-          openMoreThan7Days,
-          mergedLast7Days,
-          willCalculateRatio: openMoreThan7Days > 0
+          openMoreThan10Days,
+          mergedLast10Days,
+          willCalculateRatio: openMoreThan10Days > 0
         });
         
-        if (openMoreThan7Days === 0 && mergedLast7Days > 0) {
+        if (openMoreThan10Days === 0 && mergedLast10Days > 0) {
           ratioText = "∞:1";
           grade = "Smooth";
           description = "Perfect - no bottlenecks, team is shipping at maximum efficiency";
-        } else if (openMoreThan7Days === 0 && mergedLast7Days === 0) {
+        } else if (openMoreThan10Days === 0 && mergedLast10Days === 0) {
           ratioText = "-";
           grade = "";
           description = "No recent PR activity to measure";
         } else {
-          const ratio = mergedLast7Days / openMoreThan7Days;
+          const ratio = mergedLast10Days / openMoreThan10Days;
           console.log(`[Stats Debug] Calculated ratio: ${ratio}`);
           ratioText = `${ratio.toFixed(1)}:1`;
           
           if (ratio === 0) {
             grade = "Abandoned";
-            description = "No code shipped in 7 days - completed work is being forgotten";
+            description = "No code shipped in 10 days - completed work is being forgotten";
           } else if (ratio < 0.2) {
             grade = "Barely functional";
             description = "Extremely low velocity - almost all work is forgotten";
@@ -970,7 +970,7 @@ export const Stats = (() => {
         }
       }
 
-      drawOrgPieChart(org, mergedLast7Days, openMoreThan7Days);
+      drawOrgPieChart(org, mergedLast10Days, openMoreThan10Days);
       
       // Show data sampling note if applicable
       if (dataSampled) {

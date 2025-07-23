@@ -6,3 +6,20 @@ Code guidelines:
 - Stands up to security scrutiny
 - Excellent performance, never blocks the user
 - Renders partial data when possible so that the user always sees something. Shows a loading placeholder when partial rendering isn't possible.
+- Code should be written for simplicity, scalability, security, and reliability
+- Expect that security professionals will be inspecting and attacking this service
+- Code should have as few external dependencies as possible
+- Code should not require any persistent data storage, but may use it for caching.
+- Code should be optimized for speed and resource usage, but without adding complexity
+- Code should have great logging to make it easier to debug and better understand the decisions it's making.
+- Code should be as simple as possible without impacting security, reliability, or scalability
+- Look for performance tweaks that can be made without adding unnecessary complexity
+- Code should not be overengineered with unnecessary abstractions
+- Code should be something that Rob Pike or Brendon Eich could be proud of.
+- The app/service should degrade gracefully when a dependent API call fails
+- Keep each go file under 2000 lines of code
+- Any small (less than 7 line) function that is only called from a single location should be inlined
+- Function names should never begin with "Get" as it's implied, though "Set" is OK.
+- There should only be one version of a function when possible; you don't need multiple versions for backwards compatibility when the client can provide the missing field instead. For example: functions should not have a suffix of WithContext or WithTimestamp: expect all callers to provide a context and a timestamp.
+- If possible, implement these changes without changing the tests (except for perhaps renamed functions
+- Simplicity is security.

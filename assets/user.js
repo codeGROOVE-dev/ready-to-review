@@ -6,37 +6,40 @@ export const User = (() => {
 
   // DOM Helpers and utilities are imported from utils.js
 
+  // Time constants for performance
+  const MINUTE = 60;
+  const HOUR = 3600;
+  const DAY = 86400;
+  const WEEK = 604800;
+  const MONTH = 2592000;
+  const YEAR = 31536000;
+  
   const formatTimeAgo = (timestamp) => {
     const seconds = Math.floor((Date.now() - new Date(timestamp)) / 1000);
 
-    if (seconds < 60) return "just now";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-    if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w ago`;
-    if (seconds < 31536000) return `${Math.floor(seconds / 2592000)}mo ago`;
-
-    const years = Math.floor(seconds / 31536000);
-    return `${years}y ago`;
+    if (seconds < MINUTE) return "just now";
+    if (seconds < HOUR) return `${Math.floor(seconds / MINUTE)}m ago`;
+    if (seconds < DAY) return `${Math.floor(seconds / HOUR)}h ago`;
+    if (seconds < WEEK) return `${Math.floor(seconds / DAY)}d ago`;
+    if (seconds < MONTH) return `${Math.floor(seconds / WEEK)}w ago`;
+    if (seconds < YEAR) return `${Math.floor(seconds / MONTH)}mo ago`;
+    return `${Math.floor(seconds / YEAR)}y ago`;
   };
 
+  const MS_PER_DAY = 86400000;
   const getAgeText = (pr) => {
-    const days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
+    const days = Math.floor((Date.now() - new Date(pr.created_at)) / MS_PER_DAY);
     if (days === 0) return "today";
     if (days === 1) return "1d";
     if (days < 7) return `${days}d`;
     if (days < 30) return `${Math.floor(days / 7)}w`;
     if (days < 365) return `${Math.floor(days / 30)}mo`;
-
-    const years = Math.floor(days / 365);
-    return `${years}y`;
+    return `${Math.floor(days / 365)}y`;
   };
 
+  const STALE_THRESHOLD_MS = 60 * 86400000; // 60 days in milliseconds
   const isStale = (pr) => {
-    const daysSinceUpdate = Math.floor(
-      (Date.now() - new Date(pr.updated_at)) / 86400000,
-    );
-    return daysSinceUpdate >= 60;
+    return (Date.now() - new Date(pr.updated_at)) >= STALE_THRESHOLD_MS;
   };
 
   const isBlockedOnOthers = (pr) => {
@@ -46,14 +49,15 @@ export const User = (() => {
     return true;
   };
 
-  // Cookie helper
+  // Cookie helper - optimized
   const getCookie = (name) => {
     const nameEQ = name + "=";
-    const ca = document.cookie.split(";");
-    for (let i = 0; i < ca.length; i++) {
-      let c = ca[i];
-      while (c.charAt(0) === " ") c = c.substring(1, c.length);
-      if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+    const cookies = document.cookie.split(";");
+    for (const cookie of cookies) {
+      const trimmed = cookie.trim();
+      if (trimmed.startsWith(nameEQ)) {
+        return trimmed.substring(nameEQ.length);
+      }
     }
     return null;
   };

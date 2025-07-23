@@ -14,22 +14,24 @@ export const escapeHtml = (str) => {
   return div.innerHTML;
 };
 
-// Date formatting
+// Date formatting - optimized with constants
+const MS_PER_DAY = 86400000;
+const DAYS_PER_WEEK = 7;
+const DAYS_PER_MONTH = 30;
+const DAYS_PER_YEAR = 365;
+
 export const formatDate = (dateString) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffDays = Math.floor(diffMs / 86400000);
+  const diffDays = Math.floor((Date.now() - new Date(dateString)) / MS_PER_DAY);
   
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
-  return `${Math.floor(diffDays / 365)} years ago`;
+  if (diffDays < DAYS_PER_WEEK) return `${diffDays} days ago`;
+  if (diffDays < DAYS_PER_MONTH) return `${Math.floor(diffDays / DAYS_PER_WEEK)} weeks ago`;
+  if (diffDays < DAYS_PER_YEAR) return `${Math.floor(diffDays / DAYS_PER_MONTH)} months ago`;
+  return `${Math.floor(diffDays / DAYS_PER_YEAR)} years ago`;
 };
 
-// Toast notifications
+// Toast notifications - lazy initialization
 let toastContainer = null;
 
 export const showToast = (message, type = "info") => {
@@ -44,9 +46,9 @@ export const showToast = (message, type = "info") => {
   toast.textContent = message;
   toastContainer.appendChild(toast);
 
-  requestAnimationFrame(() => {
-    toast.classList.add("show");
-  });
+  // Force layout to ensure transition works
+  toast.offsetHeight;
+  toast.classList.add("show");
 
   setTimeout(() => {
     toast.classList.remove("show");

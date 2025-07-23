@@ -1,18 +1,12 @@
 // Ready To Review - Modern ES6+ Application
-console.log('[App] Starting module imports...');
 import { $, $$, show, hide, showToast } from './utils.js';
 import { Auth } from './auth.js';
-console.log('[App] Auth module imported:', Auth);
 import { User } from './user.js';
-console.log('[App] User module imported:', User);
 import { Stats } from './stats.js';
-console.log('[App] Stats module imported:', Stats);
 import { Robots } from './robots.js';
-console.log('[App] Robots module imported:', Robots);
 
 const App = (() => {
   "use strict";
-  console.log('[App] Initializing App module...');
 
   // State Management
   const state = {
@@ -101,16 +95,16 @@ const App = (() => {
 
   // DOM Helpers are imported from utils.js
 
-  // UI Functions
+  // UI Functions - direct manipulation
   const showMainContent = () => {
-    hide($("loginPrompt"));
-    show($("prSections"));
+    $("loginPrompt")?.setAttribute("hidden", "");
+    $("prSections")?.removeAttribute("hidden");
   };
 
   const showLoginPrompt = () => {
-    show($("loginPrompt"));
-    hide($("prSections"));
-    hide($("emptyState"));
+    $("loginPrompt")?.removeAttribute("hidden");
+    $("prSections")?.setAttribute("hidden", "");
+    $("emptyState")?.setAttribute("hidden", "");
   };
 
   // Hamburger Menu Functions
@@ -245,22 +239,13 @@ const App = (() => {
 
   // Event handlers
   const handleOrgChange = () => {
-    console.log("[DEBUG] handleOrgChange called");
     const orgSelect = $("orgSelect");
     const selectedOrg = orgSelect?.value;
     const path = window.location.pathname;
     const urlContext = parseURL();
     
-    console.log("[DEBUG] handleOrgChange details:", {
-      orgSelectExists: !!orgSelect,
-      selectedOrg,
-      path,
-      urlContext
-    });
-    
     // For PR dashboard pages, update in place without navigation
     if (urlContext && urlContext.username && !urlContext.isStats && !urlContext.isSettings) {
-      console.log("[DEBUG] Taking PR dashboard path");
       // Update URL without reload using pushState
       const newUrl = `/u/gh/${selectedOrg || '*'}/${urlContext.username}`;
       window.history.pushState({}, '', newUrl);
@@ -279,16 +264,12 @@ const App = (() => {
     
     // Navigate for other page types that require full reload
     if (path.startsWith('/stats')) {
-      console.log("[DEBUG] Taking stats path");
       window.location.href = selectedOrg ? `/stats/gh/${selectedOrg}` : '/stats';
     } else if (path.startsWith('/robots')) {
-      console.log("[DEBUG] Taking robots path");
       window.location.href = selectedOrg ? `/robots/gh/${selectedOrg}` : '/robots';
     } else if (path.startsWith('/notifications')) {
-      console.log("[DEBUG] Taking notifications path");
       window.location.href = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
     } else {
-      console.log("[DEBUG] Taking default path");
       // For root or unknown pages, go to user dashboard
       const currentUser = state.currentUser || state.viewingUser;
       if (currentUser?.login) {
@@ -332,35 +313,14 @@ const App = (() => {
     showGitHubAppModal();
   };
 
-  const showGitHubAppModal = () => {
-    console.log('[App.showGitHubAppModal] Called');
-    Auth.showGitHubAppModal();
-  };
-
-  const closeGitHubAppModal = () => {
-    Auth.closeGitHubAppModal();
-  };
-
-  const proceedWithOAuth = () => {
-    Auth.proceedWithOAuth();
-  };
-
-  const initiatePATLogin = () => {
-    console.log('[App.initiatePATLogin] Called');
-    Auth.initiatePATLogin();
-  };
-
-  const closePATModal = () => {
-    Auth.closePATModal();
-  };
-
-  const submitPAT = async () => {
-    await Auth.submitPAT();
-  };
-
-  const logout = () => {
-    Auth.logout();
-  };
+  // Auth delegates - direct references
+  const showGitHubAppModal = Auth.showGitHubAppModal;
+  const closeGitHubAppModal = Auth.closeGitHubAppModal;
+  const proceedWithOAuth = Auth.proceedWithOAuth;
+  const initiatePATLogin = Auth.initiatePATLogin;
+  const closePATModal = Auth.closePATModal;
+  const submitPAT = Auth.submitPAT;
+  const logout = Auth.logout;
 
   // Load current user
   const loadCurrentUser = async () => {
@@ -534,19 +494,12 @@ const App = (() => {
 
   // Initialize
   const init = async () => {
-    console.log("[App.init] Starting application initialization");
-    console.log("[App.init] Current URL:", window.location.href);
-    
     const urlParams = new URLSearchParams(window.location.search);
     const demo = urlParams.get("demo");
-    console.log("[App.init] Demo mode:", !!demo);
-
     const urlContext = parseURL();
-    console.log("[App.init] URL context:", urlContext);
 
     // Handle stats page routing
     if (urlContext && urlContext.isStats) {
-      console.log("[App.init] Stats page detected, showing stats");
       await Stats.showStatsPage(state, githubAPI, loadCurrentUser, 
         () => User.updateUserDisplay(state, initiateLogin), 
         setupHamburgerMenu, 
@@ -597,7 +550,6 @@ const App = (() => {
       // Always update org filter to ensure dropdown is populated
       await User.updateOrgFilter(state, parseURL, githubAPI);
       
-      console.log("[Robot Army] Calling showSettingsPage...");
       await Robots.showSettingsPage(state, setupHamburgerMenu, githubAPI, User.loadUserOrganizations, parseURL);
       return;
     }
@@ -611,12 +563,6 @@ const App = (() => {
     const urlRedirect = urlParams.get("redirect");
     const orgSelect = $("orgSelect");
     const searchInput = $("searchInput");
-
-    console.log("[DEBUG] Setting up event listeners", {
-      orgSelectExists: !!orgSelect,
-      currentPath: window.location.pathname,
-      orgSelectValue: orgSelect?.value
-    });
 
     orgSelect?.addEventListener("change", handleOrgChange);
     searchInput?.addEventListener("input", handleSearch);
@@ -705,7 +651,6 @@ const App = (() => {
 
       // If at root URL, redirect to user's page
       if (!urlContext && state.currentUser) {
-        console.log("[App.init] Redirecting from root to user page:", `/u/gh/*/${state.currentUser.login}`);
         window.location.href = `/u/gh/*/${state.currentUser.login}`;
         return;
       }
@@ -758,29 +703,23 @@ const App = (() => {
 
   // Debug function to check modal state
   const debugModals = () => {
-    console.log('[Debug] Checking modal states...');
     const githubModal = document.getElementById('githubAppModal');
     const patModal = document.getElementById('patModal');
     
-    console.log('[Debug] GitHub App Modal:', {
-      element: githubModal,
-      exists: !!githubModal,
-      hidden: githubModal?.hasAttribute('hidden'),
-      display: githubModal?.style.display,
-      computedDisplay: githubModal ? window.getComputedStyle(githubModal).display : 'N/A',
-      visibility: githubModal ? window.getComputedStyle(githubModal).visibility : 'N/A',
-      zIndex: githubModal ? window.getComputedStyle(githubModal).zIndex : 'N/A'
-    });
-    
-    console.log('[Debug] PAT Modal:', {
-      element: patModal,
-      exists: !!patModal,
-      hidden: patModal?.hasAttribute('hidden'),
-      display: patModal?.style.display,
-      computedDisplay: patModal ? window.getComputedStyle(patModal).display : 'N/A',
-      visibility: patModal ? window.getComputedStyle(patModal).visibility : 'N/A',
-      zIndex: patModal ? window.getComputedStyle(patModal).zIndex : 'N/A'
-    });
+    return {
+      github: {
+        exists: !!githubModal,
+        hidden: githubModal?.hasAttribute('hidden'),
+        display: githubModal?.style.display,
+        computedDisplay: githubModal ? window.getComputedStyle(githubModal).display : 'N/A'
+      },
+      pat: {
+        exists: !!patModal,
+        hidden: patModal?.hasAttribute('hidden'),
+        display: patModal?.style.display,
+        computedDisplay: patModal ? window.getComputedStyle(patModal).display : 'N/A'
+      }
+    };
   };
 
   // Public API
@@ -806,9 +745,6 @@ const App = (() => {
 
 // Expose global functions for onclick handlers immediately
 window.App = App;
-console.log('[App] window.App exposed:', window.App);
-console.log('[App] window.App.showGitHubAppModal:', window.App.showGitHubAppModal);
-console.log('[App] window.App.initiatePATLogin:', window.App.initiatePATLogin);
 
 // Initialize when DOM is ready
 if (document.readyState === "loading") {
