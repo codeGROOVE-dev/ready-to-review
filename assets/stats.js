@@ -57,7 +57,12 @@ export const Stats = (() => {
     
     // If we have 500 or fewer items, fetch them all normally
     if (actualTotalCount <= 500) {
-      allItems.push(...(firstResponse.items || []));
+      // Filter out PRs from archived or disabled repositories
+      const activeItems = (firstResponse.items || []).filter(pr => {
+        if (!pr.repository) return true; // Keep if no repository data
+        return !pr.repository.archived && !pr.repository.disabled;
+      });
+      allItems.push(...activeItems);
       
       if (onProgress) {
         onProgress(allItems.length, actualTotalCount);
@@ -73,7 +78,13 @@ export const Stats = (() => {
         const response = await withRetry(() => githubAPI(pagePath));
         
         if (response.items && response.items.length > 0) {
-          allItems.push(...response.items);
+          // Filter out PRs from archived or disabled repositories
+          const activeItems = response.items.filter(pr => {
+            if (!pr.repo && !pr.repository) return true; // Keep if no repository data
+            const repo = pr.repo || pr.repository;
+            return !repo.archived && !repo.disabled;
+          });
+          allItems.push(...activeItems);
           
           if (onProgress) {
             onProgress(allItems.length, actualTotalCount);
@@ -96,7 +107,13 @@ export const Stats = (() => {
       console.log(`[Stats Debug] Sampling strategy: ${totalPages} total pages (${availablePages} available), fetching every ${pageInterval} pages`);
       
       // Always include the first page (already fetched)
-      allItems.push(...(firstResponse.items || []));
+      // Filter out PRs from archived or disabled repositories
+      const firstPageActive = (firstResponse.items || []).filter(pr => {
+        if (!pr.repo && !pr.repository) return true; // Keep if no repository data
+        const repo = pr.repo || pr.repository;
+        return !repo.archived && !repo.disabled;
+      });
+      allItems.push(...firstPageActive);
       
       if (onProgress) {
         onProgress(allItems.length, actualTotalCount);
@@ -126,7 +143,13 @@ export const Stats = (() => {
         const response = await withRetry(() => githubAPI(pagePath));
         
         if (response.items && response.items.length > 0) {
-          allItems.push(...response.items);
+          // Filter out PRs from archived or disabled repositories
+          const activeItems = response.items.filter(pr => {
+            if (!pr.repo && !pr.repository) return true; // Keep if no repository data
+            const repo = pr.repo || pr.repository;
+            return !repo.archived && !repo.disabled;
+          });
+          allItems.push(...activeItems);
           
           if (onProgress) {
             // Report approximate progress based on sampling

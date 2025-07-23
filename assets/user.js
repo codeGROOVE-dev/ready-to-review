@@ -156,7 +156,13 @@ export const User = (() => {
       const response = await githubAPI(pagePath);
 
       if (response.items && response.items.length > 0) {
-        allItems.push(...response.items);
+        // Filter out PRs from archived or disabled repositories
+        const activeItems = response.items.filter(pr => {
+          if (!pr.repo && !pr.repository) return true; // Keep if no repository data
+          const repo = pr.repo || pr.repository;
+          return !repo.archived && !repo.disabled;
+        });
+        allItems.push(...activeItems);
 
         if (
           response.total_count <= allItems.length ||
@@ -253,12 +259,17 @@ export const User = (() => {
     ]);
 
     const prMap = new Map();
-    response1.items.forEach((pr) => {
-      prMap.set(pr.id, pr);
-    });
-    response2.items.forEach((pr) => {
-      prMap.set(pr.id, pr);
-    });
+    // Filter out PRs from archived or disabled repositories
+    response1.items
+      .filter(pr => !pr.repository || (!pr.repository.archived && !pr.repository.disabled))
+      .forEach((pr) => {
+        prMap.set(pr.id, pr);
+      });
+    response2.items
+      .filter(pr => !pr.repository || (!pr.repository.archived && !pr.repository.disabled))
+      .forEach((pr) => {
+        prMap.set(pr.id, pr);
+      });
 
     const allPRs = Array.from(prMap.values());
 
