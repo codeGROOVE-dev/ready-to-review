@@ -663,8 +663,20 @@ export const User = (() => {
       outgoing: state.pullRequests.outgoing.length
     });
 
-    // Load organizations
-    const uniqueOrgs = await loadUserOrganizations(state, githubAPI);
+    // Load organizations (skip in demo mode)
+    let uniqueOrgs = [];
+    if (!state.isDemoMode) {
+      uniqueOrgs = await loadUserOrganizations(state, githubAPI);
+    } else {
+      // In demo mode, extract orgs from the PR data
+      const prOrgs = new Set();
+      [...state.pullRequests.incoming, ...state.pullRequests.outgoing].forEach(pr => {
+        const urlParts = pr.repository_url.split("/");
+        const org = urlParts[urlParts.length - 2];
+        if (org) prOrgs.add(org);
+      });
+      uniqueOrgs = Array.from(prOrgs).sort();
+    }
 
     // Check if current URL has an organization that should be included
     const urlContext = parseURL();

@@ -620,6 +620,11 @@ const App = (() => {
       if (urlContext && urlContext.username && !urlContext.isStats && !urlContext.isSettings && !urlContext.isNotifications) {
         // Only load PRs for actual user PR dashboard pages
         try {
+          // Skip API call if it's the demo user
+          if (urlContext.username === 'demo') {
+            showLoginPrompt();
+            return;
+          }
           state.viewingUser = await githubAPI(`/users/${urlContext.username}`);
           
           showLoginPrompt();
