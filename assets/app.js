@@ -1787,14 +1787,20 @@ const App = (() => {
 
   // Initialize
   const init = async () => {
+    console.log("[App.init] Starting application initialization");
+    console.log("[App.init] Current URL:", window.location.href);
+    
     const urlParams = new URLSearchParams(window.location.search);
     const demo = urlParams.get("demo");
+    console.log("[App.init] Demo mode:", !!demo);
 
     // Parse URL for viewing context
     const urlContext = parseURL();
+    console.log("[App.init] URL context:", urlContext);
 
     // Handle stats page routing
     if (urlContext && urlContext.isStats) {
+      console.log("[App.init] Stats page detected, showing stats");
       showStatsPage();
       return;
     }
@@ -1819,18 +1825,28 @@ const App = (() => {
 
     // Handle robot-army page routing
     if (path.match(/^\/robot-army(?:\/[^\/]+)?$/)) {
+      console.log("[Robot Army] Route matched for path:", path);
+      
       // Load user first if not already loaded
       const token = getStoredToken();
+      console.log("[Robot Army] Token found:", !!token);
+      
       if (token) {
         state.accessToken = token;
         try {
+          console.log("[Robot Army] Loading current user...");
           await loadCurrentUser();
+          console.log("[Robot Army] User loaded:", state.currentUser?.login);
           updateUserDisplay();
         } catch (error) {
-          console.error("Failed to load user:", error);
+          console.error("[Robot Army] Failed to load user:", error);
         }
+      } else {
+        console.log("[Robot Army] No token found, proceeding without user");
       }
-      showSettingsPage();
+      
+      console.log("[Robot Army] Calling showSettingsPage...");
+      await showSettingsPage();
       return;
     }
 
@@ -2732,56 +2748,140 @@ const App = (() => {
   };
   
   const showSettingsPage = async () => {
-    hide($("prSections"));
-    hide($("statsPage"));
-    hide($("notificationsPage"));
-    show($("settingsPage"));
-    
-    // Setup hamburger menu
-    setupHamburgerMenu();
-    
-    // Check if we're on an org-specific settings URL
-    const path = window.location.pathname;
-    const settingsMatch = path.match(/^\/robot-army\/([^\/]+)$/);
-    
-    if (settingsMatch && settingsMatch[1] !== 'all') {
-      const [, org] = settingsMatch;
-      selectedOrg = org;
+    console.log("[showSettingsPage] Starting with path:", window.location.pathname);
+    try {
+      // Hide all other pages
+      console.log("[showSettingsPage] Hiding other pages...");
+      hide($("prSections"));
+      hide($("statsPage"));
+      hide($("notificationsPage"));
       
-      // Update page title
-      document.title = `${org}'s Robot Army`;
+      const settingsPage = $("settingsPage");
+      console.log("[showSettingsPage] Settings page element found:", !!settingsPage);
+      show(settingsPage);
       
-      // Hide org selection and show robot config directly
-      hide($("orgSelectSettings").parentElement.parentElement);
-      
-      // Update YAML path displays
-      const yamlPath = `${selectedOrg}/.github/.github/codegroove.yaml`;
-      const yamlPathEl = $("yamlPath");
-      const yamlPathModalEl = $("yamlPathModal");
-      if (yamlPathEl) yamlPathEl.textContent = yamlPath;
-      if (yamlPathModalEl) yamlPathModalEl.textContent = yamlPath;
-      
-      // Initialize robot configs if empty
-      if (Object.keys(robotConfigs).length === 0) {
-        // Initialize with all robots disabled by default
-        robotDefinitions.forEach(robot => {
-          robotConfigs[robot.id] = {
-            enabled: false,
-            config: {}
-          };
-        });
+      // Debug visibility issues
+      const settingsContent = settingsPage?.querySelector('.settings-content');
+      if (settingsContent) {
+        console.log("[showSettingsPage] settings-content element:", settingsContent);
+        console.log("[showSettingsPage] settings-content hidden attribute before:", settingsContent.getAttribute('hidden'));
+        console.log("[showSettingsPage] settings-content display style:", window.getComputedStyle(settingsContent).display);
+        show(settingsContent);
+        console.log("[showSettingsPage] settings-content hidden attribute after:", settingsContent.getAttribute('hidden'));
       }
       
-      // Show robot configuration
-      show($("robotConfig"));
-      renderRobotCards();
-    } else {
-      // We're on /robot-army - show org selection
-      document.title = "Robot Army Configuration";
-      show($("orgSelectSettings").parentElement.parentElement);
-      hide($("robotConfig"));
-      // Load organizations for selection
-      await loadOrganizationsForSettings();
+      // Setup hamburger menu
+      console.log("[showSettingsPage] Setting up hamburger menu...");
+      setupHamburgerMenu();
+      
+      // Parse URL to determine if we're on an org-specific page
+      const path = window.location.pathname;
+      const match = path.match(/^\/robot-army(?:\/([^\/]+))?$/);
+      
+      if (!match) {
+        console.error("[showSettingsPage] Invalid robot-army URL:", path);
+        return;
+      }
+      
+      const org = match[1]; // Will be undefined for /robot-army
+      console.log("[showSettingsPage] Parsed org from URL:", org || "(none - root page)");
+      
+      // Get elements we'll need
+      const orgSelection = $("orgSelectSettings")?.parentElement?.parentElement;
+      const robotConfig = $("robotConfig");
+      
+      console.log("[showSettingsPage] Elements found:", {
+        orgSelection: !!orgSelection,
+        robotConfig: !!robotConfig,
+        robotConfigInitiallyHidden: robotConfig?.hasAttribute("hidden")
+      });
+      
+      if (org) {
+        // Org-specific page
+        console.log("[showSettingsPage] Configuring for org:", org);
+        selectedOrg = org;
+        document.title = `${org}'s Robot Army`;
+        
+        // Update the visible h1 title
+        const settingsTitle = settingsPage?.querySelector('.settings-title');
+        if (settingsTitle) {
+          settingsTitle.textContent = `🤖 ${org}'s Robot Army`;
+          console.log("[showSettingsPage] Updated h1 title to:", settingsTitle.textContent);
+        }
+        
+        // Hide org selection, show robot config
+        if (orgSelection) {
+          console.log("[showSettingsPage] Hiding org selection");
+          hide(orgSelection);
+        }
+        if (robotConfig) {
+          console.log("[showSettingsPage] Showing robot config");
+          show(robotConfig);
+        }
+        
+        // Ensure settings-content is visible but don't touch child visibility
+        const settingsContentDiv = settingsPage?.querySelector('.settings-content');
+        if (settingsContentDiv && settingsContentDiv.hasAttribute('hidden')) {
+          console.log("[showSettingsPage] Removing hidden from settings-content");
+          settingsContentDiv.removeAttribute('hidden');
+        }
+        
+        // Initialize robot configs with defaults
+        console.log("[showSettingsPage] Current robotConfigs:", Object.keys(robotConfigs));
+        if (Object.keys(robotConfigs).length === 0) {
+          console.log("[showSettingsPage] Initializing robot configs with defaults");
+          robotDefinitions.forEach(robot => {
+            robotConfigs[robot.id] = {
+              enabled: false,
+              config: {}
+            };
+          });
+          console.log("[showSettingsPage] Initialized configs for", robotDefinitions.length, "robots");
+        }
+        
+        // Update YAML path displays
+        const yamlPath = `${selectedOrg}/.github/.github/codegroove.yaml`;
+        console.log("[showSettingsPage] Updating YAML path to:", yamlPath);
+        const yamlPathEl = $("yamlPath");
+        const yamlPathModalEl = $("yamlPathModal");
+        if (yamlPathEl) yamlPathEl.textContent = yamlPath;
+        if (yamlPathModalEl) yamlPathModalEl.textContent = yamlPath;
+        
+        // Render the robot cards
+        console.log("[showSettingsPage] Calling renderRobotCards...");
+        renderRobotCards();
+        console.log("[showSettingsPage] Completed org-specific setup");
+        
+      } else {
+        // Root /robot-army page - show org selection
+        console.log("[showSettingsPage] Configuring for root robot-army page");
+        document.title = "Robot Army Configuration";
+        
+        // Reset the visible h1 title
+        const settingsTitle = settingsPage?.querySelector('.settings-title');
+        if (settingsTitle) {
+          settingsTitle.textContent = "🤖 Robot Army Configuration";
+          console.log("[showSettingsPage] Reset h1 title to default");
+        }
+        
+        // Show org selection, hide robot config
+        if (orgSelection) {
+          console.log("[showSettingsPage] Showing org selection");
+          show(orgSelection);
+        }
+        if (robotConfig) {
+          console.log("[showSettingsPage] Hiding robot config");
+          hide(robotConfig);
+        }
+        
+        // Load organizations
+        console.log("[showSettingsPage] Loading organizations for settings...");
+        await loadOrganizationsForSettings();
+      }
+      console.log("[showSettingsPage] Completed successfully");
+    } catch (error) {
+      console.error("[showSettingsPage] Error:", error);
+      console.error("[showSettingsPage] Stack trace:", error.stack);
     }
   };
 
@@ -2888,13 +2988,31 @@ const App = (() => {
   };
 
   const renderRobotCards = () => {
+    console.log("[renderRobotCards] Starting...");
     const container = $("robotCards");
-    if (!container) return;
+    if (!container) {
+      console.error("[renderRobotCards] ERROR: robotCards container not found");
+      return;
+    }
     
-    container.innerHTML = robotDefinitions.map(robot => createRobotCard(robot)).join("");
+    console.log("[renderRobotCards] Found container, rendering", robotDefinitions.length, "robots");
+    console.log("[renderRobotCards] Robot definitions:", robotDefinitions.map(r => r.id));
+    console.log("[renderRobotCards] Robot configs:", robotConfigs);
     
-    // Add event listeners
-    robotDefinitions.forEach(robot => {
+    try {
+      // Clear and rebuild the container
+      console.log("[renderRobotCards] Creating robot cards HTML...");
+      const cardsHtml = robotDefinitions.map(robot => {
+        console.log("[renderRobotCards] Creating card for robot:", robot.id);
+        return createRobotCard(robot);
+      }).join("");
+      
+      console.log("[renderRobotCards] Setting container innerHTML, length:", cardsHtml.length);
+      container.innerHTML = cardsHtml;
+      
+      // Add event listeners
+      console.log("[renderRobotCards] Adding event listeners...");
+      robotDefinitions.forEach(robot => {
       const toggle = $(`toggle-${robot.id}`);
       if (toggle) {
         toggle.addEventListener("change", (e) => {
@@ -2919,16 +3037,23 @@ const App = (() => {
       }
     });
     
-    // Add export button listener
-    const exportBtn = $("exportConfig");
-    if (exportBtn) {
-      exportBtn.addEventListener("click", exportConfiguration);
+      // Add export button listener
+      const exportBtn = $("exportConfig");
+      if (exportBtn) {
+        exportBtn.addEventListener("click", exportConfiguration);
+      }
+    } catch (error) {
+      console.error("Error in renderRobotCards:", error);
     }
   };
 
   const createRobotCard = (robot) => {
+    console.log(`[createRobotCard] Creating card for robot: ${robot.id}`);
     const isEnabled = robotConfigs[robot.id]?.enabled || false;
+    console.log(`[createRobotCard] Robot ${robot.id} enabled:`, isEnabled);
+    
     const configHtml = renderRobotConfig(robot);
+    console.log(`[createRobotCard] Config HTML length for ${robot.id}:`, configHtml.length);
     
     return `
       <div class="robot-card ${isEnabled ? 'robot-enabled' : ''}">
@@ -3044,10 +3169,13 @@ const App = (() => {
   };
 
   const onRobotToggle = (robotId, enabled) => {
+    console.log(`[onRobotToggle] Robot ${robotId} toggled to:`, enabled);
+    
     if (!robotConfigs[robotId]) {
       robotConfigs[robotId] = {};
     }
     robotConfigs[robotId].enabled = enabled;
+    console.log(`[onRobotToggle] Updated config for ${robotId}:`, robotConfigs[robotId]);
     
     // Update the card's visual state without re-rendering
     const card = document.querySelector(`#toggle-${robotId}`).closest('.robot-card');
@@ -3319,4 +3447,4 @@ if (document.readyState === "loading") {
 
 // Expose necessary functions to window
 window.App = App;
-window.initiateLogin = App.initiateLogin();
+App.initiateLogin(); // This assigns window.initiateLogin
