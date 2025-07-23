@@ -2731,6 +2731,9 @@ const App = (() => {
     // Update page title
     document.title = "Notifications - Ready to Review";
     
+    // Setup hamburger menu
+    setupHamburgerMenu();
+    
     // Add click handler for "Configure in Robot Army" button
     const goToRobotArmyBtn = $("goToRobotArmy");
     if (goToRobotArmyBtn) {
@@ -2745,6 +2748,9 @@ const App = (() => {
     hide($("statsPage"));
     hide($("notificationsPage"));
     show($("settingsPage"));
+    
+    // Setup hamburger menu
+    setupHamburgerMenu();
     
     // Check if we're on an org-specific settings URL
     const path = window.location.pathname;
