@@ -651,6 +651,16 @@ export const User = (() => {
     // Load organizations
     const uniqueOrgs = await loadUserOrganizations(state, githubAPI);
 
+    // Check if current URL has an organization that should be included
+    const urlContext = parseURL();
+    const currentOrg = urlContext?.org;
+    
+    // Ensure current URL org is included in the list, even if not returned by API
+    if (currentOrg && !uniqueOrgs.includes(currentOrg)) {
+      uniqueOrgs.push(currentOrg);
+      uniqueOrgs.sort(); // Keep alphabetical order
+    }
+
     // Update select element
     orgSelect.innerHTML = '<option value="">All Organizations</option>';
     uniqueOrgs.forEach((org) => {
@@ -661,9 +671,8 @@ export const User = (() => {
     });
 
     // Set selected org from URL if present
-    const urlContext = parseURL();
-    if (urlContext && urlContext.org && uniqueOrgs.includes(urlContext.org)) {
-      orgSelect.value = urlContext.org;
+    if (currentOrg) {
+      orgSelect.value = currentOrg;
     } else {
       // Clear selection if no org in URL or org is '*'
       orgSelect.value = "";

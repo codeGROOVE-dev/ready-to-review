@@ -245,13 +245,22 @@ const App = (() => {
 
   // Event handlers
   const handleOrgChange = () => {
+    console.log("[DEBUG] handleOrgChange called");
     const orgSelect = $("orgSelect");
     const selectedOrg = orgSelect?.value;
     const path = window.location.pathname;
     const urlContext = parseURL();
     
+    console.log("[DEBUG] handleOrgChange details:", {
+      orgSelectExists: !!orgSelect,
+      selectedOrg,
+      path,
+      urlContext
+    });
+    
     // For PR dashboard pages, update in place without navigation
     if (urlContext && urlContext.username && !urlContext.isStats && !urlContext.isSettings) {
+      console.log("[DEBUG] Taking PR dashboard path");
       // Update URL without reload using pushState
       const newUrl = `/u/gh/${selectedOrg || '*'}/${urlContext.username}`;
       window.history.pushState({}, '', newUrl);
@@ -270,12 +279,16 @@ const App = (() => {
     
     // Navigate for other page types that require full reload
     if (path.startsWith('/stats')) {
+      console.log("[DEBUG] Taking stats path");
       window.location.href = selectedOrg ? `/stats/gh/${selectedOrg}` : '/stats';
     } else if (path.startsWith('/robots')) {
+      console.log("[DEBUG] Taking robots path");
       window.location.href = selectedOrg ? `/robots/gh/${selectedOrg}` : '/robots';
     } else if (path.startsWith('/notifications')) {
+      console.log("[DEBUG] Taking notifications path");
       window.location.href = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
     } else {
+      console.log("[DEBUG] Taking default path");
       // For root or unknown pages, go to user dashboard
       const currentUser = state.currentUser || state.viewingUser;
       if (currentUser?.login) {
@@ -599,6 +612,12 @@ const App = (() => {
     const orgSelect = $("orgSelect");
     const searchInput = $("searchInput");
 
+    console.log("[DEBUG] Setting up event listeners", {
+      orgSelectExists: !!orgSelect,
+      currentPath: window.location.pathname,
+      orgSelectValue: orgSelect?.value
+    });
+
     orgSelect?.addEventListener("change", handleOrgChange);
     searchInput?.addEventListener("input", handleSearch);
     searchInput?.addEventListener("keydown", (e) => {
@@ -781,6 +800,7 @@ const App = (() => {
     copyYAML,
     debugModals, // Expose debug function
     updateHamburgerMenuLinks, // Expose for stats page
+    handleOrgChange, // Expose for robots and notifications pages
   };
 })();
 
