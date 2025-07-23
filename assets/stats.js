@@ -1,18 +1,10 @@
 // Stats Module for Ready To Review
+import { $, show, hide, escapeHtml } from './utils.js';
+
 export const Stats = (() => {
   "use strict";
 
-  // DOM Helpers
-  const $ = (id) => document.getElementById(id);
-  const show = (el) => el && el.removeAttribute("hidden");
-  const hide = (el) => el && el.setAttribute("hidden", "");
-
-  // Utilities
-  const escapeHtml = (text) => {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  };
+  // DOM Helpers and utilities are imported from utils.js
 
   const githubSearchAll = async (searchPath, maxPages = 20, githubAPI) => {
     const allItems = [];
@@ -48,7 +40,7 @@ export const Stats = (() => {
     };
   };
 
-  const showStatsPage = async (state, githubAPI, loadCurrentUser, updateUserDisplay, setupHamburgerMenu, loadPullRequests, updateOrgFilter, handleOrgChange, handleSearch, parseURL) => {
+  const showStatsPage = async (state, githubAPI, loadCurrentUser, updateUserDisplay, setupHamburgerMenu, loadPullRequests, updateOrgFilter, handleOrgChange, handleSearch, parseURL, loadUserOrganizations) => {
     if (!state.accessToken) {
       const loginPrompt = $("loginPrompt");
       show(loginPrompt);
@@ -111,10 +103,10 @@ export const Stats = (() => {
     hide($("emptyState"));
     show($("statsPage"));
 
-    await loadStatsData(state, githubAPI, parseURL);
+    await loadStatsData(state, githubAPI, parseURL, loadUserOrganizations);
   };
 
-  const loadStatsData = async (state, githubAPI, parseURL) => {
+  const loadStatsData = async (state, githubAPI, parseURL, loadUserOrganizations) => {
     try {
       const urlContext = parseURL();
       if (!urlContext) return;
@@ -126,40 +118,25 @@ export const Stats = (() => {
         container.innerHTML =
           '<div class="loading-indicator">Loading organizations...</div>';
 
-        const orgQuery = `type:pr involves:${username} updated:>=${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]}`;
-        const orgResponse = await githubSearchAll(
-          `/search/issues?q=${encodeURIComponent(orgQuery)}&per_page=100`,
-          3,
-          githubAPI
-        );
+        // Use the same cached organizations as the dropdown
+        const orgs = await loadUserOrganizations(state, githubAPI);
 
-        const orgCounts = {};
-        orgResponse.items.forEach((pr) => {
-          const orgName = pr.repository_url.split("/repos/")[1].split("/")[0];
-          orgCounts[orgName] = (orgCounts[orgName] || 0) + 1;
-        });
-
-        const sortedOrgs = Object.entries(orgCounts).sort(
-          (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
-        );
-
-        if (sortedOrgs.length === 0) {
+        if (orgs.length === 0) {
           container.innerHTML =
-            '<div class="empty-state">No organizations found with recent PR activity</div>';
+            '<div class="empty-state">No organizations found</div>';
           return;
         }
 
         container.innerHTML = `
           <div class="org-selector">
             <h2 class="org-selector-title">Select an organization to view statistics</h2>
-            <p class="org-selector-subtitle">Choose from your organizations with recent PR activity</p>
+            <p class="org-selector-subtitle">Choose from your organizations</p>
             <div class="org-list">
-              ${sortedOrgs
+              ${orgs
                 .map(
-                  ([orgName, count]) => `
-                <a href="/stats/${escapeHtml(orgName)}" class="org-list-item">
+                  (orgName) => `
+                <a href="/stats/gh/${escapeHtml(orgName)}" class="org-list-item">
                   <div class="org-list-name">${escapeHtml(orgName)}</div>
-                  <div class="org-list-count">${count} recent PRs</div>
                 </a>
               `,
                 )

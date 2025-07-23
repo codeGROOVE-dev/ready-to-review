@@ -248,26 +248,19 @@ func main() {
 	// Set up routes
 	mux := http.NewServeMux()
 
-	// Serve static files and handle SPA routing
-	mux.HandleFunc("/", serveStaticFiles)
-	mux.HandleFunc("/assets/", serveStaticFiles)
-	mux.HandleFunc("/user/", serveStaticFiles) // Handle /user/* routes
-	mux.HandleFunc("/stats", serveStaticFiles) // Handle /stats route
-	mux.HandleFunc("/stats/", serveStaticFiles) // Handle /stats/* routes
-	mux.HandleFunc("/robot-army", serveStaticFiles) // Handle /robot-army route
-	mux.HandleFunc("/robot-army/", serveStaticFiles) // Handle /robot-army/* routes
-	mux.HandleFunc("/notifications", serveStaticFiles) // Handle /notifications route
-
 	// OAuth endpoints with rate limiting
 	mux.HandleFunc("/oauth/login", rl.limitHandler(handleOAuthLogin))
 	mux.HandleFunc("/oauth/callback", rl.limitHandler(handleOAuthCallback))
 	mux.HandleFunc("/oauth/user", rl.limitHandler(handleGetUser))
 
+	// Health check endpoint
+	mux.HandleFunc("/health", handleHealthCheck)
+	
+	// Serve everything else as SPA (including assets)
+	mux.HandleFunc("/", serveStaticFiles)
+
 	// Wrap with security middleware
 	handler := requestLogger(requestSizeLimiter(securityHeaders(mux)))
-
-	// Add health check endpoint
-	mux.HandleFunc("/health", handleHealthCheck)
 
 	// Start server with graceful shutdown
 	addr := ":" + serverPort
@@ -317,42 +310,36 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clean and validate the path
+	// Clean the path
 	path := filepath.Clean(r.URL.Path)
-	if path == "/" || path == "." {
-		path = "index.html"
-	} else if strings.HasPrefix(path, "/user/") {
-		// Serve index.html for all /user/* routes (SPA routing)
-		path = "index.html"
-	} else if strings.HasPrefix(path, "/stats/") || path == "/stats" {
-		// Serve index.html for all /stats/* routes (SPA routing)
-		path = "index.html"
-	} else if strings.HasPrefix(path, "/robot-army/") || path == "/robot-army" {
-		// Serve index.html for all /robot-army/* routes (SPA routing)
-		path = "index.html"
-	} else if path == "/notifications" {
-		// Serve index.html for /notifications route (SPA routing)
-		path = "index.html"
-	} else {
-		// Remove leading slash for embed.FS
-		path = strings.TrimPrefix(path, "/")
-	}
-
+	
 	// Prevent directory traversal
 	if strings.Contains(path, "..") || strings.Contains(path, "~") {
 		http.NotFound(w, r)
 		return
 	}
 
-	// Only serve files from allowed paths
-	if !isAllowedPath(path) {
-		http.NotFound(w, r)
-		return
+	// Remove leading slash for embed.FS
+	if path == "/" || path == "." {
+		path = "index.html"
+	} else {
+		path = strings.TrimPrefix(path, "/")
 	}
 
 	// Try to read the file from embedded FS
 	data, err := staticFiles.ReadFile(path)
 	if err != nil {
+		// If file not found and not an asset, serve index.html for SPA routing
+		if !strings.HasPrefix(path, "assets/") && !strings.HasSuffix(path, ".ico") {
+			data, err = staticFiles.ReadFile("index.html")
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(data)
+			return
+		}
 		http.NotFound(w, r)
 		return
 	}
@@ -367,28 +354,20 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	case strings.HasSuffix(path, ".json"):
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	case strings.HasSuffix(path, ".md"):
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	case strings.HasSuffix(path, ".png"):
+		w.Header().Set("Content-Type", "image/png")
+	case strings.HasSuffix(path, ".jpg"), strings.HasSuffix(path, ".jpeg"):
+		w.Header().Set("Content-Type", "image/jpeg")
+	case strings.HasSuffix(path, ".svg"):
+		w.Header().Set("Content-Type", "image/svg+xml")
+	case strings.HasSuffix(path, ".ico"):
+		w.Header().Set("Content-Type", "image/x-icon")
 	}
 
 	// Write the file content
 	w.Write(data)
 }
 
-func isAllowedPath(path string) bool {
-	// Only allow serving specific files and directories
-	allowedPaths := []string{
-		"index.html",
-		"assets/",
-	}
-
-	for _, allowed := range allowedPaths {
-		if path == allowed || strings.HasPrefix(path, allowed) {
-			return true
-		}
-	}
-	return false
-}
 
 func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
 	// Add CORS headers for popup windows

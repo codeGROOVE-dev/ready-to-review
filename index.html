@@ -51,12 +51,9 @@
             <nav class="slide-menu-nav">
                 <a href="/" id="dashboardLink" class="menu-link">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="7" height="7" rx="1"/>
-                        <rect x="14" y="3" width="7" height="7" rx="1"/>
-                        <rect x="3" y="14" width="7" height="7" rx="1"/>
-                        <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        <path d="M16 3h5v5M8 3H3v5M16 21h5v-5M8 21H3v-5M12 8v8M8 12h8"/>
                     </svg>
-                    Dashboard
+                    Pull Requests
                 </a>
                 <a href="/stats" id="statsLink" class="menu-link">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -140,11 +137,11 @@
                                 <li>Click "Install" or "Configure" to add it to your repositories</li>
                                 <li>Select the repositories you want to access</li>
                                 <li>Complete the installation</li>
-                                <li>Come back here and click "Continue with Authentication"</li>
+                                <li>Come back here and click "Continue to Login"</li>
                             </ol>
                             <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
                                 <button class="btn btn-secondary" onclick="window.App.closeGitHubAppModal()">Cancel</button>
-                                <button class="btn btn-primary" onclick="window.App.proceedWithOAuth()">Continue with Authentication</button>
+                                <button class="btn btn-primary" onclick="window.App.proceedWithOAuth()">Continue to Login</button>
                             </div>
                         </div>
                     </div>

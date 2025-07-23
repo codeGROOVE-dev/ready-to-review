@@ -1,5 +1,6 @@
 // Ready To Review - Modern ES6+ Application
 console.log('[App] Starting module imports...');
+import { $, $$, show, hide, showToast } from './utils.js';
 import { Auth } from './auth.js';
 console.log('[App] Auth module imported:', Auth);
 import { User } from './user.js';
@@ -30,34 +31,66 @@ const App = (() => {
   const parseURL = () => {
     const path = window.location.pathname;
 
-    // Check for robot-army page patterns: /robot-army or /robot-army/org
-    const robotArmyMatch = path.match(/^\/robot-army(?:\/([^\/]+))?$/);
-    if (robotArmyMatch) {
-      const [, org] = robotArmyMatch;
+    // Check for robot page patterns: /robots or /robots/gh/org
+    if (path === '/robots') {
       return {
-        org: org || null,
+        org: null,
+        username: state.currentUser?.login,
+        isSettings: true,
+      };
+    }
+    const robotsMatch = path.match(/^\/robots\/gh\/([^\/]+)$/);
+    if (robotsMatch) {
+      const [, org] = robotsMatch;
+      return {
+        org: org === '*' ? null : org,
         username: state.currentUser?.login,
         isSettings: true,
       };
     }
 
-    // Check for stats page patterns: /stats or /stats/org
-    const statsMatch = path.match(/^\/stats(?:\/([^\/]+))?$/);
+    // Check for stats page patterns: /stats or /stats/gh/org
+    if (path === '/stats') {
+      return {
+        org: null,
+        username: state.viewingUser?.login || state.currentUser?.login,
+        isStats: true,
+      };
+    }
+    const statsMatch = path.match(/^\/stats\/gh\/([^\/]+)$/);
     if (statsMatch) {
       const [, org] = statsMatch;
       return {
-        org: org || null,
+        org: org === '*' ? null : org,
         username: state.viewingUser?.login || state.currentUser?.login,
         isStats: true,
       };
     }
 
-    // Check for user dashboard pattern: /user/username or /user/org/username
-    const userMatch = path.match(/^\/user\/(?:([^\/]+)\/)?([^\/]+)$/);
+    // Check for notifications page patterns: /notifications or /notifications/gh/org
+    if (path === '/notifications') {
+      return {
+        org: null,
+        username: state.currentUser?.login,
+        isNotifications: true,
+      };
+    }
+    const notificationsMatch = path.match(/^\/notifications\/gh\/([^\/]+)$/);
+    if (notificationsMatch) {
+      const [, org] = notificationsMatch;
+      return {
+        org: org === '*' ? null : org,
+        username: state.currentUser?.login,
+        isNotifications: true,
+      };
+    }
+
+    // Check for user dashboard pattern: /u/gh/org/username
+    const userMatch = path.match(/^\/u\/gh\/([^\/]+)\/([^\/]+)$/);
     if (userMatch) {
       const [, org, username] = userMatch;
       return {
-        org: org || null,
+        org: org === '*' ? null : org,
         username: username,
         isStats: false,
       };
@@ -66,11 +99,7 @@ const App = (() => {
     return null;
   };
 
-  // DOM Helpers
-  const $ = (id) => document.getElementById(id);
-  const $$ = (selector) => document.querySelectorAll(selector);
-  const show = (el) => el && el.removeAttribute("hidden");
-  const hide = (el) => el && el.setAttribute("hidden", "");
+  // DOM Helpers are imported from utils.js
 
   // UI Functions
   const showMainContent = () => {
@@ -86,6 +115,33 @@ const App = (() => {
 
   // Hamburger Menu Functions
   let hamburgersSetup = false;
+  
+  const updateHamburgerMenuLinks = () => {
+    const dashboardLink = $("dashboardLink");
+    const statsLink = $("statsLink");
+    const settingsLink = $("settingsLink");
+    const orgSelect = $("orgSelect");
+    const selectedOrg = orgSelect?.value;
+    const urlContext = parseURL();
+    const { username } = urlContext || {};
+    
+    const currentUser = state.currentUser || state.viewingUser;
+    const defaultUsername = currentUser?.login || '';
+    const targetUsername = username || defaultUsername;
+    
+    if (dashboardLink && targetUsername) {
+      dashboardLink.href = `/u/gh/${selectedOrg || '*'}/${targetUsername}`;
+    }
+    
+    if (statsLink) {
+      statsLink.href = selectedOrg ? `/stats/gh/${selectedOrg}` : '/stats';
+    }
+    
+    if (settingsLink) {
+      settingsLink.href = selectedOrg ? `/robots/gh/${selectedOrg}` : '/robots';
+    }
+  };
+  
   const setupHamburgerMenu = () => {
     if (hamburgersSetup) return;
 
@@ -124,60 +180,101 @@ const App = (() => {
       }
     });
 
-    const urlContext = parseURL();
-    if (urlContext && urlContext.username) {
-      const { org, username } = urlContext;
-      const basePath = org
-        ? `/user/${org}/${username}`
-        : `/user/${username}`;
-      const statsPath = org ? `/stats/${org}` : `/stats`;
-
-      if (dashboardLink) {
-        dashboardLink.href = basePath;
-        if (window.location.pathname === basePath) {
-          dashboardLink.classList.add("active");
-        }
-      }
-
-      if (statsLink) {
-        statsLink.href = statsPath;
-        if (
-          window.location.pathname === statsPath ||
-          window.location.pathname === `${basePath}/stats`
-        ) {
-          statsLink.classList.add("active");
-        }
-
-        statsLink.addEventListener("click", (e) => {
-          e.preventDefault();
-          closeMenu();
-          window.location.href = statsLink.href;
-        });
+    // Set up initial links
+    updateHamburgerMenuLinks();
+    
+    // Set active states based on current path
+    const path = window.location.pathname;
+    if (dashboardLink) {
+      if (path === '/' || path.startsWith('/u/')) {
+        dashboardLink.classList.add("active");
       }
       
-      const notificationsLink = $("notificationsLink");
-      if (notificationsLink) {
-        notificationsLink.addEventListener("click", (e) => {
-          e.preventDefault();
-          closeMenu();
-          window.location.href = '/notifications';
-        });
+      dashboardLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeMenu();
+        window.location.href = dashboardLink.href;
+      });
+    }
+
+    if (statsLink) {
+      if (path.startsWith('/stats')) {
+        statsLink.classList.add("active");
+      }
+
+      statsLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeMenu();
+        window.location.href = statsLink.href;
+      });
+    }
+    
+    const notificationsLink = $("notificationsLink");
+    if (notificationsLink) {
+      if (path.startsWith('/notifications')) {
+        notificationsLink.classList.add("active");
       }
       
-      const settingsLink = $("settingsLink");
-      if (settingsLink) {
-        settingsLink.addEventListener("click", (e) => {
-          e.preventDefault();
-          closeMenu();
-          window.location.href = '/robot-army';
-        });
+      notificationsLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeMenu();
+        const orgSelect = $("orgSelect");
+        const selectedOrg = orgSelect?.value;
+        const notificationsPath = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
+        window.location.href = notificationsPath;
+      });
+    }
+    
+    const settingsLink = $("settingsLink");
+    if (settingsLink) {
+      if (path.startsWith('/robots')) {
+        settingsLink.classList.add("active");
       }
+      
+      settingsLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeMenu();
+        window.location.href = settingsLink.href;
+      });
     }
   };
 
   // Event handlers
   const handleOrgChange = () => {
-    User.handleOrgChange(state, parseURL, Stats.loadStatsData);
+    const orgSelect = $("orgSelect");
+    const selectedOrg = orgSelect?.value;
+    const path = window.location.pathname;
+    const urlContext = parseURL();
+    
+    // For PR dashboard pages, update in place without navigation
+    if (urlContext && urlContext.username && !urlContext.isStats && !urlContext.isSettings) {
+      // Update URL without reload using pushState
+      const newUrl = `/u/gh/${selectedOrg || '*'}/${urlContext.username}`;
+      window.history.pushState({}, '', newUrl);
+      
+      // Just re-render the PR sections with the new filter
+      User.updatePRSections(state);
+      
+      // Update hamburger menu links to reflect new org
+      updateHamburgerMenuLinks();
+      
+      return;
+    }
+    
+    // Navigate for other page types that require full reload
+    if (path.startsWith('/stats')) {
+      window.location.href = selectedOrg ? `/stats/gh/${selectedOrg}` : '/stats';
+    } else if (path.startsWith('/robots')) {
+      window.location.href = selectedOrg ? `/robots/gh/${selectedOrg}` : '/robots';
+    } else if (path.startsWith('/notifications')) {
+      window.location.href = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
+    } else {
+      // For root or unknown pages, go to user dashboard
+      const currentUser = state.currentUser || state.viewingUser;
+      if (currentUser?.login) {
+        window.location.href = `/u/gh/${selectedOrg || '*'}/${currentUser.login}`;
+      }
+    }
   };
 
   const handleSearch = () => {
@@ -208,22 +305,7 @@ const App = (() => {
     }
   };
 
-  // Toast notifications
-  const showToast = (message, type = "info") => {
-    const toast = document.createElement("div");
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-
-    requestAnimationFrame(() => {
-      toast.classList.add("show");
-    });
-
-    setTimeout(() => {
-      toast.classList.remove("show");
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
-  };
+  // Toast notifications are imported from utils.js
 
   // Auth related functions
   const initiateLogin = () => {
@@ -407,13 +489,13 @@ const App = (() => {
 
     const urlContext = parseURL();
     if (!urlContext || !urlContext.username) {
-      window.location.href = `/user/${DEMO_DATA.user.login}?demo=true`;
+      window.location.href = `/u/gh/*/${DEMO_DATA.user.login}?demo=true`;
       return;
     }
 
     User.updateUserDisplay(state, initiateLogin);
     User.updatePRSections(state);
-    User.updateOrgFilter(state, parseURL);
+    User.updateOrgFilter(state, parseURL, githubAPI);
     showMainContent();
   };
 
@@ -436,14 +518,14 @@ const App = (() => {
         () => User.updateUserDisplay(state, initiateLogin), 
         setupHamburgerMenu, 
         () => User.loadPullRequests(state, githubAPI, state.isDemoMode),
-        () => User.updateOrgFilter(state, parseURL),
-        handleOrgChange, handleSearch, parseURL);
+        () => User.updateOrgFilter(state, parseURL, githubAPI),
+        handleOrgChange, handleSearch, parseURL, User.loadUserOrganizations);
       return;
     }
 
     // Handle notifications page routing
     const path = window.location.pathname;
-    if (path === '/notifications') {
+    if (path === '/notifications' || path.match(/^\/notifications\/gh\/[^\/]+$/)) {
       const token = Auth.getStoredToken();
       if (token) {
         try {
@@ -454,12 +536,12 @@ const App = (() => {
           console.error("Failed to load user for notifications:", error);
         }
       }
-      Robots.showNotificationsPage();
+      await Robots.showNotificationsPage(state, parseURL, githubAPI, User.updateOrgFilter);
       return;
     }
 
-    // Handle robot-army page routing
-    if (path.match(/^\/robot-army(?:\/[^\/]+)?$/)) {
+    // Handle robots page routing
+    if (path === '/robots' || path.match(/^\/robots\/gh\/[^\/]+$/)) {
       const token = Auth.getStoredToken();
       if (!token) {
         showToast("Please login to configure Robot Army", "error");
@@ -479,8 +561,14 @@ const App = (() => {
       }
 
       User.updateUserDisplay(state, initiateLogin);
+      
+      // Only update org filter if we have an org selected
+      if (path !== '/robots') {
+        await User.updateOrgFilter(state, parseURL, githubAPI);
+      }
+      
       console.log("[Robot Army] Calling showSettingsPage...");
-      await Robots.showSettingsPage(state, setupHamburgerMenu, githubAPI);
+      await Robots.showSettingsPage(state, setupHamburgerMenu, githubAPI, User.loadUserOrganizations, parseURL);
       return;
     }
 
@@ -555,8 +643,8 @@ const App = (() => {
           User.updateUserDisplay(state, initiateLogin);
           
           // Load public data
+          await User.updateOrgFilter(state, parseURL, githubAPI);
           await User.loadPullRequests(state, githubAPI, state.isDemoMode);
-          User.updateOrgFilter(state, parseURL);
           showMainContent();
         } catch (error) {
           console.error("Failed to load user:", error);
@@ -576,6 +664,13 @@ const App = (() => {
     try {
       await loadCurrentUser();
 
+      // If at root URL, redirect to user's page
+      if (!urlContext && state.currentUser) {
+        console.log("[App.init] Redirecting from root to user page:", `/u/gh/*/${state.currentUser.login}`);
+        window.location.href = `/u/gh/*/${state.currentUser.login}`;
+        return;
+      }
+
       if (urlContext && urlContext.username && urlContext.username !== state.currentUser.login) {
         try {
           state.viewingUser = await githubAPI(`/users/${urlContext.username}`);
@@ -587,8 +682,8 @@ const App = (() => {
       }
 
       User.updateUserDisplay(state, initiateLogin);
+      await User.updateOrgFilter(state, parseURL, githubAPI);
       await User.loadPullRequests(state, githubAPI, state.isDemoMode);
-      User.updateOrgFilter(state, parseURL);
       showMainContent();
 
       if (urlRedirect) {

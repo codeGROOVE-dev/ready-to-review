@@ -1,19 +1,10 @@
 // User PR Dashboard Module for Ready To Review
+import { $, $$, show, hide, escapeHtml } from './utils.js';
+
 export const User = (() => {
   "use strict";
 
-  // DOM Helpers
-  const $ = (id) => document.getElementById(id);
-  const $$ = (selector) => document.querySelectorAll(selector);
-  const show = (el) => el && el.removeAttribute("hidden");
-  const hide = (el) => el && el.setAttribute("hidden", "");
-
-  // Utilities
-  const escapeHtml = (text) => {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  };
+  // DOM Helpers and utilities are imported from utils.js
 
   const formatTimeAgo = (timestamp) => {
     const seconds = Math.floor((Date.now() - new Date(timestamp)) / 1000);
@@ -384,19 +375,104 @@ export const User = (() => {
     }
   };
 
-  const updateOrgFilter = (state, parseURL) => {
-    const orgSelect = $("orgSelect");
-    if (!orgSelect) return;
-
+  const loadUserOrganizations = async (state, githubAPI) => {
+    const CACHE_KEY = 'r2r_user_orgs_cache';
+    const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+    
+    // Check cache first
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { orgs, timestamp, userId } = JSON.parse(cached);
+        const user = state.currentUser || state.viewingUser;
+        const currentUserId = user?.login || 'anonymous';
+        
+        // Return cached data if it's fresh and for the same user
+        if (Date.now() - timestamp < CACHE_DURATION && userId === currentUserId) {
+          console.log("Using cached organizations");
+          return orgs;
+        }
+      }
+    } catch (e) {
+      console.log("Error reading org cache:", e);
+    }
+    
+    const orgs = new Set();
+    
+    try {
+      // Get organizations from user membership
+      const userOrgs = await githubAPI('/user/orgs');
+      userOrgs.forEach(org => orgs.add(org.login));
+    } catch (e) {
+      console.log("Could not load user orgs (may lack permission)");
+    }
+    
+    try {
+      // Get organizations from recent activity
+      const user = state.currentUser || state.viewingUser;
+      if (user) {
+        const events = await githubAPI(`/users/${user.login}/events/public?per_page=100`);
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        events.forEach(event => {
+          if (event.created_at < thirtyDaysAgo.toISOString()) return;
+          
+          if (
+            event.type === "PullRequestEvent" ||
+            event.type === "PullRequestReviewEvent" ||
+            event.type === "PullRequestReviewCommentEvent" ||
+            event.type === "PushEvent" ||
+            event.type === "IssuesEvent"
+          ) {
+            const org = event.repo.name.split('/')[0];
+            orgs.add(org);
+          }
+        });
+      }
+    } catch (e) {
+      console.log("Could not load user events");
+    }
+    
+    // Also include orgs from loaded PRs
     const allPRs = [
       ...state.pullRequests.incoming,
       ...state.pullRequests.outgoing,
     ];
+    
+    allPRs.forEach((pr) => {
+      if (pr.repository && pr.repository.full_name) {
+        const org = pr.repository.full_name.split("/")[0];
+        orgs.add(org);
+      }
+    });
+    
+    const orgList = Array.from(orgs).sort();
+    
+    // Cache the results
+    try {
+      const user = state.currentUser || state.viewingUser;
+      const userId = user?.login || 'anonymous';
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        orgs: orgList,
+        timestamp: Date.now(),
+        userId: userId
+      }));
+    } catch (e) {
+      console.log("Error caching orgs:", e);
+    }
+    
+    return orgList;
+  };
 
-    const uniqueOrgs = [
-      ...new Set(allPRs.map((pr) => pr.repository.full_name.split("/")[0])),
-    ].sort();
+  const updateOrgFilter = async (state, parseURL, githubAPI) => {
+    const orgSelect = $("orgSelect");
+    if (!orgSelect) return;
 
+    // Load organizations
+    const uniqueOrgs = await loadUserOrganizations(state, githubAPI);
+
+    // Update select element
     orgSelect.innerHTML = '<option value="">All Organizations</option>';
     uniqueOrgs.forEach((org) => {
       const option = document.createElement("option");
@@ -405,9 +481,13 @@ export const User = (() => {
       orgSelect.appendChild(option);
     });
 
+    // Set selected org from URL if present
     const urlContext = parseURL();
     if (urlContext && urlContext.org && uniqueOrgs.includes(urlContext.org)) {
       orgSelect.value = urlContext.org;
+    } else {
+      // Clear selection if no org in URL or org is '*'
+      orgSelect.value = "";
     }
   };
 
@@ -1011,6 +1091,7 @@ export const User = (() => {
 
   return {
     loadPullRequests,
+    loadUserOrganizations,
     updateUserDisplay,
     updateOrgFilter,
     updatePRSections,

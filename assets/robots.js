@@ -1,4 +1,6 @@
 // Robot Army Module for Ready To Review
+import { $, show, hide } from './utils.js';
+
 export const Robots = (() => {
   "use strict";
 
@@ -149,12 +151,9 @@ export const Robots = (() => {
   let robotConfigs = {};
   let selectedOrg = null;
 
-  // DOM helpers
-  const $ = (id) => document.getElementById(id);
-  const show = (el) => el && el.removeAttribute("hidden");
-  const hide = (el) => el && el.setAttribute("hidden", "");
+  // DOM helpers are imported from utils.js
 
-  const showNotificationsPage = () => {
+  const showNotificationsPage = async (state, parseURL, githubAPI, updateOrgFilter) => {
     hide($("prSections"));
     hide($("statsPage"));
     hide($("settingsPage"));
@@ -162,16 +161,33 @@ export const Robots = (() => {
     
     document.title = "Notifications - Ready to Review";
     
+    // Update org filter dropdown
+    await updateOrgFilter(state, parseURL, githubAPI);
+    
+    // Add change handler for org dropdown to navigate
+    const orgSelect = $("orgSelect");
+    if (orgSelect) {
+      orgSelect.addEventListener("change", (e) => {
+        const org = e.target.value;
+        if (org) {
+          // Navigate to org-specific notifications (future feature)
+          console.log("Selected org for notifications:", org);
+        }
+      });
+    }
+    
     // Add click handler for "Configure in Robot Army" button
     const goToRobotArmyBtn = $("goToRobotArmy");
     if (goToRobotArmyBtn) {
       goToRobotArmyBtn.onclick = () => {
-        window.location.href = '/robot-army';
+        const urlContext = parseURL();
+        const org = urlContext?.org || orgSelect?.value || '*';
+        window.location.href = `/robots/gh/${org}`;
       };
     }
   };
   
-  const showSettingsPage = async (state, setupHamburgerMenu, githubAPI) => {
+  const showSettingsPage = async (state, setupHamburgerMenu, githubAPI, loadUserOrganizations, parseURL) => {
     console.log("[showSettingsPage] Starting with path:", window.location.pathname);
     try {
       hide($("prSections"));
@@ -190,16 +206,14 @@ export const Robots = (() => {
       
       setupHamburgerMenu();
       
-      const path = window.location.pathname;
-      const match = path.match(/^\/robot-army(?:\/([^\/]+))?$/);
-      
-      if (!match) {
-        console.error("[showSettingsPage] Invalid robot-army URL:", path);
+      const urlContext = parseURL();
+      if (!urlContext || !urlContext.isSettings) {
+        console.error("[showSettingsPage] Invalid robots URL");
         return;
       }
       
-      const org = match[1];
-      console.log("[showSettingsPage] Parsed org from URL:", org || "(none - root page)");
+      const org = urlContext.org;
+      console.log("[showSettingsPage] Parsed org from URL:", org || "no org");
       
       const orgSelection = document.querySelector('.org-selection');
       const robotConfig = $("robotConfig");
@@ -210,67 +224,20 @@ export const Robots = (() => {
         robotConfigInitiallyHidden: robotConfig?.hasAttribute("hidden")
       });
       
-      if (org) {
-        selectedOrg = org;
-        document.title = `${org}'s Robot Army`;
-        
+      // Check if we're at /robots (no org) or /robots/gh/org
+      if (!org && window.location.pathname === '/robots') {
+        // No org selected - show org selection
+        document.title = "Select Organization - Robot Army";
         const settingsTitle = settingsPage?.querySelector('.settings-title');
         const settingsSubtitle = settingsPage?.querySelector('.settings-subtitle');
         if (settingsTitle) {
-          settingsTitle.textContent = `🤖 ${org}'s Robot Army`;
-          console.log("[showSettingsPage] Updated h1 title to:", settingsTitle.textContent);
+          settingsTitle.textContent = `🤖 Robot Army Configuration`;
         }
         if (settingsSubtitle) {
-          settingsSubtitle.textContent = `Configure automated helpers to handle repetitive GitHub tasks`;
+          settingsSubtitle.textContent = `Select an organization to configure robots`;
         }
         
-        if (orgSelection) {
-          console.log("[showSettingsPage] Hiding org selection");
-          hide(orgSelection);
-        }
-        if (robotConfig) {
-          console.log("[showSettingsPage] Showing robot config");
-          show(robotConfig);
-        }
-        
-        const settingsContentDiv = settingsPage?.querySelector('.settings-content');
-        if (settingsContentDiv && settingsContentDiv.hasAttribute('hidden')) {
-          console.log("[showSettingsPage] Removing hidden from settings-content");
-          settingsContentDiv.removeAttribute('hidden');
-        }
-        
-        console.log("[showSettingsPage] Current robotConfigs:", Object.keys(robotConfigs));
-        if (Object.keys(robotConfigs).length === 0) {
-          console.log("[showSettingsPage] Initializing robot configs with defaults");
-          robotDefinitions.forEach(robot => {
-            robotConfigs[robot.id] = {
-              enabled: false,
-              config: {}
-            };
-          });
-          console.log("[showSettingsPage] Initialized configs for", robotDefinitions.length, "robots");
-        }
-        
-        const yamlPath = `${selectedOrg}/.github/.github/codegroove.yaml`;
-        console.log("[showSettingsPage] Updating YAML path to:", yamlPath);
-        const yamlPathEl = $("yamlPath");
-        const yamlPathModalEl = $("yamlPathModal");
-        if (yamlPathEl) yamlPathEl.textContent = yamlPath;
-        if (yamlPathModalEl) yamlPathModalEl.textContent = yamlPath;
-        
-        console.log("[showSettingsPage] Calling renderRobotCards...");
-        renderRobotCards();
-        console.log("[showSettingsPage] Completed org-specific setup");
-        
-      } else {
-        document.title = "Robot Army Configuration";
-        
-        const settingsTitle = settingsPage?.querySelector('.settings-title');
-        if (settingsTitle) {
-          settingsTitle.textContent = "🤖 Robot Army Configuration";
-          console.log("[showSettingsPage] Reset h1 title to default");
-        }
-        
+        // Show org selection, hide robot config
         if (orgSelection) {
           console.log("[showSettingsPage] Showing org selection");
           show(orgSelection);
@@ -280,9 +247,64 @@ export const Robots = (() => {
           hide(robotConfig);
         }
         
-        console.log("[showSettingsPage] Loading organizations for settings...");
-        await loadOrganizationsForSettings(state, githubAPI);
+        // Update org selector to handle navigation
+        await loadOrganizationsForSettings(state, githubAPI, loadUserOrganizations);
+        
+        return; // Don't proceed with robot config
       }
+      
+      // We have an org selected
+      selectedOrg = org;
+      
+      document.title = `${org}'s Robot Army`;
+      const settingsTitle = settingsPage?.querySelector('.settings-title');
+      const settingsSubtitle = settingsPage?.querySelector('.settings-subtitle');
+      if (settingsTitle) {
+        settingsTitle.textContent = `🤖 ${org}'s Robot Army`;
+        console.log("[showSettingsPage] Updated h1 title to:", settingsTitle.textContent);
+      }
+      if (settingsSubtitle) {
+        settingsSubtitle.textContent = `Configure automated helpers to handle repetitive GitHub tasks`;
+      }
+        
+      // Hide org selection and show robot config
+      if (orgSelection) {
+        console.log("[showSettingsPage] Hiding org selection");
+        hide(orgSelection);
+      }
+      if (robotConfig) {
+        console.log("[showSettingsPage] Showing robot config");
+        show(robotConfig);
+      }
+        
+      const settingsContentDiv = settingsPage?.querySelector('.settings-content');
+      if (settingsContentDiv && settingsContentDiv.hasAttribute('hidden')) {
+        console.log("[showSettingsPage] Removing hidden from settings-content");
+        settingsContentDiv.removeAttribute('hidden');
+      }
+      
+      console.log("[showSettingsPage] Current robotConfigs:", Object.keys(robotConfigs));
+      if (Object.keys(robotConfigs).length === 0) {
+        console.log("[showSettingsPage] Initializing robot configs with defaults");
+        robotDefinitions.forEach(robot => {
+          robotConfigs[robot.id] = {
+            enabled: false,
+            config: {}
+          };
+        });
+        console.log("[showSettingsPage] Initialized configs for", robotDefinitions.length, "robots");
+      }
+      
+      const yamlPath = `${selectedOrg}/.github/.github/codegroove.yaml`;
+      console.log("[showSettingsPage] Updating YAML path to:", yamlPath);
+      const yamlPathEl = $("yamlPath");
+      const yamlPathModalEl = $("yamlPathModal");
+      if (yamlPathEl) yamlPathEl.textContent = yamlPath;
+      if (yamlPathModalEl) yamlPathModalEl.textContent = yamlPath;
+      
+      console.log("[showSettingsPage] Calling renderRobotCards...");
+      renderRobotCards();
+      console.log("[showSettingsPage] Completed setup");
       console.log("[showSettingsPage] Completed successfully");
     } catch (error) {
       console.error("[showSettingsPage] Error:", error);
@@ -290,46 +312,19 @@ export const Robots = (() => {
     }
   };
 
-  const loadOrganizationsForSettings = async (state, githubAPI) => {
+  const loadOrganizationsForSettings = async (state, githubAPI, loadUserOrganizations) => {
     const orgSelect = $("orgSelectSettings");
     if (!orgSelect) return;
     
     try {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
       const user = state.currentUser || state.viewingUser;
       if (!user) {
         orgSelect.innerHTML = '<option value="">Please login to view organizations</option>';
         return;
       }
       
-      const events = await githubAPI(`/users/${user.login}/events/public?per_page=100`);
-      
-      const orgSet = new Set();
-      events.forEach(event => {
-        if (event.created_at < thirtyDaysAgo.toISOString()) return;
-        
-        if (
-          event.type === "PullRequestEvent" ||
-          event.type === "PullRequestReviewEvent" ||
-          event.type === "PullRequestReviewCommentEvent" ||
-          event.type === "PushEvent" ||
-          event.type === "IssuesEvent"
-        ) {
-          const org = event.repo.name.split('/')[0];
-          orgSet.add(org);
-        }
-      });
-      
-      try {
-        const userOrgs = await githubAPI('/user/orgs');
-        userOrgs.forEach(org => orgSet.add(org.login));
-      } catch (e) {
-        // User might not have org access
-      }
-      
-      const orgs = Array.from(orgSet).sort();
+      // Use the shared organization loading function
+      const orgs = await loadUserOrganizations(state, githubAPI);
       
       if (orgs.length === 0) {
         orgSelect.innerHTML = '<option value="">No organizations found</option>';
@@ -354,11 +349,10 @@ export const Robots = (() => {
   const onOrgSelected = (e) => {
     selectedOrg = e.target.value;
     if (!selectedOrg) {
-      hide($("robotConfig"));
-      return;
+      selectedOrg = '*';
     }
     
-    window.location.href = `/robot-army/${selectedOrg}`;
+    window.location.href = `/robots/gh/${selectedOrg}`;
   };
 
   const renderRobotCards = () => {
@@ -694,7 +688,7 @@ ${previewSteps.join('\n')}
     
     let yaml = `# CodeGroove Configuration
 # Generated by Ready to Review Dashboard
-# Organization: ${selectedOrg}
+# Organization: ${selectedOrg === '*' ? 'All Organizations' : selectedOrg}
 
 version: 1
 robots:
