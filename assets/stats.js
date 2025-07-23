@@ -11,8 +11,9 @@ export const Stats = (() => {
     const allItems = [];
     let page = 1;
     let hasMore = true;
+    let actualTotalCount = 0;
 
-    while (hasMore && page <= maxPages) {
+    while (hasMore && page <= maxPages && allItems.length < 1000) {
       const pagePath = searchPath.includes("?")
         ? `${searchPath}&page=${page}`
         : `${searchPath}?page=${page}`;
@@ -25,10 +26,16 @@ export const Stats = (() => {
         totalCount: response.total_count
       });
 
+      // Store the actual total count from GitHub
+      if (page === 1) {
+        actualTotalCount = response.total_count || 0;
+      }
+
       if (response.items && response.items.length > 0) {
         allItems.push(...response.items);
 
         if (
+          allItems.length >= 1000 ||  // Stop at 1000 items
           response.total_count <= allItems.length ||
           response.items.length < 100
         ) {
@@ -43,12 +50,15 @@ export const Stats = (() => {
 
     console.log(`[Stats Debug] githubSearchAll complete:`, {
       totalItems: allItems.length,
-      pages: page
+      actualTotalCount: actualTotalCount,
+      pages: page,
+      hitLimit: allItems.length >= 1000
     });
 
     return {
-      items: allItems,
-      total_count: allItems.length,
+      items: allItems.slice(0, 1000),  // Ensure we never return more than 1000
+      total_count: actualTotalCount,  // Return the actual total from GitHub
+      limited: actualTotalCount > 1000
     };
   };
 
@@ -320,6 +330,9 @@ export const Stats = (() => {
             Focus on reducing forgotten PRs. Each one represents completed work that isn't delivering value. 
             <span style="color: #86868b;">Target: <21 days average wait, <10% stuck.</span>
           </p>
+          <p class="data-limit-note" id="dataLimitNote-${org}" style="display: none; font-size: 0.875rem; color: #86868b; margin-top: 1rem;">
+            *Time averages are based on the most recent 1,000 PRs due to GitHub API limits.
+          </p>
         </div>
       </div>
     `;
@@ -390,10 +403,16 @@ export const Stats = (() => {
 
       const openAllPRs = openAllResponse.items || [];
       const mergedRecentPRs = mergedRecentResponse.items || [];
+      const openTotalCount = openAllResponse.total_count || openAllPRs.length;
+      const mergedTotalCount = mergedRecentResponse.total_count || mergedRecentPRs.length;
 
       console.log(`[Stats Debug] API Responses:`, {
         openAllCount: openAllPRs.length,
-        mergedRecentCount: mergedRecentPRs.length
+        openTotalCount: openTotalCount,
+        openLimited: openAllResponse.limited,
+        mergedRecentCount: mergedRecentPRs.length,
+        mergedTotalCount: mergedTotalCount,
+        mergedLimited: mergedRecentResponse.limited
       });
 
       const openStalePRs = openAllPRs.filter((pr) => {
@@ -464,7 +483,10 @@ export const Stats = (() => {
         totalOpenAge,
         totalMergeTime,
         sevenDaysAgoISO,
-        now: now.getTime()
+        now: now.getTime(),
+        openTotalCount,
+        mergedTotalCount,
+        dataLimited: openAllResponse.limited || mergedRecentResponse.limited
       };
       
       console.log(`[Stats Debug] Stats data to cache/display:`, statsData);
@@ -497,7 +519,10 @@ export const Stats = (() => {
       totalOpenAge,
       totalMergeTime,
       sevenDaysAgoISO,
-      now: nowTime
+      now: nowTime,
+      openTotalCount,
+      mergedTotalCount,
+      dataLimited
     } = statsData;
     
     console.log(`[Stats Debug] Extracted values:`, {
@@ -507,7 +532,10 @@ export const Stats = (() => {
       totalOpenAge,
       totalMergeTime,
       sevenDaysAgoISO,
-      nowTime
+      nowTime,
+      openTotalCount,
+      mergedTotalCount,
+      dataLimited
     });
     
     const now = new Date(nowTime);
@@ -578,7 +606,12 @@ export const Stats = (() => {
 
       if (mergedElement) {
         mergedElement.classList.remove("loading");
-        mergedElement.textContent = mergedLast7Days;
+        // Show actual total if it's different from the sample size
+        if (mergedTotalCount && mergedTotalCount > mergedLast7Days) {
+          mergedElement.textContent = mergedTotalCount.toLocaleString();
+        } else {
+          mergedElement.textContent = mergedLast7Days;
+        }
 
         const mergedLink = $(`mergedPRsLink-${org}`);
         if (mergedLink) {
@@ -699,6 +732,14 @@ export const Stats = (() => {
       }
 
       drawOrgPieChart(org, mergedLast7Days, openMoreThan7Days);
+      
+      // Show data limit note if applicable
+      if (dataLimited) {
+        const limitNote = $(`dataLimitNote-${org}`);
+        if (limitNote) {
+          limitNote.style.display = 'block';
+        }
+      }
   };
   
   const showCacheAge = (org, ageInMinutes) => {
