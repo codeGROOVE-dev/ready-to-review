@@ -252,6 +252,7 @@ func main() {
 	mux.HandleFunc("/", serveStaticFiles)
 	mux.HandleFunc("/assets/", serveStaticFiles)
 	mux.HandleFunc("/github/", serveStaticFiles) // Handle /github/* routes
+	mux.HandleFunc("/notifications", serveStaticFiles) // Handle /notifications route
 
 	// OAuth endpoints with rate limiting
 	mux.HandleFunc("/oauth/login", rl.limitHandler(handleOAuthLogin))
@@ -318,6 +319,9 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 		path = "index.html"
 	} else if strings.HasPrefix(path, "/github/") {
 		// Serve index.html for all /github/* routes (SPA routing)
+		path = "index.html"
+	} else if path == "/notifications" {
+		// Serve index.html for /notifications route (SPA routing)
 		path = "index.html"
 	} else {
 		// Remove leading slash for embed.FS

@@ -76,6 +76,17 @@ const App = (() => {
   const parseURL = () => {
     const path = window.location.pathname;
 
+    // Check for settings page pattern: /github/(all|org)/settings
+    const settingsMatch = path.match(/^\/github\/(all|[^\/]+)\/settings$/);
+    if (settingsMatch) {
+      const [, orgOrAll] = settingsMatch;
+      return {
+        org: orgOrAll === "all" ? null : orgOrAll,
+        username: state.currentUser?.login,
+        isSettings: true,
+      };
+    }
+
     // Check for stats page pattern: /github/(all|org)/stats
     const statsMatch = path.match(/^\/github\/(all|[^\/]+)\/stats$/);
     if (statsMatch) {
@@ -1241,7 +1252,7 @@ const App = (() => {
 
     // Setup navigation links
     const urlContext = parseURL();
-    if (urlContext) {
+    if (urlContext && urlContext.username) {
       const { org, username } = urlContext;
       const basePath = org
         ? `/github/${org}/${username}`
@@ -1280,7 +1291,7 @@ const App = (() => {
         notificationsLink.addEventListener("click", (e) => {
           e.preventDefault();
           closeMenu();
-          showNotificationsPage();
+          window.location.href = '/notifications';
         });
       }
       
@@ -1290,7 +1301,7 @@ const App = (() => {
         settingsLink.addEventListener("click", (e) => {
           e.preventDefault();
           closeMenu();
-          showSettingsPage();
+          window.location.href = '/github/all/settings';
         });
       }
     }
@@ -1797,6 +1808,41 @@ const App = (() => {
     // Handle stats page routing
     if (urlContext && urlContext.isStats) {
       showStatsPage();
+      return;
+    }
+
+    // Handle notifications page routing
+    const path = window.location.pathname;
+    if (path === '/notifications') {
+      // Load user first if not already loaded
+      const token = getStoredToken();
+      if (token) {
+        state.accessToken = token;
+        try {
+          await loadCurrentUser();
+          updateUserDisplay();
+        } catch (error) {
+          console.error("Failed to load user:", error);
+        }
+      }
+      showNotificationsPage();
+      return;
+    }
+
+    // Handle settings page routing
+    if (path.match(/^\/github\/(all|[^\/]+)\/settings$/)) {
+      // Load user first if not already loaded
+      const token = getStoredToken();
+      if (token) {
+        state.accessToken = token;
+        try {
+          await loadCurrentUser();
+          updateUserDisplay();
+        } catch (error) {
+          console.error("Failed to load user:", error);
+        }
+      }
+      showSettingsPage();
       return;
     }
 
@@ -2682,11 +2728,14 @@ const App = (() => {
     hide($("settingsPage"));
     show($("notificationsPage"));
     
+    // Update page title
+    document.title = "Notifications - Ready to Review";
+    
     // Add click handler for "Configure in Robot Army" button
     const goToRobotArmyBtn = $("goToRobotArmy");
     if (goToRobotArmyBtn) {
       goToRobotArmyBtn.onclick = () => {
-        showSettingsPage();
+        window.location.href = '/github/all/settings';
       };
     }
   };
@@ -2697,8 +2746,49 @@ const App = (() => {
     hide($("notificationsPage"));
     show($("settingsPage"));
     
-    // Load organizations
-    await loadOrganizationsForSettings();
+    // Check if we're on an org-specific settings URL
+    const path = window.location.pathname;
+    const settingsMatch = path.match(/^\/github\/([^\/]+)\/settings$/);
+    
+    if (settingsMatch && settingsMatch[1] !== 'all') {
+      const [, org] = settingsMatch;
+      selectedOrg = org;
+      
+      // Update page title
+      document.title = `${org}'s Robot Army`;
+      
+      // Hide org selection and show robot config directly
+      hide($("orgSelectSettings").parentElement.parentElement);
+      
+      // Update YAML path displays
+      const yamlPath = `${selectedOrg}/.github/.github/codegroove.yaml`;
+      const yamlPathEl = $("yamlPath");
+      const yamlPathModalEl = $("yamlPathModal");
+      if (yamlPathEl) yamlPathEl.textContent = yamlPath;
+      if (yamlPathModalEl) yamlPathModalEl.textContent = yamlPath;
+      
+      // Initialize robot configs if empty
+      if (Object.keys(robotConfigs).length === 0) {
+        // Initialize with all robots disabled by default
+        robotDefinitions.forEach(robot => {
+          robotConfigs[robot.id] = {
+            enabled: false,
+            config: {}
+          };
+        });
+      }
+      
+      // Show robot configuration
+      show($("robotConfig"));
+      renderRobotCards();
+    } else {
+      // We're on /github/all/settings - show org selection
+      document.title = "Robot Army Configuration";
+      show($("orgSelectSettings").parentElement.parentElement);
+      hide($("robotConfig"));
+      // Load organizations for selection
+      await loadOrganizationsForSettings();
+    }
   };
 
   const loadOrganizationsForSettings = async () => {
@@ -2773,12 +2863,30 @@ const App = (() => {
       return;
     }
     
+    // Redirect to org-specific settings URL
+    const user = state.currentUser || state.viewingUser;
+    if (user) {
+      window.location.href = `/github/${selectedOrg}/settings`;
+      return;
+    }
+    
     // Update YAML path displays
     const yamlPath = `${selectedOrg}/.github/.github/codegroove.yaml`;
     const yamlPathEl = $("yamlPath");
     const yamlPathModalEl = $("yamlPathModal");
     if (yamlPathEl) yamlPathEl.textContent = yamlPath;
     if (yamlPathModalEl) yamlPathModalEl.textContent = yamlPath;
+    
+    // Initialize robot configs if empty
+    if (Object.keys(robotConfigs).length === 0) {
+      // Initialize with all robots disabled by default
+      robotDefinitions.forEach(robot => {
+        robotConfigs[robot.id] = {
+          enabled: false,
+          config: {}
+        };
+      });
+    }
     
     // Show robot configuration
     show($("robotConfig"));

@@ -257,98 +257,159 @@
                 
                 <!-- Notifications Page -->
                 <div id="notificationsPage" class="notifications-page" hidden>
-                    <header class="notifications-header">
-                        <h1 class="notifications-title">🔔 Notification Settings</h1>
-                        <p class="notifications-subtitle">Configure how you receive pull request notifications</p>
-                    </header>
+                    <div class="notifications-hero">
+                        <div class="notifications-hero-content">
+                            <div class="hero-icon-wrapper">
+                                <svg class="hero-icon" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M10 5a2 2 0 114 0 7 7 0 014 6v3a4 4 0 01-2 3H8a4 4 0 01-2-3v-3a7 7 0 014-6zM9 21h6"/>
+                                </svg>
+                                <div class="hero-icon-badge">✨</div>
+                            </div>
+                            <h1 class="notifications-title">Stay in the Loop</h1>
+                            <p class="notifications-subtitle">Never miss an important pull request with our real-time notification system</p>
+                        </div>
+                    </div>
                     
                     <div class="notifications-content">
-                        <!-- Desktop App Section -->
-                        <div class="desktop-app-section card">
-                            <div class="desktop-app-header">
-                                <svg class="desktop-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                                    <line x1="8" y1="21" x2="16" y2="21"/>
-                                    <line x1="12" y1="17" x2="12" y2="21"/>
-                                </svg>
-                                <div>
-                                    <h2>Desktop Notifications</h2>
-                                    <p>Get real-time notifications on your desktop with our menu bar app</p>
+                        <div class="notification-methods">
+                            <!-- Desktop App Card -->
+                            <div class="notification-card desktop-card">
+                                <div class="card-decoration">
+                                    <div class="floating-icon">
+                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                            <line x1="8" y1="21" x2="16" y2="21"/>
+                                            <line x1="12" y1="17" x2="12" y2="21"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div class="card-content">
+                                    <div class="card-header">
+                                        <h3>Desktop App</h3>
+                                        <span class="badge-new">NEW</span>
+                                    </div>
+                                    <p class="card-description">Get instant notifications right in your menu bar. Never miss a PR that needs your attention.</p>
+                                    <div class="feature-grid">
+                                        <div class="feature-item">
+                                            <svg class="feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                                            </svg>
+                                            <span>Native notifications</span>
+                                        </div>
+                                        <div class="feature-item">
+                                            <svg class="feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="12" cy="12" r="10"/>
+                                                <polyline points="12 6 12 12 16 14"/>
+                                            </svg>
+                                            <span>Real-time updates</span>
+                                        </div>
+                                        <div class="feature-item">
+                                            <svg class="feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                            </svg>
+                                            <span>Lightning fast</span>
+                                        </div>
+                                        <div class="feature-item">
+                                            <svg class="feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <rect x="3" y="11" width="18" height="10" rx="2" ry="2"/>
+                                                <path d="M7 11V7a5 5 0 0110 0v4"/>
+                                            </svg>
+                                            <span>Secure & private</span>
+                                        </div>
+                                    </div>
+                                    <a href="https://github.com/ready-to-review/pr-menubar" target="_blank" rel="noopener" class="action-button primary">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                                            <polyline points="7 10 12 15 17 10"/>
+                                            <line x1="12" y1="15" x2="12" y2="3"/>
+                                        </svg>
+                                        Download for macOS
+                                    </a>
                                 </div>
                             </div>
-                            <div class="desktop-app-info">
-                                <p>The Ready to Review desktop app provides instant notifications when pull requests need your attention.</p>
-                                <ul class="feature-list">
-                                    <li>✓ Native desktop notifications</li>
-                                    <li>✓ Menu bar quick access</li>
-                                    <li>✓ Real-time updates</li>
-                                    <li>✓ Works across all your organizations</li>
-                                </ul>
-                                <a href="https://github.com/ready-to-review/pr-menubar" target="_blank" rel="noopener" class="btn btn-primary">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                                        <polyline points="7 10 12 15 17 10"/>
-                                        <line x1="12" y1="15" x2="12" y2="3"/>
-                                    </svg>
-                                    Download Desktop App
-                                </a>
-                                <span class="badge-beta">BETA</span>
-                            </div>
-                        </div>
                         
-                        <!-- Slack Integration Section -->
-                        <div class="slack-section card">
-                            <div class="slack-header">
-                                <svg class="slack-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"/>
-                                    <path d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
-                                    <path d="M9.5 14c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5S8 21.33 8 20.5v-5c0-.83.67-1.5 1.5-1.5z"/>
-                                    <path d="M3.5 14H5v1.5c0 .83-.67 1.5-1.5 1.5S2 16.33 2 15.5 2.67 14 3.5 14z"/>
-                                    <path d="M14 14.5c0-.83.67-1.5 1.5-1.5h5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-5c-.83 0-1.5-.67-1.5-1.5z"/>
-                                    <path d="M14 20.5V19h1.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5z"/>
-                                    <path d="M10 9.5C10 8.67 9.33 8 8.5 8h-5C2.67 8 2 8.67 2 9.5S2.67 11 3.5 11h5c.83 0 1.5-.67 1.5-1.5z"/>
-                                    <path d="M10 3.5V5H8.5C7.67 5 7 4.33 7 3.5S7.67 2 8.5 2s1.5.67 1.5 1.5z"/>
-                                </svg>
-                                <div>
-                                    <h2>Slack Notifications</h2>
-                                    <p>Configure Slack bots to send notifications to channels or direct messages</p>
+                            <!-- Slack Card -->
+                            <div class="notification-card slack-card">
+                                <div class="card-decoration">
+                                    <div class="floating-icon">
+                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <path d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"/>
+                                            <path d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                                            <path d="M9.5 14c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5S8 21.33 8 20.5v-5c0-.83.67-1.5 1.5-1.5z"/>
+                                            <path d="M3.5 14H5v1.5c0 .83-.67 1.5-1.5 1.5S2 16.33 2 15.5 2.67 14 3.5 14z"/>
+                                            <path d="M14 14.5c0-.83.67-1.5 1.5-1.5h5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-5c-.83 0-1.5-.67-1.5-1.5z"/>
+                                            <path d="M14 20.5V19h1.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5z"/>
+                                            <path d="M10 9.5C10 8.67 9.33 8 8.5 8h-5C2.67 8 2 8.67 2 9.5S2.67 11 3.5 11h5c.83 0 1.5-.67 1.5-1.5z"/>
+                                            <path d="M10 3.5V5H8.5C7.67 5 7 4.33 7 3.5S7.67 2 8.5 2s1.5.67 1.5 1.5z"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div class="card-content">
+                                    <div class="card-header">
+                                        <h3>Slack Integration</h3>
+                                        <span class="badge-popular">POPULAR</span>
+                                    </div>
+                                    <p class="card-description">Connect your workflow to Slack for team-wide visibility and collaboration.</p>
+                                    <div class="bot-preview">
+                                        <div class="bot-item">
+                                            <div class="bot-icon">🤖</div>
+                                            <div class="bot-info">
+                                                <strong>SlackChan 4000</strong>
+                                                <span>Channel notifications</span>
+                                            </div>
+                                        </div>
+                                        <div class="bot-item">
+                                            <div class="bot-icon">💬</div>
+                                            <div class="bot-info">
+                                                <strong>SlackDM 4001</strong>
+                                                <span>Direct messages</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button id="goToRobotArmy" class="action-button secondary">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle cx="12" cy="12" r="3"/>
+                                            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m20.5-6.5L17 9l-4.5-4.5M20.5 17.5L17 14l-4.5 4.5M3.5 6.5L8 11l4.5-4.5M3.5 17.5L8 14l4.5 4.5"/>
+                                        </svg>
+                                        Configure Slack Bots
+                                    </button>
                                 </div>
                             </div>
-                            
-                            <div class="slack-info">
-                                <p>To configure Slack notifications, you'll need to set up the following bots in your Robot Army settings:</p>
-                                
-                                <div class="slack-bot-cards">
-                                    <div class="slack-bot-card">
-                                        <h3>SlackChan 4000</h3>
-                                        <p>Sends code review requests to specific Slack channels</p>
-                                        <ul class="config-list">
-                                            <li>Configure channel mappings</li>
-                                            <li>Set notification preferences</li>
-                                            <li>Customize message templates</li>
-                                        </ul>
-                                    </div>
-                                    
-                                    <div class="slack-bot-card">
-                                        <h3>SlackDM 4001</h3>
-                                        <p>Sends direct messages to PR assignees on Slack</p>
-                                        <ul class="config-list">
-                                            <li>Map GitHub users to Slack users</li>
-                                            <li>Personalized notifications</li>
-                                            <li>Urgency-based messaging</li>
-                                        </ul>
+
+                            <!-- Coming Soon Card -->
+                            <div class="notification-card coming-soon-card">
+                                <div class="card-decoration">
+                                    <div class="floating-icon pulse">
+                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                        </svg>
                                     </div>
                                 </div>
-                                
-                                <p class="slack-note">Note: Slack integration requires configuration in the Robot Army settings. You'll need to provide Slack API tokens and configure channel/user mappings.</p>
-                                
-                                <button id="goToRobotArmy" class="btn btn-secondary">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <circle cx="12" cy="12" r="3"/>
-                                        <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m20.5-6.5L17 9l-4.5-4.5M20.5 17.5L17 14l-4.5 4.5M3.5 6.5L8 11l4.5-4.5M3.5 17.5L8 14l4.5 4.5"/>
-                                    </svg>
-                                    Configure in Robot Army
-                                </button>
+                                <div class="card-content">
+                                    <div class="card-header">
+                                        <h3>More Coming Soon</h3>
+                                        <span class="badge-coming">SOON</span>
+                                    </div>
+                                    <p class="card-description">We're working on exciting new ways to keep you connected.</p>
+                                    <div class="coming-soon-list">
+                                        <div class="coming-item">
+                                            <span class="coming-icon">📧</span>
+                                            <span>Email digests</span>
+                                        </div>
+                                        <div class="coming-item">
+                                            <span class="coming-icon">📱</span>
+                                            <span>Mobile app</span>
+                                        </div>
+                                        <div class="coming-item">
+                                            <span class="coming-icon">🔌</span>
+                                            <span>Webhooks API</span>
+                                        </div>
+                                        <div class="coming-item">
+                                            <span class="coming-icon">🎯</span>
+                                            <span>Custom rules</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -364,8 +425,10 @@
                     <div class="settings-content">
                         <!-- Organization Selection -->
                         <div class="org-selection card">
+                            <img src="/assets/army.png" alt="Robot Army" class="org-selection-image">
                             <h2>Select Organization</h2>
-                            <p>Choose an organization where you've been active in the last 30 days</p>
+                            <p>codeGROOVE's Developer Acceleration Program (DAP) includes an army of GitHub bots ready to remove needless toil and distraction away from developers so they can preserve their focus all day long.</p>
+                            <p class="org-selection-subtitle">Choose an organization where you've been active in the last 30 days</p>
                             <select id="orgSelectSettings" class="org-select-settings">
                                 <option value="">Loading organizations...</option>
                             </select>
@@ -378,8 +441,7 @@
                                 <div class="robot-army-content">
                                     <h2 class="robot-section-title">Configure your robot army</h2>
                                     <p class="robot-army-description">
-                                        An army of GitHub bots ready to replace human toil with battle-tested automation, 
-                                        with an aim of improving developer velocity and improving their flow state.
+                                        codeGROOVE's Developer Acceleration Program (DAP) includes an army of GitHub bots ready to remove needless toil and distraction away from developers so they can preserve their focus all day long.
                                     </p>
                                 </div>
                             </div>
