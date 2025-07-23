@@ -13,10 +13,12 @@ export const Stats = (() => {
     let hasMore = true;
     let actualTotalCount = 0;
 
+    // Use per_page=100 for efficiency
+    const separator = searchPath.includes("?") ? "&" : "?";
+    const baseSearchPath = `${searchPath}${separator}per_page=100`;
+
     while (hasMore && page <= maxPages && allItems.length < 1000) {
-      const pagePath = searchPath.includes("?")
-        ? `${searchPath}&page=${page}`
-        : `${searchPath}?page=${page}`;
+      const pagePath = `${baseSearchPath}&page=${page}`;
 
       console.log(`[Stats Debug] Fetching page ${page}: ${pagePath}`);
       const response = await githubAPI(pagePath);
@@ -34,10 +36,12 @@ export const Stats = (() => {
       if (response.items && response.items.length > 0) {
         allItems.push(...response.items);
 
+        // GitHub search API won't return more than 1000 results total
+        // If we've hit 1000 items or gotten fewer than 100 items, we're done
         if (
-          allItems.length >= 1000 ||  // Stop at 1000 items
-          response.total_count <= allItems.length ||
-          response.items.length < 100
+          allItems.length >= 1000 ||
+          response.items.length < 100 ||
+          allItems.length >= actualTotalCount
         ) {
           hasMore = false;
         } else {
@@ -52,7 +56,7 @@ export const Stats = (() => {
       totalItems: allItems.length,
       actualTotalCount: actualTotalCount,
       pages: page,
-      hitLimit: allItems.length >= 1000
+      hitLimit: allItems.length >= 1000 || actualTotalCount > 1000
     });
 
     return {
