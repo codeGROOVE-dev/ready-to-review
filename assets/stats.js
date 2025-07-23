@@ -6,63 +6,151 @@ export const Stats = (() => {
 
   // DOM Helpers and utilities are imported from utils.js
 
-  const githubSearchAll = async (searchPath, maxPages = 20, githubAPI) => {
+  // Helper function to delay execution
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // Wrapper to add retry logic to API calls with progressive delays
+  const withRetry = async (apiCall, retryCount = 0, onRetry = null) => {
+    // Progressive delays: 5s, 15s, 30s, 60s
+    const retryDelays = [5000, 15000, 30000, 60000];
+    
+    try {
+      return await apiCall();
+    } catch (error) {
+      console.log(`[Stats Debug] API call failed:`, error.message);
+      
+      if (retryCount < retryDelays.length && (
+        error.message.includes('rate limit') ||
+        error.message.includes('secondary rate limit') ||
+        error.message.includes('API Error') ||
+        error.message.includes('Failed to fetch')
+      )) {
+        const delayMs = retryDelays[retryCount];
+        const attemptsLeft = retryDelays.length - retryCount;
+        console.log(`[Stats Debug] Retrying after ${delayMs/1000} seconds... (${attemptsLeft} attempts left)`);
+        if (onRetry) onRetry(true, delayMs);
+        await delay(delayMs);
+        return withRetry(apiCall, retryCount + 1, onRetry);
+      }
+      
+      throw error;
+    }
+  };
+
+  const githubSearchAll = async (searchPath, maxPages = 20, githubAPI, onProgress = null) => {
     console.log(`[Stats Debug] githubSearchAll called with path: ${searchPath}`);
     const allItems = [];
-    let page = 1;
-    let hasMore = true;
     let actualTotalCount = 0;
-
+    
     // Use per_page=100 for efficiency
     const separator = searchPath.includes("?") ? "&" : "?";
     const baseSearchPath = `${searchPath}${separator}per_page=100`;
-
-    while (hasMore && page <= maxPages && allItems.length < 1000) {
-      const pagePath = `${baseSearchPath}&page=${page}`;
-
-      console.log(`[Stats Debug] Fetching page ${page}: ${pagePath}`);
-      const response = await githubAPI(pagePath);
-      console.log(`[Stats Debug] Page ${page} response:`, {
-        hasItems: !!response.items,
-        itemCount: response.items?.length || 0,
-        totalCount: response.total_count
-      });
-
-      // Store the actual total count from GitHub
-      if (page === 1) {
-        actualTotalCount = response.total_count || 0;
+    
+    // First, get the total count
+    const firstPagePath = `${baseSearchPath}&page=1`;
+    console.log(`[Stats Debug] Fetching first page to get total count: ${firstPagePath}`);
+    
+    const firstResponse = await withRetry(() => githubAPI(firstPagePath));
+    actualTotalCount = firstResponse.total_count || 0;
+    
+    console.log(`[Stats Debug] Total count: ${actualTotalCount}`);
+    
+    // If we have 500 or fewer items, fetch them all normally
+    if (actualTotalCount <= 500) {
+      allItems.push(...(firstResponse.items || []));
+      
+      if (onProgress) {
+        onProgress(allItems.length, actualTotalCount);
       }
-
-      if (response.items && response.items.length > 0) {
-        allItems.push(...response.items);
-
-        // GitHub search API won't return more than 1000 results total
-        // If we've hit 1000 items or gotten fewer than 100 items, we're done
-        if (
-          allItems.length >= 1000 ||
-          response.items.length < 100 ||
-          allItems.length >= actualTotalCount
-        ) {
-          hasMore = false;
-        } else {
-          page++;
+      
+      let page = 2;
+      const maxPagesToFetch = Math.ceil(actualTotalCount / 100);
+      
+      while (allItems.length < actualTotalCount && page <= maxPagesToFetch) {
+        const pagePath = `${baseSearchPath}&page=${page}`;
+        console.log(`[Stats Debug] Fetching page ${page}: ${pagePath}`);
+        
+        const response = await withRetry(() => githubAPI(pagePath));
+        
+        if (response.items && response.items.length > 0) {
+          allItems.push(...response.items);
+          
+          if (onProgress) {
+            onProgress(allItems.length, actualTotalCount);
+          }
         }
-      } else {
-        hasMore = false;
+        
+        page++;
+      }
+    } else {
+      // Intelligent sampling: use 5 API calls to sample across all results
+      const MAX_API_CALLS = 5;
+      const DESIRED_SAMPLES = 500;
+      const GITHUB_MAX_PAGE = 10; // GitHub search API limit
+      
+      // Calculate which pages to fetch for even distribution
+      const totalPages = Math.ceil(actualTotalCount / 100);
+      const availablePages = Math.min(totalPages, GITHUB_MAX_PAGE); // Can't go beyond page 10
+      const pageInterval = Math.max(1, Math.floor(availablePages / MAX_API_CALLS));
+      
+      console.log(`[Stats Debug] Sampling strategy: ${totalPages} total pages (${availablePages} available), fetching every ${pageInterval} pages`);
+      
+      // Always include the first page (already fetched)
+      allItems.push(...(firstResponse.items || []));
+      
+      if (onProgress) {
+        onProgress(allItems.length, actualTotalCount);
+      }
+      
+      // Calculate remaining pages to fetch
+      const pagesToFetch = [];
+      for (let i = 1; i < MAX_API_CALLS && pagesToFetch.length < MAX_API_CALLS - 1; i++) {
+        const pageNum = 1 + (i * pageInterval);
+        if (pageNum <= availablePages) {
+          pagesToFetch.push(pageNum);
+        }
+      }
+      
+      // Always include the last available page for most recent data (but not beyond page 10)
+      if (availablePages > 1 && !pagesToFetch.includes(availablePages)) {
+        pagesToFetch[pagesToFetch.length - 1] = availablePages;
+      }
+      
+      console.log(`[Stats Debug] Pages to fetch: [1, ${pagesToFetch.join(', ')}]`);
+      
+      // Fetch the selected pages
+      for (const pageNum of pagesToFetch) {
+        const pagePath = `${baseSearchPath}&page=${pageNum}`;
+        console.log(`[Stats Debug] Fetching page ${pageNum}: ${pagePath}`);
+        
+        const response = await withRetry(() => githubAPI(pagePath));
+        
+        if (response.items && response.items.length > 0) {
+          allItems.push(...response.items);
+          
+          if (onProgress) {
+            // Report approximate progress based on sampling
+            const estimatedProgress = Math.min(
+              DESIRED_SAMPLES,
+              Math.round((allItems.length / (MAX_API_CALLS * 100)) * DESIRED_SAMPLES)
+            );
+            onProgress(estimatedProgress, actualTotalCount);
+          }
+        }
       }
     }
-
+    
     console.log(`[Stats Debug] githubSearchAll complete:`, {
       totalItems: allItems.length,
       actualTotalCount: actualTotalCount,
-      pages: page,
-      hitLimit: allItems.length >= 1000 || actualTotalCount > 1000
+      sampled: actualTotalCount > 500
     });
-
+    
     return {
-      items: allItems.slice(0, 1000),  // Ensure we never return more than 1000
-      total_count: actualTotalCount,  // Return the actual total from GitHub
-      limited: actualTotalCount > 1000
+      items: allItems,
+      total_count: actualTotalCount,
+      sampled: actualTotalCount > 500,
+      sampleSize: allItems.length
     };
   };
 
@@ -181,8 +269,26 @@ export const Stats = (() => {
       const container = $("orgStatsContainer");
 
       if (!org) {
-        container.innerHTML =
-          '<div class="loading-indicator">Loading organizations...</div>';
+        container.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px;">
+            <div style="text-align: center;">
+              <div style="margin-bottom: 1.5rem;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" style="animation: spin 2s linear infinite;">
+                  <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div style="font-size: 1.125rem; color: #1a1a1a; font-weight: 500;">Finding your teams...</div>
+              <div style="font-size: 0.875rem; color: #86868b; margin-top: 0.5rem;">Discovering where the magic happens ✨</div>
+            </div>
+          </div>
+          <style>
+            @keyframes spin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+          </style>
+        `;
 
         // Use the same cached organizations as the dropdown
         const orgs = await loadUserOrganizations(state, githubAPI);
@@ -213,14 +319,78 @@ export const Stats = (() => {
         return;
       }
 
-      container.innerHTML =
-        '<div class="loading-indicator">Loading statistics...</div>';
+      // Show loading indicator
+      container.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px;" id="loadingContainer">
+          <div id="statsLoadingIndicator" style="text-align: center;">
+            <div style="margin-bottom: 1.5rem;">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" style="animation: spin 2s linear infinite;">
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+                <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div style="font-size: 1.125rem; color: #1a1a1a; font-weight: 500;">Loading pull requests...</div>
+            <div style="font-size: 0.875rem; color: #86868b; margin-top: 0.5rem;" id="loadingSubtext">Counting all the shipped goodness 📊</div>
+          </div>
+        </div>
+        <style>
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(0.95); }
+          }
+        </style>
+      `;
 
-      container.innerHTML = "";
+      // Create a wrapper that can update the loading message
+      const githubAPIWithStatus = async (endpoint, options) => {
+        const loadingEl = document.getElementById('statsLoadingIndicator');
+        
+        return withRetry(
+          () => githubAPI(endpoint, options),
+          0,
+          (retrying, delayMs) => {
+            if (retrying && loadingEl) {
+              const messages = [
+                `GitHub needs a breather! Trying again in ${delayMs/1000} seconds... ☕`,
+                `Too many requests! Taking a ${delayMs/1000}-second power nap... 😴`,
+                `Hit the rate limit! Back in ${delayMs/1000} seconds... 🚦`,
+                `GitHub says slow down! Resuming in ${delayMs/1000} seconds... 🐌`
+              ];
+              const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+              
+              loadingEl.innerHTML = `
+                <div style="margin-bottom: 1.5rem;">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#FF9500" stroke-width="2" style="animation: pulse 2s ease-in-out infinite;">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 6v6l4 2"/>
+                  </svg>
+                </div>
+                <div style="font-size: 1.125rem; color: #1a1a1a; font-weight: 500;">${randomMessage}</div>
+                <div style="font-size: 0.875rem; color: #86868b; margin-top: 0.5rem;">Your stats will be worth the wait!</div>
+              `;
+            }
+          }
+        );
+      };
+
+      // Create the org section and add it to the DOM immediately (but hidden)
       const orgSection = createOrgSection(org);
+      orgSection.style.display = 'none';
       container.appendChild(orgSection);
-
-      await processOrgStats(org, username, githubAPI);
+      
+      // Process stats and display them
+      await processOrgStats(org, username, githubAPIWithStatus);
+      
+      // Remove loading screen and show the populated org section
+      const loadingContainer = document.getElementById('loadingContainer');
+      if (loadingContainer) {
+        loadingContainer.remove();
+      }
+      orgSection.style.display = 'block';
     } catch (error) {
       console.error("Error loading stats:", error);
 
@@ -268,7 +438,7 @@ export const Stats = (() => {
         
         <!-- Hero Score -->
         <div style="background: #ffffff; border-radius: 20px; padding: 3rem; margin-bottom: 2rem; box-shadow: 0 2px 20px rgba(0,0,0,0.08); text-align: center;">
-          <div style="font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.1em; color: #86868b; margin-bottom: 1rem;">Velocity Score</div>
+          <div style="font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.1em; color: #86868b; margin-bottom: 1rem;">Code Review Health Ratio</div>
           <div class="ratio-display loading" id="ratioDisplay-${org}" style="font-size: 4.5rem; font-weight: 300; color: #1a1a1a; margin: 0; line-height: 1;">-</div>
           <div class="ratio-description" id="ratioDescription-${org}" style="font-size: 1.125rem; color: #515154; margin-top: 1rem; font-weight: 400;"></div>
           
@@ -301,7 +471,7 @@ export const Stats = (() => {
                  onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 12px rgba(0,0,0,0.06)';">
               <div style="font-size: 0.8125rem; color: #86868b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Wait Time</div>
               <div class="stat-value loading" id="avgOpenAge-${org}" style="font-size: 3rem; font-weight: 300; color: #1a1a1a; margin: 0.25rem 0;">-</div>
-              <div style="font-size: 0.9375rem; color: #515154;">Average PR age</div>
+              <div style="font-size: 0.9375rem; color: #515154;">Avg age of open PRs</div>
             </div>
           </a>
           
@@ -312,7 +482,7 @@ export const Stats = (() => {
                  onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 12px rgba(0,0,0,0.06)';">
               <div style="font-size: 0.8125rem; color: #86868b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Cycle Time</div>
               <div class="stat-value loading" id="avgMergeTime-${org}" style="font-size: 3rem; font-weight: 300; color: #1a1a1a; margin: 0.25rem 0;">-</div>
-              <div style="font-size: 0.9375rem; color: #515154;">To ship</div>
+              <div style="font-size: 0.9375rem; color: #515154;">Create → merge time</div>
             </div>
           </a>
           
@@ -335,7 +505,7 @@ export const Stats = (() => {
             <span style="color: #86868b;">Target: <21 days average wait, <10% stuck.</span>
           </p>
           <p class="data-limit-note" id="dataLimitNote-${org}" style="display: none; font-size: 0.875rem; color: #86868b; margin-top: 1rem;">
-            *Time averages are based on the most recent 1,000 PRs due to GitHub API limits.
+            *Statistics based on a representative sample for performance.
           </p>
         </div>
       </div>
@@ -392,16 +562,38 @@ export const Stats = (() => {
         mergedRecent: mergedRecentQuery
       });
 
+      // Track progress
+      let openPRsFound = 0;
+      let mergedPRsFound = 0;
+      
+      const updateLoadingText = () => {
+        const loadingSubtext = document.getElementById('loadingSubtext');
+        if (loadingSubtext) {
+          const total = openPRsFound + mergedPRsFound;
+          if (total > 0) {
+            loadingSubtext.textContent = `Found ${total.toLocaleString()} PRs and counting... 🔍`;
+          }
+        }
+      };
+
       const [openAllResponse, mergedRecentResponse] = await Promise.all([
         githubSearchAll(
           `/search/issues?q=${encodeURIComponent(openAllQuery)}&per_page=100`,
           20,
-          githubAPI
+          githubAPI,
+          (loaded, total) => {
+            openPRsFound = loaded;
+            updateLoadingText();
+          }
         ),
         githubSearchAll(
           `/search/issues?q=${encodeURIComponent(mergedRecentQuery)}&per_page=100`,
           20,
-          githubAPI
+          githubAPI,
+          (loaded, total) => {
+            mergedPRsFound = loaded;
+            updateLoadingText();
+          }
         ),
       ]);
 
@@ -413,10 +605,12 @@ export const Stats = (() => {
       console.log(`[Stats Debug] API Responses:`, {
         openAllCount: openAllPRs.length,
         openTotalCount: openTotalCount,
-        openLimited: openAllResponse.limited,
+        openSampled: openAllResponse.sampled,
+        openSampleSize: openAllResponse.sampleSize,
         mergedRecentCount: mergedRecentPRs.length,
         mergedTotalCount: mergedTotalCount,
-        mergedLimited: mergedRecentResponse.limited
+        mergedSampled: mergedRecentResponse.sampled,
+        mergedSampleSize: mergedRecentResponse.sampleSize
       });
 
       const openStalePRs = openAllPRs.filter((pr) => {
@@ -426,7 +620,18 @@ export const Stats = (() => {
 
       console.log(`[Stats Debug] Stale PRs (updated before ${sevenDaysAgoISO}):`, openStalePRs.length);
 
-      const mergedLast7Days = mergedRecentPRs.length;
+      // Use actual total count for merged PRs when available
+      const mergedLast7Days = mergedTotalCount || mergedRecentPRs.length;
+      
+      // Extrapolate open stale PRs if we're sampling
+      let openMoreThan7Days = openStalePRs.length;
+      if (openAllResponse.sampled && openAllPRs.length > 0) {
+        // Calculate the proportion of stale PRs in our sample
+        const staleProportion = openStalePRs.length / openAllPRs.length;
+        // Extrapolate to the total
+        openMoreThan7Days = Math.round(staleProportion * openTotalCount);
+        console.log(`[Stats Debug] Extrapolating stale PRs: ${openStalePRs.length} of ${openAllPRs.length} sample = ${(staleProportion * 100).toFixed(1)}% -> estimated ${openMoreThan7Days} of ${openTotalCount} total`);
+      }
       let totalMergeTime = 0;
       let mergedWithTimes = 0;
 
@@ -468,8 +673,8 @@ export const Stats = (() => {
         totalOpenAge += age;
       });
 
-      const currentlyOpen = openAllPRs.length;
-      const openMoreThan7Days = openStalePRs.length;
+      // Use exact total count from GitHub
+      const currentlyOpen = openTotalCount || openAllPRs.length;
       
       console.log(`[Stats Debug] Final calculations:`, {
         currentlyOpen,
@@ -490,7 +695,9 @@ export const Stats = (() => {
         now: now.getTime(),
         openTotalCount,
         mergedTotalCount,
-        dataLimited: openAllResponse.limited || mergedRecentResponse.limited
+        dataSampled: openAllResponse.sampled || mergedRecentResponse.sampled,
+        openSampleSize: openAllPRs.length,  // Actual sample size used for calculations
+        mergedSampleSize: mergedRecentPRs.length  // Actual sample size used for calculations
       };
       
       console.log(`[Stats Debug] Stats data to cache/display:`, statsData);
@@ -526,7 +733,9 @@ export const Stats = (() => {
       now: nowTime,
       openTotalCount,
       mergedTotalCount,
-      dataLimited
+      dataSampled,
+      openSampleSize,
+      mergedSampleSize
     } = statsData;
     
     console.log(`[Stats Debug] Extracted values:`, {
@@ -539,7 +748,9 @@ export const Stats = (() => {
       nowTime,
       openTotalCount,
       mergedTotalCount,
-      dataLimited
+      dataSampled,
+      openSampleSize,
+      mergedSampleSize
     });
     
     const now = new Date(nowTime);
@@ -570,8 +781,10 @@ export const Stats = (() => {
         avgOpenAgeElement.classList.remove("loading");
         const avgOpenAgeLink = $(`avgOpenAgeLink-${org}`);
 
-        if (currentlyOpen > 0) {
-          const avgOpenAgeMs = totalOpenAge / currentlyOpen;
+        if (currentlyOpen > 0 && statsData.totalOpenAge > 0) {
+          // When sampling, totalOpenAge is sum of sample ages, so divide by sample size
+          const sampleSize = openSampleSize || currentlyOpen;
+          const avgOpenAgeMs = totalOpenAge / Math.min(sampleSize, currentlyOpen);
           const avgOpenAgeMinutes = avgOpenAgeMs / (60 * 1000);
           const avgOpenAgeHours = avgOpenAgeMs / (60 * 60 * 1000);
           const avgOpenAgeDays = avgOpenAgeMs / (24 * 60 * 60 * 1000);
@@ -581,15 +794,19 @@ export const Stats = (() => {
           
           if (avgOpenAgeMinutes < 60) {
             displayText = `${Math.round(avgOpenAgeMinutes)}m`;
+            warningColor = "#34C759"; // Green for < 1 hour
           } else if (avgOpenAgeHours < 24) {
             displayText = `${Math.round(avgOpenAgeHours)}h`;
+            warningColor = "#34C759"; // Green for < 1 day
           } else {
             displayText = `${Math.round(avgOpenAgeDays)}d`;
-            // Color coding for days
-            if (avgOpenAgeDays > 30) {
-              warningColor = "#FF3B30"; // Red for >30 days
-            } else if (avgOpenAgeDays > 14) {
-              warningColor = "#FF9500"; // Orange for >14 days
+            // Color coding for days: <7 green, 7-14 orange, >14 red
+            if (avgOpenAgeDays < 7) {
+              warningColor = "#34C759"; // Green
+            } else if (avgOpenAgeDays <= 14) {
+              warningColor = "#FF9500"; // Orange
+            } else {
+              warningColor = "#FF3B30"; // Red
             }
           }
           avgOpenAgeElement.textContent = displayText;
@@ -649,21 +866,36 @@ export const Stats = (() => {
         avgElement.classList.remove("loading");
         const avgLink = $(`avgMergeTimeLink-${org}`);
 
-        if (mergedLast7Days > 0) {
-          const avgMergeMs = totalMergeTime / mergedLast7Days;
+        if (mergedLast7Days > 0 && totalMergeTime > 0) {
+          // When sampling, totalMergeTime is sum of sample merge times, so divide by sample size
+          const sampleSize = mergedSampleSize || mergedLast7Days;
+          const avgMergeMs = totalMergeTime / Math.min(sampleSize, mergedLast7Days);
           const avgMergeMinutes = avgMergeMs / (60 * 1000);
           const avgMergeHours = avgMergeMs / (60 * 60 * 1000);
           const avgMergeDays = avgMergeMs / (24 * 60 * 60 * 1000);
 
           let displayText;
+          let cycleColor = "#1a1a1a"; // Default color
+          
           if (avgMergeMinutes < 60) {
             displayText = `${Math.round(avgMergeMinutes)}m`;
-          } else if (avgMergeHours <= 120) {
+            cycleColor = "#34C759"; // Green for < 1 hour
+          } else if (avgMergeHours < 24) {
             displayText = `${Math.round(avgMergeHours)}h`;
+            cycleColor = "#34C759"; // Green for < 1 day
           } else {
             displayText = `${Math.round(avgMergeDays)}d`;
+            // Color coding for days: <1 green, 1-3 orange, >3 red
+            if (avgMergeDays < 1) {
+              cycleColor = "#34C759"; // Green
+            } else if (avgMergeDays <= 3) {
+              cycleColor = "#FF9500"; // Orange
+            } else {
+              cycleColor = "#FF3B30"; // Red
+            }
           }
           avgElement.textContent = displayText;
+          avgElement.style.color = cycleColor;
 
           if (avgLink) {
             const mergedQuery = `type:pr is:merged org:${org} merged:>=${sevenDaysAgoISO}`;
@@ -706,6 +938,9 @@ export const Stats = (() => {
           if (ratio === 0) {
             grade = "Abandoned";
             description = "No code shipped in 7 days - completed work is being forgotten";
+          } else if (ratio < 0.2) {
+            grade = "Barely functional";
+            description = "Extremely low velocity - almost all work is forgotten";
           } else if (ratio < 1) {
             grade = "Haphazard";
             description = "More PRs forgotten than shipped - wasting significant engineering effort";
@@ -737,11 +972,29 @@ export const Stats = (() => {
 
       drawOrgPieChart(org, mergedLast7Days, openMoreThan7Days);
       
-      // Show data limit note if applicable
-      if (dataLimited) {
+      // Show data sampling note if applicable
+      if (dataSampled) {
         const limitNote = $(`dataLimitNote-${org}`);
         if (limitNote) {
-          limitNote.style.display = 'block';
+          let noteText = '*Statistics based on a representative sample';
+          if (openSampleSize && mergedSampleSize) {
+            noteText += ` (${openSampleSize} open PRs, ${mergedSampleSize} merged PRs)`;
+          }
+          
+          // Check if we hit GitHub's 1000 result limit
+          const hitGitHubLimit = openTotalCount > 1000 || mergedTotalCount > 1000;
+          if (hitGitHubLimit) {
+            noteText += ' due to GitHub API limits.';
+          } else {
+            noteText += ' for performance.';
+          }
+          
+          // Update the innerHTML to show the sampling info
+          const noteElement = document.getElementById(`dataLimitNote-${org}`);
+          if (noteElement) {
+            noteElement.textContent = noteText;
+            noteElement.style.display = 'block';
+          }
         }
       }
   };

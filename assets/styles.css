@@ -1473,6 +1473,10 @@ a {
   background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
 }
 
+.cli-card {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
 .coming-soon-card {
   background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
 }
@@ -1532,7 +1536,7 @@ a {
   letter-spacing: -0.02em;
 }
 
-.badge-new, .badge-popular, .badge-coming {
+.badge-new, .badge-popular, .badge-coming, .badge-dev {
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
   font-size: 0.75rem;
@@ -1553,6 +1557,11 @@ a {
 
 .badge-coming {
   background: #f59e0b;
+  color: white;
+}
+
+.badge-dev {
+  background: #4facfe;
   color: white;
 }
 
@@ -1666,6 +1675,38 @@ a {
 .bot-info span {
   font-size: 0.875rem;
   color: var(--color-text-secondary);
+}
+
+.cli-commands {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(255,255,255,0.8);
+  border-radius: 16px;
+}
+
+.cli-command {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cli-command code {
+  background: #1f2937;
+  color: #10b981;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.cli-command span {
+  color: #374151;
+  font-size: 0.875rem;
+  padding-left: 1rem;
 }
 
 .coming-soon-list {
