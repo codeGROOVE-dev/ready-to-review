@@ -1,5 +1,5 @@
 // User PR Dashboard Module for Ready To Review
-import { $, $$, show, hide, escapeHtml } from './utils.js';
+import { $, $$, show, hide, escapeHtml } from './utils.js';\n\n// Request deduplication cache\nconst pendingRequests = new Map();
 
 export const User = (() => {
   "use strict";
@@ -515,13 +515,13 @@ export const User = (() => {
 
     if (state.currentUser) {
       displayContent = `
-        <img src="${state.currentUser.avatar_url}" alt="${state.currentUser.login}" class="user-avatar">
+        <img src="${state.currentUser.avatar_url}" alt="${state.currentUser.login}" class="user-avatar" width="32" height="32">
         <span class="user-name">${state.currentUser.name || state.currentUser.login}</span>
         <button onclick="window.App.logout()" class="btn btn-primary">Logout</button>
       `;
     } else if (viewingUser) {
       displayContent = `
-        <img src="${viewingUser.avatar_url}" alt="${viewingUser.login}" class="user-avatar">
+        <img src="${viewingUser.avatar_url}" alt="${viewingUser.login}" class="user-avatar" width="32" height="32">
         <span class="user-name">Viewing: ${viewingUser.name || viewingUser.login}</span>
         <button id="loginBtn" class="btn btn-primary">Login</button>
       `;
@@ -940,7 +940,7 @@ export const User = (() => {
         </div>
         <div class="pr-meta">
           <div class="pr-meta-left">
-            <img src="${pr.user.avatar_url}" alt="${pr.user.login}" class="author-avatar" loading="lazy">
+            <img src="${pr.user.avatar_url}" alt="${pr.user.login}" class="author-avatar" loading="lazy" width="20" height="20">
             <span class="pr-repo">${pr.repository.full_name}</span>
             <span class="pr-number">#${pr.number}</span>
             <span class="pr-author">by ${pr.user.login}</span>
@@ -1089,7 +1089,7 @@ export const User = (() => {
       .slice(0, maxShow)
       .map(
         (reviewer) =>
-          `<img src="${reviewer.avatar_url}" alt="${reviewer.login}" class="reviewer-avatar" loading="lazy" title="${reviewer.login}">`,
+          `<img src="${reviewer.avatar_url}" alt="${reviewer.login}" class="reviewer-avatar" loading="lazy" width="16" height="16" title="${reviewer.login}">`,
       )
       .join("");
 
