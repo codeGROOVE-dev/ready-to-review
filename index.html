@@ -103,14 +103,14 @@
                                 Try Demo Mode
                             </a>
                             
-                            <button class="btn btn-primary btn-large" onclick="window.App.showGitHubAppModal()">
+                            <button class="btn btn-primary btn-large" onclick="console.log('[HTML] GitHub App button clicked, window.App:', window.App); window.App.showGitHubAppModal()">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
                                 </svg>
                                 Login with GitHub App
                             </button>
                             
-                            <button class="btn btn-outline btn-large" onclick="window.App.initiatePATLogin()">
+                            <button class="btn btn-outline btn-large" onclick="console.log('[HTML] PAT button clicked, window.App:', window.App); window.App.initiatePATLogin()">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M15 7h3a5 5 0 015 5 5 5 0 01-5 5h-3m-6 0H6a5 5 0 01-5-5 5 5 0 015-5h3"/>
                                     <line x1="8" y1="12" x2="16" y2="12"/>
@@ -174,6 +174,7 @@
                                 <input type="password" id="patInput" class="pat-input" placeholder="Paste your token here">
                                 <button class="btn btn-primary" onclick="window.App.submitPAT()">Save Token</button>
                             </div>
+                            <div id="patError" class="error-message" style="display: none; color: #dc2626; margin-top: 0.5rem;"></div>
                         </div>
                     </div>
                 </div>
@@ -423,8 +424,7 @@
                         <div class="org-selection card">
                             <img src="/assets/army.png" alt="Robot Army" class="org-selection-image">
                             <h2>Select Organization</h2>
-                            <p>codeGROOVE's Developer Acceleration Program (DAP) includes an army of GitHub bots ready to remove needless toil and distraction away from developers so they can preserve their focus all day long.</p>
-                            <p class="org-selection-subtitle">Choose an organization where you've been active in the last 30 days</p>
+                            <p>Choose an organization where you've been active in the last 30 days to configure your automated GitHub helpers.</p>
                             <select id="orgSelectSettings" class="org-select-settings">
                                 <option value="">Loading organizations...</option>
                             </select>
@@ -432,16 +432,6 @@
                         
                         <!-- Robot Configuration -->
                         <div id="robotConfig" class="robot-config" hidden>
-                            <div class="robot-army-header">
-                                <img src="/assets/army.png" alt="Robot Army" class="robot-army-image">
-                                <div class="robot-army-content">
-                                    <h2 class="robot-section-title">Configure your robot army</h2>
-                                    <p class="robot-army-description">
-                                        codeGROOVE's Developer Acceleration Program (DAP) includes an army of GitHub bots ready to remove needless toil and distraction away from developers so they can preserve their focus all day long.
-                                    </p>
-                                </div>
-                            </div>
-                            
                             <!-- Robot cards will be dynamically added here -->
                             <div id="robotCards" class="robot-cards">
                             </div>
@@ -462,17 +452,17 @@
                     
                     <!-- YAML Export Modal -->
                     <div id="yamlModal" class="modal" hidden>
-                        <div class="modal-backdrop" onclick="window.App.closeYamlModal()"></div>
+                        <div class="modal-backdrop" onclick="window.App.closeYAMLModal()"></div>
                         <div class="modal-content modal-large">
                             <div class="modal-header">
                                 <h3>Export Robot Configuration</h3>
-                                <button class="modal-close" onclick="window.App.closeYamlModal()">&times;</button>
+                                <button class="modal-close" onclick="window.App.closeYAMLModal()">&times;</button>
                             </div>
                             <div class="modal-body">
                                 <p>Copy the configuration below and commit it to:</p>
                                 <code class="yaml-path" id="yamlPathModal"></code>
                                 <pre id="yamlContent" class="yaml-content"></pre>
-                                <button id="copyYaml" class="btn btn-primary" onclick="window.App.copyYaml()">
+                                <button id="copyYaml" class="btn btn-primary" onclick="window.App.copyYAML()">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                                         <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
@@ -492,6 +482,6 @@
     </div>
 
     <script src="/assets/demo-data.js"></script>
-    <script src="/assets/app.js"></script>
+    <script type="module" src="/assets/app.js"></script>
 </body>
 </html>

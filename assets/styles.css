@@ -1363,7 +1363,7 @@ a {
 
 .notifications-hero {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 4rem 2rem;
+  padding: 2rem 2rem;
   text-align: center;
   position: relative;
   overflow: hidden;
@@ -1402,7 +1402,7 @@ a {
   position: absolute;
   top: -5px;
   right: -5px;
-  background: #fbbf24;
+  background: #10b981;
   width: 30px;
   height: 30px;
   border-radius: 50%;
@@ -1873,6 +1873,7 @@ a {
   margin-bottom: 4rem;
 }
 
+
 .robot-army-image {
   width: 100px;
   height: auto;
@@ -1903,6 +1904,7 @@ a {
   flex-direction: column;
   gap: var(--space-4);
   margin-bottom: var(--space-12);
+  margin-top: 3rem;
   max-width: 900px;
   margin-left: auto;
   margin-right: auto;
@@ -1911,7 +1913,8 @@ a {
 .robot-card {
   background: #ffffff;
   border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e5e7eb;
   overflow: hidden;
   transition: all 0.2s ease;
 }
@@ -1999,6 +2002,62 @@ a {
 }
 
 .btn-text svg {
+  opacity: 0.7;
+}
+
+.btn-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 15px;
+  color: #6b7280;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  position: relative;
+}
+
+.btn-preview:hover {
+  background: #e5e7eb;
+  color: #374151;
+  transform: translateY(-1px);
+}
+
+.btn-preview:hover::before {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: #1f2937;
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  font-weight: normal;
+  max-width: 280px;
+  white-space: normal;
+  text-align: center;
+}
+
+.btn-preview:hover::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #1f2937;
+}
+
+.btn-preview svg {
   opacity: 0.7;
 }
 
