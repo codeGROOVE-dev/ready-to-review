@@ -1,5 +1,8 @@
 // User PR Dashboard Module for Ready To Review
-import { $, $$, show, hide, escapeHtml } from './utils.js';\n\n// Request deduplication cache\nconst pendingRequests = new Map();
+import { $, $$, show, hide, escapeHtml } from './utils.js';
+
+// Request deduplication cache
+const pendingRequests = new Map();
 
 export const User = (() => {
   "use strict";

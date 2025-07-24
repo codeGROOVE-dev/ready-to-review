@@ -492,11 +492,36 @@ const App = (() => {
     showMainContent();
   };
 
+  // Footer Management
+  const initializeFooter = () => {
+    const footer = document.querySelector('.dashboard-footer');
+    const closeBtn = document.getElementById('footerCloseBtn');
+    
+    // Check localStorage for footer state
+    const footerHidden = localStorage.getItem('footerHidden') === 'true';
+    if (footerHidden && footer) {
+      footer.classList.add('hidden');
+    }
+    
+    // Add close button event listener
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        if (footer) {
+          footer.classList.add('hidden');
+          localStorage.setItem('footerHidden', 'true');
+        }
+      });
+    }
+  };
+
   // Initialize
   const init = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const demo = urlParams.get("demo");
     const urlContext = parseURL();
+    
+    // Initialize footer
+    initializeFooter();
 
     // Handle stats page routing
     if (urlContext && urlContext.isStats) {
