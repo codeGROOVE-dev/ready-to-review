@@ -5,6 +5,7 @@ import { User } from './user.js';
 import { Stats } from './stats.js';
 import { Robots } from './robots.js';
 import { Changelog } from './changelog.js';
+import { Leaderboard } from './leaderboard.js';
 
 const App = (() => {
   "use strict";
@@ -34,6 +35,24 @@ const App = (() => {
         org: org === '*' ? null : org,
         username: username || null,
         isChangelog: true,
+      };
+    }
+
+    // Check for leaderboard page patterns: /leaderboard or /leaderboard/gh/org
+    if (path === '/leaderboard') {
+      return {
+        org: null,
+        username: state.currentUser?.login,
+        isLeaderboard: true,
+      };
+    }
+    const leaderboardMatch = path.match(/^\/leaderboard\/gh\/([^\/]+)$/);
+    if (leaderboardMatch) {
+      const [, org] = leaderboardMatch;
+      return {
+        org: org === '*' ? null : org,
+        username: state.currentUser?.login,
+        isLeaderboard: true,
       };
     }
 
@@ -128,6 +147,7 @@ const App = (() => {
     const settingsLink = $("settingsLink");
     const notificationsLink = $("notificationsLink");
     const changelogLink = $("changelogLink");
+    const leaderboardLink = $("leaderboardLink");
     const orgSelect = $("orgSelect");
     const urlContext = parseURL();
     const { username, org: urlOrg } = urlContext || {};
@@ -165,6 +185,10 @@ const App = (() => {
       } else {
         changelogLink.href = '/changelog/gh/*';
       }
+    }
+    
+    if (leaderboardLink) {
+      leaderboardLink.href = selectedOrg ? `/leaderboard/gh/${selectedOrg}` : '/leaderboard';
     }
   };
   
@@ -261,6 +285,19 @@ const App = (() => {
       });
     }
     
+    const leaderboardLink = $("leaderboardLink");
+    if (leaderboardLink) {
+      if (path.startsWith('/leaderboard')) {
+        leaderboardLink.classList.add("active");
+      }
+      
+      leaderboardLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeMenu();
+        window.location.href = leaderboardLink.href;
+      });
+    }
+    
     const settingsLink = $("settingsLink");
     if (settingsLink) {
       if (path.startsWith('/robots')) {
@@ -316,6 +353,8 @@ const App = (() => {
       } else {
         window.location.href = '/changelog/gh/*';
       }
+    } else if (path.startsWith('/leaderboard')) {
+      window.location.href = selectedOrg ? `/leaderboard/gh/${selectedOrg}` : '/leaderboard';
     } else {
       // For root or unknown pages, go to user dashboard
       const currentUser = state.currentUser || state.viewingUser;
@@ -615,6 +654,17 @@ const App = (() => {
         }
       }
       await Changelog.showChangelogPage(state, githubAPI, parseURL);
+      return;
+    }
+    
+    // Handle leaderboard page routing
+    if (urlContext && urlContext.isLeaderboard) {
+      updateSearchInputVisibility();
+      await Leaderboard.showLeaderboardPage(state, githubAPI, loadCurrentUser, 
+        () => User.updateUserDisplay(state, initiateLogin), 
+        setupHamburgerMenu, 
+        () => User.updateOrgFilter(state, parseURL, githubAPI),
+        handleOrgChange, handleSearch, parseURL, User.loadUserOrganizations);
       return;
     }
     // Handle notifications page routing

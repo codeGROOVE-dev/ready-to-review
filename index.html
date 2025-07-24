@@ -111,6 +111,30 @@
                         </svg>
                         Pull Requests
                     </a>
+                    <a
+                        href="/notifications"
+                        id="notificationsLink"
+                        class="menu-link"
+                    >
+                        <span style="font-size: 20px">📢</span>
+                        Notifications
+                    </a>
+                    <a href="/robot-army" id="settingsLink" class="menu-link">
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <circle cx="12" cy="12" r="3" />
+                            <path
+                                d="M12 1v6m0 6v6m11-7h-6m-6 0H1m20.5-6.5L17 9l-4.5-4.5M20.5 17.5L17 14l-4.5 4.5M3.5 6.5L8 11l4.5-4.5M3.5 17.5L8 14l4.5 4.5"
+                            />
+                        </svg>
+                        Robot Army
+                    </a>
                     <a href="/stats" id="statsLink" class="menu-link">
                         <svg
                             width="20"
@@ -129,15 +153,7 @@
                                 fill="currentColor"
                             />
                         </svg>
-                        Stats
-                    </a>
-                    <a
-                        href="/notifications"
-                        id="notificationsLink"
-                        class="menu-link"
-                    >
-                        <span style="font-size: 20px">📢</span>
-                        Notifications
+                        Org Statistics
                     </a>
                     <a href="/changelog/gh/*" id="changelogLink" class="menu-link">
                         <svg
@@ -153,9 +169,9 @@
                             <line x1="16" y1="13" x2="8" y2="13"></line>
                             <line x1="16" y1="17" x2="8" y2="17"></line>
                         </svg>
-                        Changelog
+                        Org Changelog
                     </a>
-                    <a href="/robot-army" id="settingsLink" class="menu-link">
+                    <a href="/leaderboard" id="leaderboardLink" class="menu-link">
                         <svg
                             width="20"
                             height="20"
@@ -164,12 +180,11 @@
                             stroke="currentColor"
                             stroke-width="2"
                         >
-                            <circle cx="12" cy="12" r="3" />
-                            <path
-                                d="M12 1v6m0 6v6m11-7h-6m-6 0H1m20.5-6.5L17 9l-4.5-4.5M20.5 17.5L17 14l-4.5 4.5M3.5 6.5L8 11l4.5-4.5M3.5 17.5L8 14l4.5 4.5"
-                            />
+                            <rect x="4" y="12" width="3" height="8" rx="1" />
+                            <rect x="10.5" y="6" width="3" height="14" rx="1" />
+                            <rect x="17" y="9" width="3" height="11" rx="1" />
                         </svg>
-                        Robot Army
+                        Org Leaderboard
                     </a>
                 </nav>
             </aside>
@@ -1078,6 +1093,9 @@
                         <div class="changelog-header">
                             <h1 class="changelog-title" id="changelogTitleText">What's New</h1>
                             <p class="changelog-period" id="changelogPeriod"></p>
+                            <div class="changelog-org-link" id="changelogOrgLink" hidden>
+                                <a href="#" id="changelogOrgLinkAnchor">See everyone's changes to this organization</a>
+                            </div>
                             <div class="changelog-controls">
                                 <div class="changelog-bot-toggle" id="changelogBotToggle" hidden>
                                     <label class="toggle-switch">
@@ -1112,6 +1130,17 @@
                                 <polyline points="14 2 14 8 20 8"></polyline>
                             </svg>
                             <p>No pull requests merged in the last 7 days</p>
+                        </div>
+                    </div>
+
+                    <!-- Leaderboard Page -->
+                    <div id="leaderboardContent" class="leaderboard-content" hidden>
+                        <div id="leaderboardLoading" class="leaderboard-loading">
+                            <div class="spinner"></div>
+                            <p>Loading leaderboard...</p>
+                        </div>
+                        <div id="leaderboardData" class="leaderboard-data" hidden>
+                            <!-- Leaderboard will be dynamically inserted here -->
                         </div>
                     </div>
                 </div>

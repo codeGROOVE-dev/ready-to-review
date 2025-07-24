@@ -174,10 +174,12 @@ export const Changelog = (() => {
   // Check if a user is a bot
   const isBot = (user) => {
     if (!user) return false;
+    const login = user.login.toLowerCase();
     return user.type === 'Bot' || 
-           user.login.includes('[bot]') || 
-           user.login.endsWith('-bot') ||
-           user.login.includes('dependabot');
+           login.endsWith('[bot]') || 
+           login.endsWith('-bot') ||
+           login.endsWith('-robot') ||
+           login.includes('dependabot');
   };
 
   const showChangelogPage = async (state, githubAPI, parseURL) => {
@@ -194,6 +196,8 @@ export const Changelog = (() => {
     const changelogSummary = $('changelogSummary');
     const includeBots = $('includeBots');
     const clearCacheLink = $('clearChangelogCache');
+    const changelogOrgLink = $('changelogOrgLink');
+    const changelogOrgLinkAnchor = $('changelogOrgLinkAnchor');
     
     if (!changelogContent) return;
     
@@ -232,6 +236,14 @@ export const Changelog = (() => {
         hide(changelogBotToggle);
       }
       
+      // Show org link only when viewing a specific user in an org
+      if (username && org) {
+        show(changelogOrgLink);
+        changelogOrgLinkAnchor.href = `/changelog/gh/${org}`;
+      } else {
+        hide(changelogOrgLink);
+      }
+      
       if (username && org) {
         // Specific user in specific org
         titleText = `${username} in ${org}`;
@@ -249,7 +261,9 @@ export const Changelog = (() => {
         searchQuery = `type:pr is:merged author:${username} merged:>=${oneWeekAgoISO}`;
       }
       
-      if (org) {
+      if (username && org) {
+        changelogTitleText.textContent = `${username}'s changes to ${org}`;
+      } else if (org) {
         changelogTitleText.textContent = `What's New in ${org}`;
       } else if (username) {
         changelogTitleText.textContent = `What's New from ${username}`;

@@ -1156,5 +1156,6 @@ export const Stats = (() => {
     showStatsPage,
     loadStatsData,
     clearStatsCache,
+    githubSearchAll,
   };
 })();
