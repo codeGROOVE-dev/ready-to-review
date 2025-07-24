@@ -3505,3 +3505,230 @@ a {
         order: 1;
     }
 }
+
+/* New Apple-like Leaderboard Styles */
+.leaderboard-content {
+    background: #f5f5f7;
+}
+
+@media (prefers-color-scheme: dark) {
+    .leaderboard-content {
+        background: #000;
+    }
+}
+
+.leaderboard-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.leaderboard-title {
+    font-size: 3rem;
+    font-weight: 700;
+    margin: 0;
+    color: #1d1d1f;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+}
+
+@media (prefers-color-scheme: dark) {
+    .leaderboard-title {
+        color: #f5f5f7;
+    }
+}
+
+.leaderboard-period {
+    font-size: 1.25rem;
+    font-weight: 400;
+    color: #86868b;
+    margin: 0.5rem 0 0 0;
+}
+
+.leaderboard-stats-summary {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.summary-stat {
+    background: white;
+    border-radius: 18px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+    .summary-stat {
+        background: #1d1d1f;
+        box-shadow: 0 4px 6px -1px rgba(255, 255, 255, 0.02);
+    }
+}
+
+.leaderboard-list {
+    background: white;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+    .leaderboard-list {
+        background: #1d1d1f;
+        box-shadow: 0 4px 6px -1px rgba(255, 255, 255, 0.02);
+    }
+}
+
+.leaderboard-item {
+    display: flex;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    transition: background 0.2s ease;
+}
+
+@media (prefers-color-scheme: dark) {
+    .leaderboard-item {
+        border-bottom-color: rgba(255, 255, 255, 0.04);
+    }
+}
+
+.leaderboard-item:last-child {
+    border-bottom: none;
+}
+
+.leaderboard-item:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+@media (prefers-color-scheme: dark) {
+    .leaderboard-item:hover {
+        background: rgba(255, 255, 255, 0.02);
+    }
+}
+
+.leaderboard-item.top-three {
+    background: linear-gradient(135deg, rgba(0, 122, 255, 0.04) 0%, rgba(0, 122, 255, 0.02) 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+    .leaderboard-item.top-three {
+        background: linear-gradient(135deg, rgba(10, 132, 255, 0.1) 0%, rgba(10, 132, 255, 0.05) 100%);
+    }
+}
+
+.leaderboard-position {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 4rem;
+}
+
+.position-number {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #86868b;
+}
+
+.medal {
+    font-size: 1.25rem;
+}
+
+.contributor-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin-right: 1rem;
+    border: 3px solid rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+    .contributor-avatar {
+        border-color: rgba(255, 255, 255, 0.04);
+    }
+}
+
+.contributor-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.contributor-name {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1d1d1f;
+    text-decoration: none;
+    display: block;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (prefers-color-scheme: dark) {
+    .contributor-name {
+        color: #f5f5f7;
+    }
+}
+
+.contributor-name:hover {
+    color: #0071e3;
+}
+
+@media (prefers-color-scheme: dark) {
+    .contributor-name:hover {
+        color: #0a84ff;
+    }
+}
+
+.contribution-bar {
+    height: 6px;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+    .contribution-bar {
+        background: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0071e3 0%, #0077ed 100%);
+    border-radius: 3px;
+    transition: width 0.6s cubic-bezier(0.32, 0, 0.67, 0);
+}
+
+.contribution-count {
+    text-align: right;
+    margin-left: 1.5rem;
+}
+
+.count-number {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1d1d1f;
+    display: block;
+    line-height: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+    .count-number {
+        color: #f5f5f7;
+    }
+}
+
+.count-label {
+    font-size: 0.875rem;
+    color: #86868b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 0.25rem;
+    display: block;
+}

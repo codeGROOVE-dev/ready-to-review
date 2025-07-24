@@ -176,7 +176,12 @@ const App = (() => {
     }
     
     if (changelogLink) {
-      if (selectedOrg && targetUsername) {
+      // For org-focused pages (stats, robots, leaderboard), show org changelog
+      const isOrgPage = urlContext?.isStats || urlContext?.isSettings || urlContext?.isLeaderboard;
+      
+      if (isOrgPage && selectedOrg) {
+        changelogLink.href = `/changelog/gh/${selectedOrg}`;
+      } else if (selectedOrg && targetUsername && !isOrgPage) {
         changelogLink.href = `/changelog/gh/${selectedOrg}/${targetUsername}`;
       } else if (selectedOrg) {
         changelogLink.href = `/changelog/gh/${selectedOrg}`;
@@ -345,13 +350,23 @@ const App = (() => {
     } else if (path.startsWith('/notifications')) {
       window.location.href = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
     } else if (path.startsWith('/changelog')) {
+      const urlContext = parseURL();
       const currentUser = state.currentUser || state.viewingUser;
-      if (selectedOrg && currentUser?.login) {
-        window.location.href = `/changelog/gh/${selectedOrg}/${currentUser.login}`;
-      } else if (selectedOrg) {
-        window.location.href = `/changelog/gh/${selectedOrg}`;
+      
+      // If we're viewing a specific user's changelog, maintain that view
+      if (urlContext?.username) {
+        if (selectedOrg && selectedOrg !== '*') {
+          window.location.href = `/changelog/gh/${selectedOrg}/${urlContext.username}`;
+        } else {
+          window.location.href = `/changelog/gh/*/${urlContext.username}`;
+        }
       } else {
-        window.location.href = '/changelog/gh/*';
+        // Organization-wide changelog
+        if (selectedOrg && selectedOrg !== '*') {
+          window.location.href = `/changelog/gh/${selectedOrg}`;
+        } else {
+          window.location.href = '/changelog/gh/*';
+        }
       }
     } else if (path.startsWith('/leaderboard')) {
       window.location.href = selectedOrg ? `/leaderboard/gh/${selectedOrg}` : '/leaderboard';
