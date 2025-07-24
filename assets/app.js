@@ -4,6 +4,7 @@ import { Auth } from './auth.js';
 import { User } from './user.js';
 import { Stats } from './stats.js';
 import { Robots } from './robots.js';
+import { Changelog } from './changelog.js';
 
 const App = (() => {
   "use strict";
@@ -24,6 +25,17 @@ const App = (() => {
   // Parse URL to get viewing context
   const parseURL = () => {
     const path = window.location.pathname;
+
+    // Check for changelog page patterns: /changelog/gh/org/username or /changelog/gh/org or /changelog/gh/*/username
+    const changelogMatch = path.match(/^\/changelog\/gh\/([^\/]+)(?:\/([^\/]+))?$/);
+    if (changelogMatch) {
+      const [, org, username] = changelogMatch;
+      return {
+        org: org === '*' ? null : org,
+        username: username || null,
+        isChangelog: true,
+      };
+    }
 
     // Check for robot page patterns: /robots or /robots/gh/org
     if (path === '/robots') {
@@ -115,6 +127,7 @@ const App = (() => {
     const statsLink = $("statsLink");
     const settingsLink = $("settingsLink");
     const notificationsLink = $("notificationsLink");
+    const changelogLink = $("changelogLink");
     const orgSelect = $("orgSelect");
     const urlContext = parseURL();
     const { username, org: urlOrg } = urlContext || {};
@@ -140,6 +153,18 @@ const App = (() => {
     
     if (notificationsLink) {
       notificationsLink.href = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
+    }
+    
+    if (changelogLink) {
+      if (selectedOrg && targetUsername) {
+        changelogLink.href = `/changelog/gh/${selectedOrg}/${targetUsername}`;
+      } else if (selectedOrg) {
+        changelogLink.href = `/changelog/gh/${selectedOrg}`;
+      } else if (targetUsername) {
+        changelogLink.href = `/changelog/gh/*/${targetUsername}`;
+      } else {
+        changelogLink.href = '/changelog/gh/*';
+      }
     }
   };
   
@@ -223,6 +248,19 @@ const App = (() => {
       });
     }
     
+    const changelogLink = $("changelogLink");
+    if (changelogLink) {
+      if (path.startsWith('/changelog')) {
+        changelogLink.classList.add("active");
+      }
+      
+      changelogLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeMenu();
+        window.location.href = changelogLink.href;
+      });
+    }
+    
     const settingsLink = $("settingsLink");
     if (settingsLink) {
       if (path.startsWith('/robots')) {
@@ -269,6 +307,15 @@ const App = (() => {
       window.location.href = selectedOrg ? `/robots/gh/${selectedOrg}` : '/robots';
     } else if (path.startsWith('/notifications')) {
       window.location.href = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
+    } else if (path.startsWith('/changelog')) {
+      const currentUser = state.currentUser || state.viewingUser;
+      if (selectedOrg && currentUser?.login) {
+        window.location.href = `/changelog/gh/${selectedOrg}/${currentUser.login}`;
+      } else if (selectedOrg) {
+        window.location.href = `/changelog/gh/${selectedOrg}`;
+      } else {
+        window.location.href = '/changelog/gh/*';
+      }
     } else {
       // For root or unknown pages, go to user dashboard
       const currentUser = state.currentUser || state.viewingUser;
@@ -547,6 +594,29 @@ const App = (() => {
       return;
     }
 
+    // Handle changelog page routing
+    if (urlContext && urlContext.isChangelog) {
+      updateSearchInputVisibility();
+      const token = Auth.getStoredToken();
+      if (token) {
+        try {
+          await loadCurrentUser();
+          User.updateUserDisplay(state, initiateLogin);
+          setupHamburgerMenu();
+          await User.updateOrgFilter(state, parseURL, githubAPI);
+          
+          // Setup org dropdown handler
+          const orgSelect = $("orgSelect");
+          if (orgSelect) {
+            orgSelect.addEventListener("change", handleOrgChange);
+          }
+        } catch (error) {
+          console.error("Failed to load user for changelog:", error);
+        }
+      }
+      await Changelog.showChangelogPage(state, githubAPI, parseURL);
+      return;
+    }
     // Handle notifications page routing
     const path = window.location.pathname;
     if (path === '/notifications' || path.match(/^\/notifications\/gh\/[^\/]+$/)) {

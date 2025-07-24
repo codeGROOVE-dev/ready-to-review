@@ -139,6 +139,22 @@
                         <span style="font-size: 20px">📢</span>
                         Notifications
                     </a>
+                    <a href="/changelog/gh/*" id="changelogLink" class="menu-link">
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        Changelog
+                    </a>
                     <a href="/robot-army" id="settingsLink" class="menu-link">
                         <svg
                             width="20"
@@ -1054,6 +1070,48 @@
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Changelog Page -->
+                    <div id="changelogContent" class="changelog-content" hidden>
+                        <div class="changelog-header">
+                            <h1 class="changelog-title" id="changelogTitleText">What's New</h1>
+                            <p class="changelog-period" id="changelogPeriod"></p>
+                            <div class="changelog-controls">
+                                <div class="changelog-bot-toggle" id="changelogBotToggle" hidden>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="includeBots">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <span class="toggle-label">Include automated changes</span>
+                                </div>
+                                <a href="#" id="clearChangelogCache" class="changelog-refresh-link">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-4.75 3.25-9 9-9s9 3 9 8.5M22 12c0 4.75-3.25 9-9 9s-9-3-9-8.5"/>
+                                    </svg>
+                                    Update
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div id="changelogSummary" class="changelog-summary" hidden>
+                            <!-- Executive summary will be inserted here -->
+                        </div>
+                        
+                        <div id="changelogProjects" class="changelog-projects">
+                            <!-- Projects will be dynamically inserted here -->
+                        </div>
+                        <div id="changelogLoading" class="changelog-loading" hidden>
+                            <div class="spinner"></div>
+                            <p>Loading changelog...</p>
+                        </div>
+                        <div id="changelogEmpty" class="changelog-empty" hidden>
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            <p>No pull requests merged in the last 7 days</p>
                         </div>
                     </div>
                 </div>

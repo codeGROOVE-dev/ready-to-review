@@ -2913,3 +2913,421 @@ a {
 .dashboard-footer.hidden {
     display: none;
 }
+
+/* Changelog Styles - Apple Release Notes Design */
+.changelog-content {
+    padding: 3rem 0;
+    background: var(--color-bg);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+}
+
+.changelog-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    padding: 0 1rem;
+}
+
+.changelog-title {
+    font-size: 3rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.changelog-period {
+    font-size: 1.125rem;
+    font-weight: 400;
+    color: var(--color-text-secondary);
+    margin: 0 0 1.5rem 0;
+}
+
+/* Executive Summary */
+.changelog-summary {
+    max-width: 980px;
+    margin: 0 auto 3rem auto;
+    padding: 0 1rem;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    text-align: center;
+    padding: 2rem;
+    background: var(--color-bg-elevated);
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.summary-item {
+    padding: 1rem;
+}
+
+.summary-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+
+.summary-label {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+}
+
+.changelog-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.changelog-bot-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Toggle Switch - iOS Style */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 51px;
+    height: 31px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #e9e9ea;
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    border-radius: 31px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 27px;
+    width: 27px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: #34c759;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.toggle-label {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    font-weight: 400;
+}
+
+.changelog-refresh-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 400;
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.changelog-refresh-link:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--color-text);
+}
+
+@media (prefers-color-scheme: dark) {
+    .changelog-refresh-link:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.changelog-projects {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+/* Document-style changelog */
+.changelog-document {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Georgia, serif;
+    line-height: 1.6;
+    color: var(--color-text);
+}
+
+.changelog-section {
+    margin-bottom: 2.5rem;
+}
+
+.section-title {
+    font-size: 1.375rem;
+    font-weight: 600;
+    margin: 0 0 0.75rem 0;
+    color: var(--color-text);
+    letter-spacing: -0.01em;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .section-title {
+        border-bottom-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.change-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.change-list li {
+    position: relative;
+    padding-left: 1.25rem;
+    margin-bottom: 0.375rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+}
+
+.change-list li:before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: var(--color-text-secondary);
+}
+
+.change-title {
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.change-title:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+}
+
+.change-number {
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    font-family: var(--font-mono);
+    opacity: 0.7;
+}
+
+/* Print styles */
+@media print {
+    .changelog-controls,
+    .changelog-refresh-link,
+    .changelog-bot-toggle {
+        display: none !important;
+    }
+    
+    .changelog-content {
+        padding: 0;
+    }
+    
+    .changelog-header {
+        margin-bottom: 2rem;
+    }
+    
+    .changelog-title {
+        font-size: 2rem;
+    }
+    
+    .summary-grid {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+    
+    .section-title {
+        page-break-after: avoid;
+    }
+    
+    .change-list {
+        page-break-inside: avoid;
+    }
+}
+
+
+@media (prefers-color-scheme: dark) {
+    .project-title {
+        background: rgba(255, 255, 255, 0.05);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+.project-title a {
+    color: var(--color-text);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+
+
+@media (prefers-color-scheme: dark) {
+    .pr-number {
+        background: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.pr-title {
+    flex: 1;
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 500;
+    line-height: 1.3;
+    font-size: 0.9375rem;
+}
+
+.pr-title:hover {
+    color: var(--color-primary);
+}
+
+.pr-description {
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--color-text-secondary);
+    margin: 0 0 0.375rem 0;
+    padding-left: 2.75rem;
+    opacity: 0.9;
+}
+
+.pr-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+    padding-left: 2.75rem;
+}
+
+.pr-author {
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.pr-author:hover {
+    color: var(--color-primary);
+}
+
+.bot-indicator {
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+    padding: 0.125rem 0.375rem;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.pr-date {
+    margin-left: auto;
+}
+
+.changelog-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 6rem 0;
+    color: var(--color-text-secondary);
+}
+
+.changelog-loading .spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(0, 0, 0, 0.1);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+}
+
+.changelog-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 6rem 0;
+    color: var(--color-text-secondary);
+    text-align: center;
+}
+
+.changelog-empty svg {
+    opacity: 0.2;
+}
+
+.changelog-empty p {
+    font-size: 1.125rem;
+    font-weight: 500;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+    .changelog-title {
+        font-size: 2.25rem;
+    }
+    
+    .summary-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        padding: 1.5rem 1rem;
+    }
+    
+    .summary-value {
+        font-size: 2rem;
+    }
+    
+    .changelog-period {
+        font-size: 1.125rem;
+    }
+    
+    .changelog-controls {
+        gap: 1rem;
+    }
+    
+    .changelog-projects {
+        padding: 0 1rem;
+    }
+    
+    .section-title {
+        font-size: 1.25rem;
+    }
+    
+    .change-list li {
+        font-size: 0.875rem;
+    }
+}
