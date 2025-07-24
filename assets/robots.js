@@ -311,6 +311,12 @@ export const Robots = (() => {
           console.log("[showSettingsPage] Hiding robot config");
           hide(robotConfig);
         }
+        
+        // Hide search input when showing organization list
+        const searchInput = $("searchInput");
+        if (searchInput) {
+          hide(searchInput);
+        }
 
         // Show organization list similar to stats page
         await showOrganizationList(
@@ -384,6 +390,24 @@ export const Robots = (() => {
 
       console.log("[showSettingsPage] Calling renderRobotCards...");
       renderRobotCards();
+      
+      // Set up search functionality for robots
+      const searchInput = $("searchInput");
+      if (searchInput) {
+        // Remove any existing listeners first
+        const newSearchInput = searchInput.cloneNode(true);
+        searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+        
+        // Add new listener for robot filtering
+        newSearchInput.addEventListener("input", (e) => {
+          const searchTerm = e.target.value;
+          renderRobotCards(searchTerm);
+        });
+        
+        // Update placeholder text for robot page
+        newSearchInput.placeholder = "Search robots...";
+      }
+      
       console.log("[showSettingsPage] Completed setup");
       console.log("[showSettingsPage] Completed successfully");
     } catch (error) {
@@ -489,7 +513,7 @@ export const Robots = (() => {
     window.location.href = `/robots/gh/${selectedOrg}`;
   };
 
-  const renderRobotCards = () => {
+  const renderRobotCards = (searchTerm = '') => {
     console.log("[renderRobotCards] Starting...");
     const container = $("robotCards");
     if (!container) {
@@ -497,15 +521,23 @@ export const Robots = (() => {
       return;
     }
 
+    // Filter robots based on search term
+    const filteredRobots = searchTerm 
+      ? robotDefinitions.filter(robot => 
+          robot.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          robot.description.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : robotDefinitions;
+    
     console.log(
       "[renderRobotCards] Found container, rendering",
-      robotDefinitions.length,
+      filteredRobots.length,
       "robots",
     );
 
     try {
       console.log("[renderRobotCards] Creating robot cards HTML...");
-      const cardsHtml = robotDefinitions
+      const cardsHtml = filteredRobots
         .map((robot) => {
           console.log("[renderRobotCards] Creating card for robot:", robot.id);
           return createRobotCard(robot);
@@ -519,7 +551,7 @@ export const Robots = (() => {
       container.innerHTML = cardsHtml;
 
       console.log("[renderRobotCards] Adding event listeners...");
-      robotDefinitions.forEach((robot) => {
+      filteredRobots.forEach((robot) => {
         const toggle = $(`toggle-${robot.id}`);
         if (toggle) {
           toggle.addEventListener("change", (e) => {

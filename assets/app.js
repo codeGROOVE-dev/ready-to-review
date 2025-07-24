@@ -514,6 +514,19 @@ const App = (() => {
     }
   };
 
+  // Manage search input visibility based on current page
+  const updateSearchInputVisibility = () => {
+    const searchInput = $('searchInput');
+    const path = window.location.pathname;
+    
+    // Show search input only on PR view and robot army pages
+    if (path === '/' || path.startsWith('/u/') || path === '/robots' || path.match(/^\/robots\/gh\/[^\/]+$/)) {
+      show(searchInput);
+    } else {
+      hide(searchInput);
+    }
+  };
+
   // Initialize
   const init = async () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -525,6 +538,7 @@ const App = (() => {
 
     // Handle stats page routing
     if (urlContext && urlContext.isStats) {
+      updateSearchInputVisibility();
       await Stats.showStatsPage(state, githubAPI, loadCurrentUser, 
         () => User.updateUserDisplay(state, initiateLogin), 
         setupHamburgerMenu, 
@@ -536,6 +550,7 @@ const App = (() => {
     // Handle notifications page routing
     const path = window.location.pathname;
     if (path === '/notifications' || path.match(/^\/notifications\/gh\/[^\/]+$/)) {
+      updateSearchInputVisibility();
       const token = Auth.getStoredToken();
       if (token) {
         try {
@@ -552,6 +567,7 @@ const App = (() => {
 
     // Handle robots page routing
     if (path === '/robots' || path.match(/^\/robots\/gh\/[^\/]+$/)) {
+      updateSearchInputVisibility();
       const token = Auth.getStoredToken();
       if (!token) {
         showToast("Please login to configure Robot Army", "error");
@@ -636,12 +652,14 @@ const App = (() => {
 
     // Demo mode - only if explicitly requested
     if (demo === "true") {
+      updateSearchInputVisibility();
       initializeDemoMode();
       return;
     }
 
     // Check for authentication
     if (!state.accessToken) {
+      updateSearchInputVisibility();
       if (urlContext && urlContext.username && !urlContext.isStats && !urlContext.isSettings && !urlContext.isNotifications) {
         // Only load PRs for actual user PR dashboard pages
         try {
@@ -677,6 +695,7 @@ const App = (() => {
 
     // Authenticated flow
     try {
+      updateSearchInputVisibility();
       await loadCurrentUser();
 
       // If at root URL, redirect to user's page
@@ -703,6 +722,12 @@ const App = (() => {
         await User.loadPullRequests(state, githubAPI, state.isDemoMode);
         // Update org filter again after PRs are loaded to include PR organizations
         await User.updateOrgFilter(state, parseURL, githubAPI);
+        
+        // Reset search input placeholder for PR view
+        const searchInput = $("searchInput");
+        if (searchInput) {
+          searchInput.placeholder = "Search PRs...";
+        }
       }
       
       showMainContent();
