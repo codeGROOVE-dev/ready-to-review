@@ -826,15 +826,21 @@ export const User = (() => {
       const aDraft = a.draft || false;
       const bDraft = b.draft || false;
       
-      // Priority 1: Blocked on viewing user
-      // Priority 2: Normal (not blocked, not draft)
-      // Priority 3: Draft
+      // Priority order:
+      // 1: Normal PRs blocked on viewing user
+      // 2: Normal PRs (not blocked, not draft)
+      // 3: Draft PRs blocked on viewing user
+      // 4: Draft PRs (not blocked)
       
       // Determine categories
       const getCategory = (pr) => {
-        if (isBlockedOnUser(pr, viewingUser)) return 1; // Highest priority
-        if (pr.draft) return 3; // Lowest priority
-        return 2; // Normal
+        const isBlocked = isBlockedOnUser(pr, viewingUser);
+        const isDraft = pr.draft || false;
+        
+        if (!isDraft && isBlocked) return 1; // Normal + blocked
+        if (!isDraft && !isBlocked) return 2; // Normal only
+        if (isDraft && isBlocked) return 3; // Draft + blocked
+        return 4; // Draft only
       };
       
       const aCategory = getCategory(a);
@@ -1108,6 +1114,11 @@ export const User = (() => {
     if (pr.turnData?.pr_state?.unresolved_comment_count > 0) {
       const count = pr.turnData.pr_state.unresolved_comment_count;
       badges.push(`<span class="badge badge-unresolved-comments">${count} unresolved comment${count > 1 ? 's' : ''}</span>`);
+    }
+    
+    if (pr.turnData?.pr_state?.checks?.failing > 0) {
+      const failing = pr.turnData.pr_state.checks.failing;
+      badges.push(`<span class="badge badge-failing">${failing} failing</span>`);
     }
 
     if (pr.draft) {

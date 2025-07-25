@@ -834,6 +834,12 @@ a {
     color: rgb(220 38 38);
 }
 
+.badge-failing {
+    background: rgb(251 191 36 / 0.1);
+    color: rgb(180 83 9);
+    font-weight: 500;
+}
+
 .badge-tests-pending {
     background: rgb(156 163 175 / 0.1);
     color: var(--color-muted);
