@@ -1,5 +1,5 @@
 // Leaderboard Module - Shows PR merge activity by contributor
-import { $, $$, show, hide, showToast } from './utils.js';
+import { $, $$, show, hide, showToast, escapeHtml } from './utils.js';
 import { Stats } from './stats.js';
 
 export const Leaderboard = (() => {
@@ -93,18 +93,51 @@ export const Leaderboard = (() => {
     const urlContext = parseURL();
     const org = urlContext?.org;
     
-    if (!org && orgSelect) {
-      // Force selection of first non-asterisk org
-      const firstOrgOption = Array.from(orgSelect.options).find(opt => opt.value !== '*');
-      if (firstOrgOption) {
-        orgSelect.value = firstOrgOption.value;
-        window.location.href = `/leaderboard/gh/${firstOrgOption.value}`;
+    if (!org) {
+      // Get user's organizations for selection
+      const orgs = [];
+      if (orgSelect) {
+        Array.from(orgSelect.options).forEach(opt => {
+          if (opt.value !== '*') {
+            orgs.push(opt.value);
+          }
+        });
+      }
+      
+      const loadingDiv = $('leaderboardLoading');
+      const contentDiv = $('leaderboardData');
+      hide(loadingDiv);
+      show(contentDiv);
+      
+      if (orgs.length === 0) {
+        contentDiv.innerHTML = `
+          <div class="empty-state">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <p>No organizations found</p>
+            <p style="font-size: 0.875rem; color: var(--color-text-secondary); margin-top: 0.5rem;">You need to be a member of at least one organization</p>
+          </div>
+        `;
         return;
       }
-    }
-    
-    if (!org) {
-      showToast('Please select an organization', 'info');
+      
+      contentDiv.innerHTML = `
+        <div class="org-selector">
+          <h2 class="org-selector-title">Select an organization to view leaderboard</h2>
+          <p class="org-selector-subtitle">Choose from your organizations to see top contributors</p>
+          <div class="org-list">
+            ${orgs.map(orgName => `
+              <a href="/leaderboard/gh/${escapeHtml(orgName)}" class="org-list-item">
+                <div class="org-list-name">${escapeHtml(orgName)}</div>
+              </a>
+            `).join('')}
+          </div>
+        </div>
+      `;
       return;
     }
     
