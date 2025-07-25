@@ -691,6 +691,20 @@ a {
     border-color: rgba(0, 122, 255, 0.25);
 }
 
+/* Incoming PRs blocked on viewing user - red border */
+#incomingPRs .pr-card[data-blocked-on-viewing="true"] {
+    border-color: rgba(220, 38, 38, 0.4);
+    border-left-width: 3px;
+    border-left-color: #dc2626;
+}
+
+/* Outgoing PRs blocked on viewing user - green border */
+#outgoingPRs .pr-card[data-blocked-on-viewing="true"] {
+    border-color: rgba(34, 197, 94, 0.4);
+    border-left-width: 3px;
+    border-left-color: #22c55e;
+}
+
 /* Draft PR cards */
 .pr-card[data-draft="true"] {
     opacity: 0.7;
@@ -770,6 +784,13 @@ a {
 .badge-blocked {
     background: linear-gradient(135deg, #ff453a 0%, #ff3b30 100%);
     color: #ffffff;
+}
+
+.badge-blocked-on-you {
+    background: #dc2626;
+    color: #ffffff;
+    font-weight: 700;
+    text-transform: uppercase;
 }
 
 .badge-ready {
@@ -890,7 +911,7 @@ a {
 }
 
 .badge-merge-conflict {
-    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    background: #FA8072;
     color: #ffffff;
     font-weight: 700;
 }
@@ -903,9 +924,7 @@ a {
 
 /* Waiting on section */
 .pr-waiting-on {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
+    display: inline;
     color: var(--color-text-secondary);
     font-size: 0.875rem;
 }
@@ -927,6 +946,11 @@ a {
 
 .pr-waiting-on-you {
     color: #dc2626;
+    font-weight: 700;
+}
+
+.pr-waiting-on-you-green {
+    color: #166534;
     font-weight: 700;
 }
 

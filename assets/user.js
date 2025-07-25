@@ -807,44 +807,46 @@ export const User = (() => {
     return filtered;
   };
 
+  const isBlockedOnUser = (pr, user) => {
+    if (!pr.turnData?.pr_state?.unblock_action || !user) return false;
+    return Object.keys(pr.turnData.pr_state.unblock_action).includes(user.login);
+  };
+
   const renderPRList = (container, prs, isDraft = false, section = "", state) => {
     if (!container) return;
 
     const filteredPRs = applyFilters(prs, section);
+    const currentUser = window.App?.state?.currentUser || null;
+    const viewingUser = window.App?.state?.viewingUser || currentUser;
 
     const sortedPRs = [...filteredPRs].sort((a, b) => {
-      if (a.draft && !b.draft) return 1;
-      if (!a.draft && b.draft) return -1;
-
-      if (a.draft === b.draft) {
-        if (!a.draft && !b.draft) {
-          if (
-            a.status_tags?.includes("blocked on you") &&
-            !b.status_tags?.includes("blocked on you")
-          )
-            return -1;
-          if (
-            !a.status_tags?.includes("blocked on you") &&
-            b.status_tags?.includes("blocked on you")
-          )
-            return 1;
-
-          if (
-            a.status_tags?.includes("ready-to-merge") &&
-            !b.status_tags?.includes("ready-to-merge")
-          )
-            return -1;
-          if (
-            !a.status_tags?.includes("ready-to-merge") &&
-            b.status_tags?.includes("ready-to-merge")
-          )
-            return 1;
-        }
-
-        return new Date(b.updated_at) - new Date(a.updated_at);
+      // Categorize PRs
+      const aBlockedOnViewing = isBlockedOnUser(a, viewingUser);
+      const bBlockedOnViewing = isBlockedOnUser(b, viewingUser);
+      const aDraft = a.draft || false;
+      const bDraft = b.draft || false;
+      
+      // Priority 1: Blocked on viewing user
+      // Priority 2: Normal (not blocked, not draft)
+      // Priority 3: Draft
+      
+      // Determine categories
+      const getCategory = (pr) => {
+        if (isBlockedOnUser(pr, viewingUser)) return 1; // Highest priority
+        if (pr.draft) return 3; // Lowest priority
+        return 2; // Normal
+      };
+      
+      const aCategory = getCategory(a);
+      const bCategory = getCategory(b);
+      
+      // Sort by category first
+      if (aCategory !== bCategory) {
+        return aCategory - bCategory;
       }
-
-      return 0;
+      
+      // Within same category, sort by last modification time (most recent first - descending order)
+      return new Date(b.updated_at) - new Date(a.updated_at);
     });
 
     container.innerHTML = sortedPRs.map((pr) => createPRCard(pr)).join("");
@@ -854,12 +856,60 @@ export const User = (() => {
     }
   };
 
+  const buildWaitingOn = (pr, viewingUser, currentUser, isIncomingPR = false) => {
+    if (!pr.turnData?.pr_state?.unblock_action) {
+      return '';
+    }
+    
+    // unblock_action is a dictionary where keys are usernames and values have critical/reason
+    const unblockAction = pr.turnData.pr_state.unblock_action;
+    const usernames = Object.keys(unblockAction);
+    
+    if (usernames.length === 0) {
+      return '';
+    }
+    
+    const waitingList = usernames.map(username => {
+      const action = unblockAction[username];
+      const isViewingUser = viewingUser && username === viewingUser.login;
+      const isCurrentUser = currentUser && username === currentUser.login;
+      
+      let displayName = username;
+      let className = 'pr-waiting-on-user';
+      
+      // If viewing someone else's dashboard, highlight their name
+      if (viewingUser && currentUser && viewingUser.login !== currentUser.login) {
+        if (isViewingUser) {
+          displayName = viewingUser.login;
+          // Use red for incoming PRs, green for outgoing
+          className = isIncomingPR ? 'pr-waiting-on-you' : 'pr-waiting-on-you-green';
+        }
+      } else {
+        // Normal behavior when viewing your own dashboard
+        if (isCurrentUser) {
+          displayName = 'YOU';
+          className = 'pr-waiting-on-you';
+        }
+      }
+      
+      const title = action.reason || 'Waiting for action';
+      
+      return `<span class="${className}" title="${escapeHtml(title)}">${escapeHtml(displayName)}</span>`;
+    }).join(', ');
+    
+    return ` <span class="pr-waiting-on"><span class="pr-waiting-on-label">(waiting on</span> ${waitingList}<span class="pr-waiting-on-label">)</span></span>`;
+  };
+
   const createPRCard = (pr) => {
     const state = getPRState(pr);
-    const badges = buildBadges(pr);
+    const currentUser = window.App?.state?.currentUser || null;
+    const viewingUser = window.App?.state?.viewingUser || currentUser;
+    const badges = buildBadges(pr, viewingUser, currentUser);
     const ageText = getAgeText(pr);
     const reviewers = buildReviewers(pr.requested_reviewers || []);
     const needsAction = pr.status_tags?.includes("blocked on you");
+    // Determine if this is an incoming PR (PR author is not the viewing user)
+    const isIncomingPR = pr.user.login !== (viewingUser?.login || currentUser?.login);
 
     const getActivityIcon = (type) => {
       const icons = {
@@ -936,8 +986,10 @@ export const User = (() => {
       </div>
     `;
 
+    const blockedOnViewing = isBlockedOnUser(pr, viewingUser);
+    
     return `
-      <div class="pr-card" data-state="${state}" data-pr-id="${pr.id}" ${needsAction ? 'data-needs-action="true"' : ""} ${pr.draft ? 'data-draft="true"' : ""}>
+      <div class="pr-card" data-state="${state}" data-pr-id="${pr.id}" ${needsAction ? 'data-needs-action="true"' : ""} ${pr.draft ? 'data-draft="true"' : ""} ${blockedOnViewing ? 'data-blocked-on-viewing="true"' : ""}>
         <div class="pr-header">
           <a href="${pr.html_url}" class="pr-title" target="_blank" rel="noopener">
             ${escapeHtml(pr.title)}
@@ -950,6 +1002,7 @@ export const User = (() => {
             <span class="pr-repo">${pr.repository.full_name}</span>
             <span class="pr-number">#${pr.number}</span>
             <span class="pr-author">by ${pr.user.login}</span>
+            ${buildWaitingOn(pr, viewingUser, currentUser, isIncomingPR)}
           </div>
           <div class="pr-meta-right">
             <span class="pr-age">${ageText}</span>
@@ -968,6 +1021,17 @@ export const User = (() => {
     const section = existingCard.closest("#incomingPRs")
       ? "incoming"
       : "outgoing";
+    
+    // Check if this PR's blocking status affects sorting
+    const viewingUser = state.viewingUser || state.currentUser;
+    const wasBlockedOnViewing = existingCard.hasAttribute('data-blocked-on-viewing');
+    const isNowBlockedOnViewing = isBlockedOnUser(pr, viewingUser);
+    
+    // If blocking status changed, re-render the entire section to maintain sort order
+    if (wasBlockedOnViewing !== isNowBlockedOnViewing) {
+      updatePRSections(state);
+      return;
+    }
 
     const hideStale = getCookie(`${section}FilterStale`) === "true";
     const shouldHide = (hideStale && isStale(pr));
@@ -1029,7 +1093,7 @@ export const User = (() => {
     return "xlarge";
   };
 
-  const buildBadges = (pr) => {
+  const buildBadges = (pr, viewingUser, currentUser) => {
     const badges = [];
 
     // Add prominent badges first based on turnData
@@ -1050,15 +1114,21 @@ export const User = (() => {
       badges.push('<span class="badge badge-draft">draft</span>');
     }
 
+    // Check if PR is blocked on viewing user
+    if (isBlockedOnUser(pr, viewingUser)) {
+      if (viewingUser && currentUser && viewingUser.login === currentUser.login) {
+        badges.push('<span class="badge badge-blocked-on-you">blocked on you</span>');
+      } else if (viewingUser) {
+        badges.push(`<span class="badge badge-blocked-on-you">blocked on ${viewingUser.login}</span>`);
+      }
+    }
+
     if (pr.status_tags?.includes("loading")) {
       badges.push('<span class="badge badge-loading">Loading</span>');
     } else if (pr.status_tags && pr.status_tags.length > 0) {
       const needsBadges = pr.status_tags
-        .filter((tag) => tag.startsWith("needs-") || tag === "blocked on you")
+        .filter((tag) => tag.startsWith("needs-"))
         .map((tag) => {
-          if (tag === "blocked on you") {
-            return '<span class="badge badge-blocked">blocked on you</span>';
-          }
           const displayText = tag.replace("needs-", "").replace(/_/g, " ");
           return `<span class="badge badge-needs">${displayText}</span>`;
         });
