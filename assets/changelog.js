@@ -1,5 +1,6 @@
 // Changelog Module - Displays merged PRs from the last week
 import { $, $$, show, hide, showToast } from './utils.js';
+import { Auth } from './auth.js';
 
 export const Changelog = (() => {
   "use strict";
@@ -89,84 +90,74 @@ export const Changelog = (() => {
     return { items: allItems, total_count: allItems.length };
   };
 
+  // Scoring configuration for PR importance
+  const SCORE_CONFIG = {
+    textPatterns: [
+      { pattern: /\b(security|vulnerability|cve|exploit|ghsa)\b/i, score: 8 },
+      { pattern: /\b(feat)\b/, score: 4 },
+      { pattern: /\b(revert)\b/, score: 4 },
+      { pattern: /\b(breaking|major|refactor|redesign|rework|migrate|replace)\b/, score: 3 },
+      { pattern: /\b(add|new|feature|implement|introduce|create)\b/, score: 2 },
+      { pattern: /\b(mitigate|warn|error|oom)\b/, score: 2 },
+      { pattern: /\b(performance|optimize|speed|fast|perf)\b/, score: 1 },
+      { pattern: /\b(fix|update|remove|tune|edit|edits|correct|patch)\b/, score: -1 },
+      { pattern: /\b(test)\b/, score: -1 },
+      { pattern: /\b(chore|bump|typo|cleanup|lint|format|tweak)\b/, score: -2 },
+      { pattern: /\b(dependabot|dependency|dependencies|deps)\b/, score: -3 }
+    ],
+    labelPatterns: [
+      { check: l => l.includes('breaking'), score: 3 },
+      { check: l => l.includes('feature') || l.includes('enhancement'), score: 2 },
+      { check: l => l.includes('bug') || l.includes('critical'), score: 1 },
+      { check: l => l.includes('documentation') || l.includes('docs'), score: -1 }
+    ]
+  };
+
   // Calculate importance score for PR
   const calculatePRScore = (pr) => {
     let score = 0;
     
-    // Base score from engagement
+    // Base score from commit count and engagement
+    score += pr.commitCount || 0;
     score += pr.comments || 0;
     score += (pr.reactions?.total_count || 0) * 4;
     
-    // Analyze title and body
+    // Text-based scoring
     const text = ((pr.title || '') + ' ' + (pr.body || '')).toLowerCase();
-    
-    // Major features with 'feat' prefix get highest bonus
-    if (text.match(/\b(feat)\b/)) {
-      score += 4;
+    for (const { pattern, score: points } of SCORE_CONFIG.textPatterns) {
+      if (text.match(pattern)) score += points;
     }
     
-    // Other features/additions get bonus
-    if (text.match(/\b(add|new|feature|implement|introduce|create)\b/)) {
-      score += 2;
-    }
-    
-    // Important operational keywords
-    if (text.match(/\b(mitigate|warn|error|oom)\b/)) {
-      score += 2;
-    }
-    
-    // Reverts are especially important
-    if (text.match(/\b(revert)\b/)) {
-      score += 4;
-    }
-    
-    // Breaking changes or major updates
-    if (text.match(/\b(breaking|major|refactor|redesign|rework|migrate|replace)\b/)) {
-      score += 3;
-    }
-    
-    // Security fixes get highest priority
-    if (text.match(/\b(security|vulnerability|cve|exploit|ghsa)\b/i)) {
-      score += 8;
-    }
-    
-    // Performance improvements
-    if (text.match(/\b(performance|optimize|speed|fast|perf)\b/)) {
-      score += 1;
-    }
-    
-    // Minor updates and fixes
-    if (text.match(/\b(fix|update|remove|tune|edit|edits|correct|patch)\b/)) {
-      score -= 1;
-    }
-    
-    // Routine maintenance
-    if (text.match(/\b(chore|bump|typo|cleanup|lint|format|tweak)\b/)) {
-      score -= 2;
-    }
-    
-    // Test-related changes are less important
-    if (text.match(/\b(test)\b/)) {
-      score -= 1;
-    }
-    
-    // Dependencies and automated updates
-    if (text.match(/\b(dependabot|dependency|dependencies|deps)\b/) || isBot(pr.user)) {
-      score -= 3;
-    }
+    // Bot penalty
+    if (isBot(pr.user)) score -= 3;
     
     // Label-based scoring
     const labels = pr.labels?.map(l => l.name.toLowerCase()) || [];
-    if (labels.some(l => l.includes('breaking'))) score += 3;
-    if (labels.some(l => l.includes('feature') || l.includes('enhancement'))) score += 2;
-    if (labels.some(l => l.includes('bug') || l.includes('critical'))) score += 1;
-    if (labels.some(l => l.includes('documentation') || l.includes('docs'))) score -= 1;
+    for (const { check, score: points } of SCORE_CONFIG.labelPatterns) {
+      if (labels.some(check)) score += points;
+    }
     
-    // PR size indicator (more reviewers usually means bigger change)
-    if (pr.requested_reviewers && pr.requested_reviewers.length > 2) score += 1;
-    
-    // Milestone PRs are usually important
+    // Other factors
+    if (pr.requested_reviewers?.length > 2) score += 1;
     if (pr.milestone) score += 2;
+    
+    return score;
+  };
+
+  // Calculate importance score for direct commits
+  const calculateCommitScore = (commit) => {
+    // Direct commits get high base score (almost as high as security changes)
+    let score = 7;
+    
+    // Apply text-based modifiers
+    const text = (commit.messageHeadline || '').toLowerCase();
+    for (const { pattern, score: points } of SCORE_CONFIG.textPatterns) {
+      if (text.match(pattern)) score += points;
+    }
+    
+    // Bot penalty for commits
+    const author = commit.author?.user || { login: commit.author?.email || 'unknown' };
+    if (isBot(author)) score -= 3;
     
     return score;
   };
@@ -180,6 +171,231 @@ export const Changelog = (() => {
            login.endsWith('-bot') ||
            login.endsWith('-robot') ||
            login.includes('dependabot');
+  };
+
+  // Build GitHub search query for PRs
+  const buildPRSearchQuery = (org, username, oneWeekAgoISO) => {
+    const base = `type:pr is:merged merged:>=${oneWeekAgoISO}`;
+    if (username && org) {
+      return `${base} org:${org} author:${username}`;
+    } else if (org) {
+      return `${base} org:${org}`;
+    } else if (username) {
+      return `${base} author:${username}`;
+    }
+    return base;
+  };
+
+  // GraphQL with retry logic
+  const githubGraphQLWithRetry = async (query, variables = {}, maxRetries = 3) => {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await Auth.githubGraphQL(query, variables);
+      } catch (error) {
+        lastError = error;
+        console.warn(`GraphQL attempt ${attempt} failed:`, error.message);
+        
+        // Don't retry on authentication errors
+        if (error.message?.includes('authentication') || error.message?.includes('401')) {
+          throw error;
+        }
+        
+        // Wait before retrying (exponential backoff)
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    
+    throw lastError;
+  };
+
+
+  // Fetch merged PRs with commit counts using GraphQL
+  const fetchMergedPRsWithCommits = async (org, username, oneWeekAgoISO) => {
+    console.log('Attempting to fetch PRs via GraphQL...');
+    
+    const searchQuery = buildPRSearchQuery(org, username, oneWeekAgoISO);
+    
+    const query = `
+      query SearchPullRequests($query: String!, $first: Int!, $after: String) {
+        search(query: $query, type: ISSUE, first: $first, after: $after) {
+          issueCount
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          nodes {
+            ... on PullRequest {
+              number
+              title
+              body
+              url
+              state
+              createdAt
+              updatedAt
+              mergedAt
+              comments {
+                totalCount
+              }
+              commits {
+                totalCount
+              }
+              author {
+                login
+              }
+              repository {
+                name
+                owner {
+                  login
+                }
+              }
+              labels(first: 10) {
+                nodes {
+                  name
+                }
+              }
+              reactions {
+                totalCount
+              }
+              milestone {
+                title
+              }
+            }
+          }
+        }
+      }
+    `;
+    
+    try {
+      const allPRs = [];
+      let hasNextPage = true;
+      let cursor = null;
+      
+      while (hasNextPage && allPRs.length < 2000) { // Limit to 2000 PRs
+        const variables = {
+          query: searchQuery,
+          first: 100,
+          after: cursor
+        };
+        
+        console.log('Fetching PRs with GraphQL, variables:', variables);
+        const data = await githubGraphQLWithRetry(query, variables);
+        
+        if (data?.search?.nodes) {
+          const prs = data.search.nodes.map(pr => ({
+            number: pr.number,
+            title: pr.title,
+            body: pr.body,
+            html_url: pr.url,
+            state: pr.state,
+            created_at: pr.createdAt,
+            updated_at: pr.updatedAt,
+            merged_at: pr.mergedAt,
+            comments: pr.comments.totalCount,
+            commitCount: pr.commits.totalCount,
+            user: pr.author,
+            repository_url: `https://api.github.com/repos/${pr.repository.owner.login}/${pr.repository.name}`,
+            labels: pr.labels.nodes,
+            reactions: pr.reactions,
+            milestone: pr.milestone
+          }));
+          
+          allPRs.push(...prs);
+        }
+        
+        hasNextPage = data?.search?.pageInfo?.hasNextPage || false;
+        cursor = data?.search?.pageInfo?.endCursor;
+      }
+      
+      return allPRs;
+    } catch (error) {
+      console.error('Error fetching PRs via GraphQL:', error);
+      // Fall back to REST API
+      return null;
+    }
+  };
+
+  // Fetch commits for organization using GraphQL
+  const fetchOrgCommits = async (org, oneWeekAgoISO) => {
+    const query = `
+      query OrganizationCommits($orgLogin: String!, $firstRepos: Int = 50, $since: GitTimestamp!) {
+        organization(login: $orgLogin) {
+          repositories(first: $firstRepos, orderBy: {field: PUSHED_AT, direction: DESC}) {
+            nodes {
+              name
+              owner {
+                login
+              }
+              pushedAt
+              defaultBranchRef {
+                target {
+                  ... on Commit {
+                    history(first: 20, since: $since) {
+                      totalCount
+                      nodes {
+                        oid
+                        messageHeadline
+                        committedDate
+                        author {
+                          user {
+                            login
+                          }
+                          name
+                        }
+                        associatedPullRequests(first: 1) {
+                          nodes {
+                            number
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+    
+    try {
+      const data = await githubGraphQLWithRetry(query, {
+        orgLogin: org,
+        since: oneWeekAgoISO + 'T00:00:00Z'
+      });
+      
+      const commits = [];
+      if (data?.organization?.repositories?.nodes) {
+        for (const repo of data.organization.repositories.nodes) {
+          // Skip repos that haven't been pushed to recently
+          if (repo.pushedAt && new Date(repo.pushedAt) < new Date(Date.now() - WEEK_IN_MS)) {
+            continue;
+          }
+          
+          if (repo.defaultBranchRef?.target?.history?.nodes) {
+            const repoCommits = repo.defaultBranchRef.target.history.nodes;
+            repoCommits.forEach(commit => {
+              commits.push({
+                ...commit,
+                repository: {
+                  name: repo.name,
+                  owner: repo.owner.login,
+                  fullName: `${repo.owner.login}/${repo.name}`
+                }
+              });
+            });
+          }
+        }
+      }
+      return commits;
+    } catch (error) {
+      console.error('Error fetching commits via GraphQL:', error);
+      return [];
+    }
   };
 
   const showChangelogPage = async (state, githubAPI, parseURL) => {
@@ -248,18 +464,17 @@ export const Changelog = (() => {
         // Specific user in specific org
         titleText = `${username} in ${org}`;
         subtitleText = `Pull requests merged by ${username}`;
-        searchQuery = `type:pr is:merged org:${org} author:${username} merged:>=${oneWeekAgoISO}`;
       } else if (org) {
         // All repos in org
         titleText = org;
         subtitleText = `All pull requests merged in this organization`;
-        searchQuery = `type:pr is:merged org:${org} merged:>=${oneWeekAgoISO}`;
       } else if (username) {
         // User's repos across all orgs
         titleText = username;
         subtitleText = `Pull requests merged across all repositories`;
-        searchQuery = `type:pr is:merged author:${username} merged:>=${oneWeekAgoISO}`;
       }
+      
+      searchQuery = buildPRSearchQuery(org, username, oneWeekAgoISO);
       
       if (username && org) {
         changelogTitleText.textContent = `${username}'s changes to ${org}`;
@@ -277,18 +492,63 @@ export const Changelog = (() => {
       
       // Setup clear cache handler
       if (clearCacheLink) {
-        clearCacheLink.onclick = (e) => {
+        clearCacheLink.onclick = async (e) => {
           e.preventDefault();
-          clearCache();
-          showChangelogPage(state, githubAPI, parseURL);
+          // Clear the cache for this specific view
+          const cacheKey = getCacheKey(org, username);
+          localStorage.removeItem(cacheKey);
+          
+          // Show loading state
+          show(changelogLoading);
+          hide(changelogProjects);
+          hide(changelogEmpty);
+          
+          // Re-run the page to fetch fresh data (including GraphQL)
+          await showChangelogPage(state, githubAPI, parseURL);
         };
       }
       
       let mergedPRs;
       
+      let commits = [];
+      let commitsFetchFailed = false;
+      
       if (cached) {
         console.log('Using cached changelog data');
-        mergedPRs = cached.data;
+        if (cached.data.prs) {
+          // New cache format
+          mergedPRs = cached.data.prs;
+          commits = cached.data.commits || [];
+          commitsFetchFailed = cached.data.commitsFetchFailed || false;
+          console.log('Cached changelog data (new format):', {
+            prsCount: mergedPRs.length,
+            commitsCount: commits.length,
+            commitsFetchFailed: commitsFetchFailed,
+            cacheAge: Math.round(cached.age / 60000) + ' minutes',
+            samplePRs: mergedPRs.slice(0, 3).map(pr => ({
+              number: pr.number,
+              title: pr.title,
+              repo: pr.repository_url?.replace('https://api.github.com/repos/', '') || 'unknown'
+            })),
+            sampleCommits: commits.slice(0, 3).map(c => ({
+              sha: c.oid?.substring(0, 7) || 'unknown',
+              message: c.messageHeadline || 'no message',
+              repo: c.repository?.fullName || 'unknown'
+            }))
+          });
+        } else {
+          // Old cache format
+          mergedPRs = cached.data;
+          console.log('Cached changelog data (old format):', {
+            prsCount: mergedPRs.length,
+            cacheAge: Math.round(cached.age / 60000) + ' minutes',
+            samplePRs: mergedPRs.slice(0, 3).map(pr => ({
+              number: pr.number,
+              title: pr.title,
+              repo: pr.repository_url?.replace('https://api.github.com/repos/', '') || 'unknown'
+            }))
+          });
+        }
         const ageMinutes = Math.floor(cached.age / 60000);
         if (clearCacheLink) {
           const ageText = ageMinutes < 60 
@@ -298,13 +558,47 @@ export const Changelog = (() => {
         }
       } else {
         console.log('Fetching fresh changelog data');
-        // Fetch all merged PRs with a single query
-        const searchUrl = `/search/issues?q=${encodeURIComponent(searchQuery)}&sort=updated&order=desc&per_page=100`;
-        const searchResults = await githubSearchAll(searchUrl, 20, githubAPI);
-        mergedPRs = searchResults.items || [];
         
-        // Cache the results
-        setCachedData(cacheKey, mergedPRs);
+        // Try to fetch PRs with commit counts using GraphQL
+        let usedGraphQL = false;
+        try {
+          mergedPRs = await fetchMergedPRsWithCommits(org, username, oneWeekAgoISO);
+          if (mergedPRs && mergedPRs.length > 0) {
+            console.log(`Successfully fetched ${mergedPRs.length} PRs via GraphQL with commit counts`);
+            usedGraphQL = true;
+          } else {
+            console.log('GraphQL returned no results, falling back to REST API');
+            mergedPRs = null;
+          }
+        } catch (error) {
+          console.warn('GraphQL failed, falling back to REST API:', error);
+          mergedPRs = null;
+        }
+        
+        // If GraphQL fails or returns nothing, fall back to REST API
+        if (!mergedPRs || mergedPRs.length === 0) {
+          const searchUrl = `/search/issues?q=${encodeURIComponent(searchQuery)}&sort=updated&order=desc&per_page=100`;
+          const searchResults = await githubSearchAll(searchUrl, 20, githubAPI);
+          mergedPRs = searchResults.items || [];
+          console.log(`Fetched ${mergedPRs.length} PRs via REST API`);
+        }
+        
+        // For org view, also fetch commits (for repos without PRs)
+        let commits = [];
+        let commitsFetchFailed = false;
+        if (org && !username && Auth.getStoredToken()) {
+          try {
+            commits = await fetchOrgCommits(org, oneWeekAgoISO);
+            console.log('Successfully fetched commits via GraphQL');
+          } catch (error) {
+            console.warn('Failed to fetch commits via GraphQL, continuing without commits:', error);
+            commits = [];
+            commitsFetchFailed = true;
+          }
+        }
+        
+        // Cache the results (including the fetch status)
+        setCachedData(cacheKey, { prs: mergedPRs, commits, commitsFetchFailed });
         if (clearCacheLink) {
           clearCacheLink.title = 'Data is fresh. Click to force refresh.';
         }
@@ -322,6 +616,7 @@ export const Changelog = (() => {
         // Group PRs by repository
         const projectsData = {};
         
+        // Add PRs to projects
         for (const pr of filteredPRs) {
           const repoFullName = pr.repository_url.replace('https://api.github.com/repos/', '');
           const [repoOrg, repoName] = repoFullName.split('/');
@@ -332,6 +627,7 @@ export const Changelog = (() => {
               fullName: repoFullName,
               url: `https://github.com/${repoFullName}`,
               prs: [],
+              commits: [],
               contributors: new Set()
             };
           }
@@ -340,7 +636,41 @@ export const Changelog = (() => {
           projectsData[repoFullName].contributors.add(pr.user.login);
         }
         
-        renderProjects(projectsData);
+        // Add commits to projects (for repos without PRs)
+        if (commits && commits.length > 0) {
+          for (const commit of commits) {
+            const repoFullName = commit.repository.fullName;
+            
+            // Skip if commit is already associated with a PR we have
+            if (commit.associatedPullRequests?.nodes?.length > 0) {
+              const prNumber = commit.associatedPullRequests.nodes[0].number;
+              const hasPR = projectsData[repoFullName]?.prs.some(pr => pr.number === prNumber);
+              if (hasPR) continue;
+            }
+            
+            // Skip bot commits based on preference
+            const commitAuthor = commit.author?.user || { login: commit.author?.email || 'unknown' };
+            if (!shouldIncludeBots && isBot(commitAuthor)) continue;
+            
+            if (!projectsData[repoFullName]) {
+              projectsData[repoFullName] = {
+                name: commit.repository.name,
+                fullName: repoFullName,
+                url: `https://github.com/${repoFullName}`,
+                prs: [],
+                commits: [],
+                contributors: new Set()
+              };
+            }
+            
+            projectsData[repoFullName].commits.push(commit);
+            if (commitAuthor.login && commitAuthor.login !== 'unknown') {
+              projectsData[repoFullName].contributors.add(commitAuthor.login);
+            }
+          }
+        }
+        
+        renderProjects(projectsData, commitsFetchFailed);
       };
       
       // Setup bot toggle handler
@@ -348,24 +678,47 @@ export const Changelog = (() => {
         includeBots.onchange = filterAndRenderPRs;
       }
       
-      const renderProjects = (projectsData) => {
+      const renderProjects = (projectsData, commitsFetchFailed = false) => {
         hide(changelogLoading);
         
-        // Calculate total importance score for each project
-        Object.values(projectsData).forEach(project => {
-          project.totalScore = project.prs.reduce((sum, pr) => sum + calculatePRScore(pr), 0);
+        // Filter out empty projects and calculate total importance score
+        const projectsWithContent = Object.values(projectsData).filter(project => 
+          project.prs.length > 0 || project.commits.length > 0
+        );
+        
+        projectsWithContent.forEach(project => {
+          // Calculate score based on PRs and commits
+          const prScore = project.prs.reduce((sum, pr) => sum + calculatePRScore(pr), 0);
+          const commitScore = project.commits.length * 2; // Give some weight to commits
+          project.totalScore = prScore + commitScore;
         });
         
         // Sort projects by cumulative importance score
-        const projectsArray = Object.values(projectsData).sort((a, b) => b.totalScore - a.totalScore);
+        const projectsArray = projectsWithContent.sort((a, b) => b.totalScore - a.totalScore);
         const totalPRs = projectsArray.reduce((sum, p) => sum + p.prs.length, 0);
+        const totalCommits = projectsArray.reduce((sum, p) => sum + p.commits.length, 0);
+        const totalChanges = totalPRs + totalCommits;
         const totalContributors = new Set(projectsArray.flatMap(p => Array.from(p.contributors))).size;
         const activeProjects = projectsArray.length;
         
-        if (projectsArray.length === 0) {
+        // Check if we have any content to display (PRs or commits)
+        const hasContent = projectsArray.length > 0 && 
+          projectsArray.some(p => p.prs.length > 0 || p.commits.length > 0);
+        
+        if (!hasContent) {
           show(changelogEmpty);
           hide(changelogProjects);
           hide(changelogSummary);
+          
+          // Update empty message based on context
+          const emptyMessage = changelogEmpty.querySelector('p');
+          if (emptyMessage) {
+            if (org && !username) {
+              emptyMessage.textContent = 'No pull requests or commits found in the last 7 days';
+            } else {
+              emptyMessage.textContent = 'No pull requests merged in the last 7 days';
+            }
+          }
         } else {
           hide(changelogEmpty);
           show(changelogProjects);
@@ -373,12 +726,19 @@ export const Changelog = (() => {
           // Show summary for org view
           if (org && !username) {
             show(changelogSummary);
-            changelogSummary.innerHTML = `
+            const summaryHTML = `
               <div class="summary-grid">
                 <div class="summary-item">
                   <div class="summary-value">${totalPRs}</div>
                   <div class="summary-label">Pull Requests</div>
                 </div>
+                ${org && !username ? `
+                <div class="summary-item">
+                  <div class="summary-value">${commitsFetchFailed ? 'N/A' : totalCommits}</div>
+                  <div class="summary-label">Direct Commits</div>
+                  ${commitsFetchFailed ? '<div class="summary-detail">Unable to fetch</div>' : ''}
+                </div>
+                ` : ''}
                 <div class="summary-item">
                   <div class="summary-value">${activeProjects}</div>
                   <div class="summary-label">Active Projects</div>
@@ -389,6 +749,7 @@ export const Changelog = (() => {
                 </div>
               </div>
             `;
+            changelogSummary.innerHTML = summaryHTML;
           } else {
             hide(changelogSummary);
           }
@@ -405,14 +766,31 @@ export const Changelog = (() => {
                   return scoreB - scoreA || b.number - a.number;
                 });
                 
+                // Sort commits by score (highest first), then by date
+                const sortedCommits = [...project.commits].sort((a, b) => {
+                  const scoreA = calculateCommitScore(a);
+                  const scoreB = calculateCommitScore(b);
+                  if (scoreA !== scoreB) return scoreB - scoreA;
+                  return new Date(b.committedDate) - new Date(a.committedDate);
+                });
+                
                 return `
                   <section class="changelog-section">
                     <h3 class="section-title">${project.name}</h3>
                     <ul class="change-list">
                       ${sortedPRs.map(pr => {
                         const score = calculatePRScore(pr);
+                        const commitDataAttr = pr.commitCount ? ` data-commits="${pr.commitCount}"` : '';
                         return `
-                          <li data-score="${score}"><a href="${pr.html_url}" target="_blank" rel="noopener" class="change-title">${pr.title}</a> <span class="change-number">#${pr.number}</span></li>
+                          <li data-score="${score}"${commitDataAttr}><a href="${pr.html_url}" target="_blank" rel="noopener" class="change-title">${pr.title}</a> <span class="change-number">#${pr.number}</span></li>
+                        `;
+                      }).join('')}
+                      ${sortedCommits.map(commit => {
+                        const score = calculateCommitScore(commit);
+                        const commitUrl = `https://github.com/${project.fullName}/commit/${commit.oid}`;
+                        const shortSha = commit.oid.substring(0, 7);
+                        return `
+                          <li data-score="${score}"><a href="${commitUrl}" target="_blank" rel="noopener" class="change-title">${commit.messageHeadline}</a> <span class="change-number">${shortSha}</span></li>
                         `;
                       }).join('')}
                     </ul>

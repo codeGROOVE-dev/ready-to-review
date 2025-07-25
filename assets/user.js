@@ -91,6 +91,7 @@ export const User = (() => {
         const { data, timestamp } = JSON.parse(cached);
         if (Date.now() - timestamp < TURN_CACHE_DURATION) {
           console.log(`Using cached turn data for ${owner}/${repo}#${prNumber} (${Math.round((Date.now() - timestamp) / 60000)}m old)`);
+          console.log('Cached turn data:', data);
           return data;
         }
       }
@@ -203,6 +204,17 @@ export const User = (() => {
         const { prs, timestamp } = JSON.parse(cached);
         if (Date.now() - timestamp < CACHE_DURATION) {
           console.log(`Using cached PRs for ${targetUser.login} (${Math.round((Date.now() - timestamp) / 1000)}s old)`);
+          console.log('Cached PR data:', {
+            totalPRs: prs.length,
+            incoming: prs.filter(pr => pr.user.login !== targetUser.login).length,
+            outgoing: prs.filter(pr => pr.user.login === targetUser.login).length,
+            sample: prs.slice(0, 3).map(pr => ({
+              number: pr.number,
+              title: pr.title,
+              repo: pr.repository?.full_name || 'unknown',
+              state: pr.state
+            }))
+          });
           
           // Apply cached data
           state.pullRequests = {
@@ -555,6 +567,11 @@ export const User = (() => {
         // Return cached data if it's fresh and for the same user
         if (Date.now() - timestamp < CACHE_DURATION && userId === currentUserId) {
           console.log("Using cached organizations:", orgs);
+          console.log('Cache details:', {
+            cacheAge: Math.round((Date.now() - timestamp) / 1000) + 's',
+            userId: userId,
+            orgCount: orgs.length
+          });
           
           // On PR page, still merge in orgs from loaded PRs
           const urlPath = window.location.pathname;
@@ -746,16 +763,9 @@ export const User = (() => {
     ["incoming", "outgoing"].forEach((section) => {
       const prs = state.pullRequests[section];
       const staleCount = prs.filter(isStale).length;
-      const blockedCount = prs.filter(isBlockedOnOthers).length;
-
       const staleLabel = $(`${section}FilterStale`)?.nextElementSibling;
-      const blockedLabel = $(
-        `${section}FilterBlockedOthers`,
-      )?.nextElementSibling;
 
-      if (staleLabel) staleLabel.textContent = `Include stale (${staleCount})`;
-      if (blockedLabel)
-        blockedLabel.textContent = `Include blocked on others (${blockedCount})`;
+      if (staleLabel) staleLabel.textContent = `Hide stale (${staleCount})`;
     });
   };
 
@@ -783,23 +793,16 @@ export const User = (() => {
   const applyFilters = (prs, section) => {
     const orgSelect = $("orgSelect");
     const selectedOrg = orgSelect?.value;
-    const showStale = getCookie(`${section}FilterStale`) !== "false";
-    const showBlockedOthers =
-      getCookie(`${section}FilterBlockedOthers`) !== "false";
-
+    const hideStale = getCookie(`${section}FilterStale`) === "true";
     const staleCheckbox = $(`${section}FilterStale`);
-    const blockedCheckbox = $(`${section}FilterBlockedOthers`);
-    if (staleCheckbox) staleCheckbox.checked = showStale;
-    if (blockedCheckbox) blockedCheckbox.checked = showBlockedOthers;
+    if (staleCheckbox) staleCheckbox.checked = hideStale;
 
     let filtered = prs;
     if (selectedOrg)
       filtered = filtered.filter((pr) =>
         pr.repository.full_name.startsWith(selectedOrg + "/"),
       );
-    if (!showStale) filtered = filtered.filter((pr) => !isStale(pr));
-    if (!showBlockedOthers)
-      filtered = filtered.filter((pr) => !isBlockedOnOthers(pr));
+    if (hideStale) filtered = filtered.filter((pr) => !isStale(pr));
 
     return filtered;
   };
@@ -966,13 +969,8 @@ export const User = (() => {
       ? "incoming"
       : "outgoing";
 
-    const showStale = getCookie(`${section}FilterStale`) !== "false";
-    const showBlockedOthers =
-      getCookie(`${section}FilterBlockedOthers`) !== "false";
-
-    const shouldHide =
-      (!showStale && isStale(pr)) ||
-      (!showBlockedOthers && isBlockedOnOthers(pr));
+    const hideStale = getCookie(`${section}FilterStale`) === "true";
+    const shouldHide = (hideStale && isStale(pr));
 
     if (shouldHide) {
       existingCard.style.transition = "opacity 0.3s ease-out";
@@ -1033,6 +1031,20 @@ export const User = (() => {
 
   const buildBadges = (pr) => {
     const badges = [];
+
+    // Add prominent badges first based on turnData
+    if (pr.turnData?.pr_state?.ready_to_merge) {
+      badges.push('<span class="badge badge-ready">ready to merge</span>');
+    }
+    
+    if (pr.turnData?.pr_state?.merge_conflict) {
+      badges.push('<span class="badge badge-merge-conflict">merge conflict</span>');
+    }
+    
+    if (pr.turnData?.pr_state?.unresolved_comment_count > 0) {
+      const count = pr.turnData.pr_state.unresolved_comment_count;
+      badges.push(`<span class="badge badge-unresolved-comments">${count} unresolved comment${count > 1 ? 's' : ''}</span>`);
+    }
 
     if (pr.draft) {
       badges.push('<span class="badge badge-draft">draft</span>');

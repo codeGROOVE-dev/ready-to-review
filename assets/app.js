@@ -25,7 +25,10 @@ const App = (() => {
 
   // Parse URL to get viewing context
   const parseURL = () => {
-    const path = window.location.pathname;
+    let path = window.location.pathname;
+    
+    // Remove trailing slash to normalize paths
+    path = path.replace(/\/$/, '');
 
     // Check for changelog page patterns: /changelog/gh/org/username or /changelog/gh/org or /changelog/gh/*/username
     const changelogMatch = path.match(/^\/changelog\/gh\/([^\/]+)(?:\/([^\/]+))?$/);
@@ -752,12 +755,8 @@ const App = (() => {
 
     ["incoming", "outgoing"].forEach((section) => {
       const staleFilter = $(`${section}FilterStale`);
-      const blockedFilter = $(`${section}FilterBlockedOthers`);
       staleFilter?.addEventListener("change", () =>
         handleFilterChange(`${section}FilterStale`, section),
-      );
-      blockedFilter?.addEventListener("change", () =>
-        handleFilterChange(`${section}FilterBlockedOthers`, section),
       );
     });
 

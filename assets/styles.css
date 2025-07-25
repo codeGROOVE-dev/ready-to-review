@@ -889,6 +889,47 @@ a {
     font-size: 10px;
 }
 
+.badge-merge-conflict {
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.badge-unresolved-comments {
+    background: rgba(107, 114, 128, 0.1);
+    color: rgb(75, 85, 99);
+    font-weight: 500;
+}
+
+/* Waiting on section */
+.pr-waiting-on {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.pr-waiting-on-label {
+    color: var(--color-text-tertiary);
+}
+
+.pr-waiting-on-user {
+    color: var(--color-text-secondary);
+    cursor: help;
+    text-decoration: none;
+    position: relative;
+}
+
+.pr-waiting-on-user:hover {
+    text-decoration: underline;
+}
+
+.pr-waiting-on-you {
+    color: #dc2626;
+    font-weight: 700;
+}
+
 /* Replaced animated dots with static text for performance */
 
 /* Removed funkyBounce animation for performance */
@@ -2966,7 +3007,7 @@ a {
 
 .summary-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 2rem;
     text-align: center;
     padding: 2rem;
@@ -3316,7 +3357,7 @@ a {
     }
     
     .summary-grid {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 1rem;
         padding: 1.5rem 1rem;
     }

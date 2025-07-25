@@ -553,6 +553,19 @@ export const Stats = (() => {
           const age = Date.now() - timestamp;
           if (age < CACHE_DURATION) {
             console.log(`[Stats Debug] Using cached stats for ${org}, age: ${Math.floor(age/60000)} minutes`);
+            console.log('[Stats Debug] Cached data:', {
+              avgAgeDays: data.avgAgeDays,
+              avgMergeHours: data.avgMergeHours,
+              openTotalCount: data.openTotalCount,
+              mergedTotalCount: data.mergedTotalCount,
+              totalContributors: data.totalContributors,
+              totalMergeTime: data.totalMergeTime,
+              sevenDaysAgoISO: data.sevenDaysAgoISO,
+              cacheTimestamp: new Date(timestamp).toISOString(),
+              dataSampled: data.dataSampled,
+              openSampleSize: data.openSampleSize,
+              mergedSampleSize: data.mergedSampleSize
+            });
             // Apply cached data to UI
             displayOrgStats(org, data);
             

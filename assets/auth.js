@@ -264,6 +264,63 @@ export const Auth = (() => {
     return response;
   };
 
+  // GraphQL API function
+  const githubGraphQL = async (query, variables = {}) => {
+    const token = getStoredToken();
+    if (!token) {
+      throw new Error("No authentication token available");
+    }
+
+    try {
+      // Determine token type and use appropriate header format
+      let authHeader;
+      if (token.startsWith('ghp_') || token.startsWith('github_pat_')) {
+        // Personal Access Token (new format)
+        authHeader = `Bearer ${token}`;
+      } else if (token.startsWith('gho_') || token.startsWith('ghu_') || token.startsWith('ghs_')) {
+        // OAuth token or other GitHub token types
+        authHeader = `Bearer ${token}`;
+      } else if (token.length === 40) {
+        // Classic OAuth token (40 chars hex)
+        authHeader = `Bearer ${token}`;
+      } else {
+        // Default to Bearer
+        authHeader = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${CONFIG.API_BASE}/graphql`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader,
+          'Accept': 'application/vnd.github+json'
+        },
+        body: JSON.stringify({ query, variables })
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          handleAuthError();
+        }
+        // For 502 and other errors, log more details
+        console.error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+        console.error('Request details:', { query, variables, authHeader: authHeader.substring(0, 20) + '...' });
+        throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (data.errors) {
+        console.error('GraphQL errors:', data.errors);
+        throw new Error('GraphQL query failed: ' + data.errors[0]?.message);
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('GraphQL request error:', error);
+      throw error;
+    }
+  };
+
   const loadCurrentUser = async () => {
     const response = await githubAPI("/user");
     if (response.ok) {
@@ -288,6 +345,7 @@ export const Auth = (() => {
     handleAuthError,
     logout,
     githubAPI,
+    githubGraphQL,
     loadCurrentUser,
     CONFIG,
   };
