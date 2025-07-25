@@ -194,6 +194,21 @@ export const User = (() => {
       return;
     }
 
+    // Get loading screen elements
+    const loadingOverlay = $('prLoadingOverlay');
+    const prCountFound = $('prCountFound');
+    const prCountLoaded = $('prCountLoaded');
+    const prLoadingProgress = $('prLoadingProgress');
+    const prCountLoadedContainer = $('.pr-count-loaded');
+    const incomingSection = $('incomingPRs')?.parentElement;
+    const outgoingSection = $('outgoingPRs')?.parentElement;
+    
+    // Reset loading screen counters
+    if (prCountFound) prCountFound.textContent = '0';
+    if (prCountLoaded) prCountLoaded.textContent = '0';
+    if (prLoadingProgress) hide(prLoadingProgress);
+    if (prCountLoadedContainer) hide(prCountLoadedContainer);
+
     const CACHE_KEY = `r2r_prs_${targetUser.login}`;
     const CACHE_DURATION = 10 * 1000; // 10 seconds
     
@@ -231,6 +246,14 @@ export const User = (() => {
           }
           
           updatePRSections(state);
+          
+          // Hide loading screen since we're using cached data
+          if (loadingOverlay) {
+            hide(loadingOverlay);
+            // Show PR sections
+            if (incomingSection) show(incomingSection);
+            if (outgoingSection) show(outgoingSection);
+          }
           
           // Still fetch turn data and PR details in background
           setTimeout(() => {
@@ -291,6 +314,11 @@ export const User = (() => {
     console.log(`Found ${response1.items.length} PRs from involves query`);
     console.log(`Found ${response2.items.length} PRs from user repos query`);
     console.log(`Total unique PRs: ${allPRs.length}`);
+    
+    // Update loading screen with PR count
+    if (prCountFound) prCountFound.textContent = allPRs.length.toString();
+    if (prLoadingProgress) show(prLoadingProgress);
+    if (prCountLoadedContainer && allPRs.length > 0) show(prCountLoadedContainer);
 
     const totalCount = response1.total_count + response2.total_count;
     if (
@@ -345,6 +373,13 @@ export const User = (() => {
     }
 
     updatePRSections(state);
+    
+    // Track loading progress
+    let loadedCount = 0;
+    const updateLoadingProgress = () => {
+      loadedCount++;
+      if (prCountLoaded) prCountLoaded.textContent = loadedCount.toString();
+    };
 
     const fetchPRDetails = async (pr) => {
       try {
@@ -359,8 +394,10 @@ export const User = (() => {
         pr.deletions = prDetails.deletions;
 
         updateSinglePRCard(pr, state);
+        updateLoadingProgress();
       } catch (error) {
         console.error(`Failed to fetch PR details for ${pr.html_url}:`, error);
+        updateLoadingProgress();
       }
     };
 
@@ -406,6 +443,14 @@ export const User = (() => {
     }
 
     await Promise.all(detailPromises);
+    
+    // Hide loading screen when done
+    if (loadingOverlay) {
+      hide(loadingOverlay);
+      // Show PR sections
+      if (incomingSection) show(incomingSection);
+      if (outgoingSection) show(outgoingSection);
+    }
   };
   
   const fetchPRDetailsBackground = async (pr, state, githubAPI, isDemoMode) => {

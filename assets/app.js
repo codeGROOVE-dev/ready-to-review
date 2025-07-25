@@ -134,6 +134,23 @@ const App = (() => {
     $("loginPrompt")?.setAttribute("hidden", "");
     $("prSections")?.removeAttribute("hidden");
   };
+  
+  const showMainContentWithLoading = () => {
+    $("loginPrompt")?.setAttribute("hidden", "");
+    $("prSections")?.removeAttribute("hidden");
+    
+    // Show loading screen immediately
+    const loadingOverlay = $('prLoadingOverlay');
+    const incomingSection = $('incomingPRs')?.parentElement;
+    const outgoingSection = $('outgoingPRs')?.parentElement;
+    
+    if (loadingOverlay) {
+      show(loadingOverlay);
+      // Hide PR sections while loading
+      if (incomingSection) hide(incomingSection);
+      if (outgoingSection) hide(outgoingSection);
+    }
+  };
 
   const showLoginPrompt = () => {
     $("loginPrompt")?.removeAttribute("hidden");
@@ -591,9 +608,22 @@ const App = (() => {
     }
 
     User.updateUserDisplay(state, initiateLogin);
-    User.updatePRSections(state);
     User.updateOrgFilter(state, parseURL, githubAPI);
-    showMainContent();
+    showMainContentWithLoading();
+    
+    // Simulate loading for demo mode
+    setTimeout(() => {
+      User.updatePRSections(state);
+      const loadingOverlay = $('prLoadingOverlay');
+      const incomingSection = $('incomingPRs')?.parentElement;
+      const outgoingSection = $('outgoingPRs')?.parentElement;
+      
+      if (loadingOverlay) {
+        hide(loadingOverlay);
+        if (incomingSection) show(incomingSection);
+        if (outgoingSection) show(outgoingSection);
+      }
+    }, 300);
   };
 
   // Footer Management
@@ -809,10 +839,10 @@ const App = (() => {
           
           // Load public data
           await User.updateOrgFilter(state, parseURL, githubAPI);
+          showMainContentWithLoading();
           await User.loadPullRequests(state, githubAPI, state.isDemoMode);
           // Update org filter again after PRs are loaded to include PR organizations
           await User.updateOrgFilter(state, parseURL, githubAPI);
-          showMainContent();
         } catch (error) {
           console.error("Failed to load user:", error);
           const errorMessage = error.message.includes("rate limit")
@@ -853,6 +883,7 @@ const App = (() => {
       
       // Only load PRs if we're on the PR dashboard page
       if (!urlContext || (!urlContext.isStats && !urlContext.isSettings && !urlContext.isNotifications)) {
+        showMainContentWithLoading();
         await User.loadPullRequests(state, githubAPI, state.isDemoMode);
         // Update org filter again after PRs are loaded to include PR organizations
         await User.updateOrgFilter(state, parseURL, githubAPI);

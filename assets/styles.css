@@ -790,7 +790,6 @@ a {
     background: #dc2626;
     color: #ffffff;
     font-weight: 700;
-    text-transform: uppercase;
 }
 
 .badge-ready {
@@ -917,7 +916,7 @@ a {
 }
 
 .badge-merge-conflict {
-    background: #FA8072;
+    background: #fa8072;
     color: #ffffff;
     font-weight: 700;
 }
@@ -2989,7 +2988,9 @@ a {
 .changelog-content {
     padding: 3rem 0;
     background: var(--color-bg);
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui,
+        sans-serif;
 }
 
 .changelog-header {
@@ -3165,7 +3166,8 @@ a {
 
 /* Document-style changelog */
 .changelog-document {
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Georgia, serif;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "SF Pro Text", Georgia, serif;
     line-height: 1.6;
     color: var(--color-text);
 }
@@ -3235,33 +3237,32 @@ a {
     .changelog-bot-toggle {
         display: none !important;
     }
-    
+
     .changelog-content {
         padding: 0;
     }
-    
+
     .changelog-header {
         margin-bottom: 2rem;
     }
-    
+
     .changelog-title {
         font-size: 2rem;
     }
-    
+
     .summary-grid {
         box-shadow: none;
         border: 1px solid #ddd;
     }
-    
+
     .section-title {
         page-break-after: avoid;
     }
-    
+
     .change-list {
         page-break-inside: avoid;
     }
 }
-
 
 @media (prefers-color-scheme: dark) {
     .project-title {
@@ -3275,8 +3276,6 @@ a {
     text-decoration: none;
     transition: color 0.2s ease;
 }
-
-
 
 @media (prefers-color-scheme: dark) {
     .pr-number {
@@ -3378,40 +3377,42 @@ a {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @media (max-width: 768px) {
     .changelog-title {
         font-size: 2.25rem;
     }
-    
+
     .summary-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 1rem;
         padding: 1.5rem 1rem;
     }
-    
+
     .summary-value {
         font-size: 2rem;
     }
-    
+
     .changelog-period {
         font-size: 1.125rem;
     }
-    
+
     .changelog-controls {
         gap: 1rem;
     }
-    
+
     .changelog-projects {
         padding: 0 1rem;
     }
-    
+
     .section-title {
         font-size: 1.25rem;
     }
-    
+
     .change-list li {
         font-size: 0.875rem;
     }
@@ -3450,8 +3451,9 @@ a {
     background: var(--color-bg-elevated);
     border-radius: 12px;
     padding: 2rem;
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05), 
-                0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.05),
+        0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .leaderboard-header {
@@ -3541,7 +3543,7 @@ a {
 
 .leaderboard-bar {
     height: 100%;
-    background: linear-gradient(135deg, #007AFF, #0051D5);
+    background: linear-gradient(135deg, #007aff, #0051d5);
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -3560,17 +3562,17 @@ a {
     .leaderboard-container {
         padding: 1.5rem;
     }
-    
+
     .leaderboard-row {
         flex-wrap: wrap;
         gap: 0.5rem;
     }
-    
+
     .leaderboard-name {
         min-width: auto;
         flex: 1;
     }
-    
+
     .leaderboard-bar-container {
         width: 100%;
         order: 1;
@@ -3683,12 +3685,20 @@ a {
 }
 
 .leaderboard-item.top-three {
-    background: linear-gradient(135deg, rgba(0, 122, 255, 0.04) 0%, rgba(0, 122, 255, 0.02) 100%);
+    background: linear-gradient(
+        135deg,
+        rgba(0, 122, 255, 0.04) 0%,
+        rgba(0, 122, 255, 0.02) 100%
+    );
 }
 
 @media (prefers-color-scheme: dark) {
     .leaderboard-item.top-three {
-        background: linear-gradient(135deg, rgba(10, 132, 255, 0.1) 0%, rgba(10, 132, 255, 0.05) 100%);
+        background: linear-gradient(
+            135deg,
+            rgba(10, 132, 255, 0.1) 0%,
+            rgba(10, 132, 255, 0.05) 100%
+        );
     }
 }
 
@@ -3802,4 +3812,108 @@ a {
     letter-spacing: 0.04em;
     margin-top: 0.25rem;
     display: block;
+}
+
+/* PR Loading Screen */
+.pr-loading-state {
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-secondary);
+    border-radius: 8px;
+    margin: 1rem 0;
+    padding: 2rem;
+}
+
+@media (prefers-color-scheme: dark) {
+    .pr-loading-state {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+}
+
+.pr-loading-content {
+    text-align: center;
+    max-width: 400px;
+}
+
+.pr-loading-animation {
+    position: relative;
+    margin: 0 auto 1.5rem;
+    width: 60px;
+    height: 60px;
+}
+
+.pr-loading-spinner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-link);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.pr-loading-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem;
+    opacity: 0.7;
+}
+
+
+.pr-loading-text h3 {
+    font-size: 1rem;
+    font-weight: 500;
+    margin: 0 0 0.5rem;
+    color: var(--color-text-primary);
+}
+
+.pr-loading-text p {
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+    margin: 0 0 0.75rem;
+}
+
+.pr-loading-progress {
+    margin-top: 1rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+}
+
+.pr-loading-progress strong {
+    color: var(--color-link);
+    font-weight: 600;
+}
+
+.pr-count-found,
+.pr-count-loaded {
+    display: block;
+    margin: 0.25rem 0;
+}
+
+.pr-count-found strong,
+.pr-count-loaded strong {
+    font-size: 1rem;
+    animation: countUp 0.3s ease-out;
+}
+
+@keyframes countUp {
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
 }

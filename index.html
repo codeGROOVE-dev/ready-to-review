@@ -447,6 +447,23 @@
 
                     <!-- PR Sections -->
                     <div id="prSections" class="pr-sections" hidden>
+                        <!-- Loading State -->
+                        <div id="prLoadingOverlay" class="pr-loading-state" hidden>
+                            <div class="pr-loading-content">
+                                <div class="pr-loading-animation">
+                                    <div class="pr-loading-spinner"></div>
+                                    <div class="pr-loading-icon">⚡</div>
+                                </div>
+                                <div class="pr-loading-text">
+                                    <h3>Loading pull requests</h3>
+                                    <p id="prLoadingStatus">Searching GitHub</p>
+                                    <div id="prLoadingProgress" class="pr-loading-progress" hidden>
+                                        <span class="pr-count-found"><strong id="prCountFound">0</strong> PRs found</span>
+                                        <span class="pr-count-loaded" hidden>Loading <strong id="prCountLoaded">0</strong> details</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <!-- Incoming PRs -->
                         <section class="pr-section">
                             <header class="section-header">
