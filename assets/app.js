@@ -692,6 +692,12 @@ const App = (() => {
           setupHamburgerMenu();
           await User.updateOrgFilter(state, parseURL, githubAPI);
           
+          // Redirect /changelog/gh/* to /changelog/gh/*/username
+          if (!urlContext.org && !urlContext.username && state.currentUser) {
+            window.location.href = `/changelog/gh/*/${state.currentUser.login}`;
+            return;
+          }
+          
           // Setup org dropdown handler
           const orgSelect = $("orgSelect");
           if (orgSelect) {

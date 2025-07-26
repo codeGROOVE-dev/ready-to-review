@@ -94,8 +94,8 @@ export const Changelog = (() => {
   const SCORE_CONFIG = {
     textPatterns: [
       { pattern: /\b(security|vulnerability|cve|exploit|ghsa)\b/i, score: 8 },
+      { pattern: /\b(revert|rollback|roll back|undo|backout|back out)\b/i, score: 6 },
       { pattern: /\b(feat)\b/, score: 4 },
-      { pattern: /\b(revert)\b/, score: 4 },
       { pattern: /\b(breaking|major|refactor|redesign|rework|migrate|replace)\b/, score: 3 },
       { pattern: /\b(add|new|feature|implement|introduce|create)\b/, score: 2 },
       { pattern: /\b(mitigate|warn|error|oom)\b/, score: 2 },
@@ -120,7 +120,7 @@ export const Changelog = (() => {
     // Base score from commit count and engagement
     score += pr.commitCount || 0;
     score += pr.comments || 0;
-    score += (pr.reactions?.total_count || 0) * 4;
+    score += (pr.reactions?.total_count || 0) * 2;
     
     // Text-based scoring
     const text = ((pr.title || '') + ' ' + (pr.body || '')).toLowerCase();
@@ -171,6 +171,12 @@ export const Changelog = (() => {
            login.endsWith('-bot') ||
            login.endsWith('-robot') ||
            login.includes('dependabot');
+  };
+
+  // Check if a PR or commit is a revert
+  const isRevert = (item) => {
+    const text = (item.title || item.messageHeadline || '').toLowerCase() + ' ' + (item.body || '').toLowerCase();
+    return /\b(revert|rollback|roll back|undo|backout|back out)\b/.test(text);
   };
 
   // Build GitHub search query for PRs
@@ -319,6 +325,173 @@ export const Changelog = (() => {
     }
   };
 
+  // Fetch commits for a user across all organizations using GraphQL
+  const fetchUserCommits = async (username, oneWeekAgoISO) => {
+    // First, we need to get the user's ID
+    const userQuery = `
+      query GetUserId($username: String!) {
+        user(login: $username) {
+          id
+        }
+      }
+    `;
+    
+    try {
+      const userData = await githubGraphQLWithRetry(userQuery, { username });
+      const userId = userData?.user?.id;
+      
+      if (!userId) {
+        console.error('Could not find user ID for:', username);
+        return [];
+      }
+      
+      // Now fetch commits using the user ID
+      const query = `
+        query UserCommits($userId: ID!, $username: String!, $since: GitTimestamp!) {
+          user(login: $username) {
+            contributionsCollection {
+              commitContributionsByRepository(maxRepositories: 100) {
+                repository {
+                  name
+                  owner {
+                    login
+                  }
+                  defaultBranchRef {
+                    target {
+                      ... on Commit {
+                        history(first: 100, since: $since, author: {id: $userId}) {
+                          nodes {
+                            oid
+                            messageHeadline
+                            committedDate
+                            author {
+                              user {
+                                login
+                              }
+                              name
+                              email
+                            }
+                            associatedPullRequests(first: 1) {
+                              nodes {
+                                number
+                                mergedAt
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+      
+      const variables = {
+        userId: userId,
+        username: username,
+        since: oneWeekAgoISO + 'T00:00:00Z'
+      };
+      
+      console.log('Fetching user commits with variables:', variables);
+      const data = await githubGraphQLWithRetry(query, variables);
+      
+      const commits = [];
+      if (data?.user?.contributionsCollection?.commitContributionsByRepository) {
+        for (const contribution of data.user.contributionsCollection.commitContributionsByRepository) {
+          const repo = contribution.repository;
+          if (repo?.defaultBranchRef?.target?.history?.nodes) {
+            const repoCommits = repo.defaultBranchRef.target.history.nodes;
+            repoCommits.forEach(commit => {
+              // Only include commits from the last week
+              const commitDate = new Date(commit.committedDate);
+              const oneWeekAgo = new Date(Date.now() - WEEK_IN_MS);
+              if (commitDate >= oneWeekAgo) {
+                commits.push({
+                  ...commit,
+                  repository: {
+                    name: repo.name,
+                    owner: repo.owner.login,
+                    fullName: `${repo.owner.login}/${repo.name}`
+                  }
+                });
+              }
+            });
+          }
+        }
+      }
+      console.log(`Fetched ${commits.length} commits for user ${username}`);
+      return commits;
+    } catch (error) {
+      console.error('Error fetching user commits via GraphQL:', error);
+      // Try simpler approach - search for commits
+      try {
+        const searchQuery = `
+          query SearchCommits($query: String!) {
+            search(query: $query, type: ISSUE, first: 100) {
+              nodes {
+                ... on PullRequest {
+                  mergedAt
+                  commits(first: 100) {
+                    nodes {
+                      commit {
+                        oid
+                        messageHeadline
+                        committedDate
+                        author {
+                          user {
+                            login
+                          }
+                          name
+                          email
+                        }
+                      }
+                    }
+                  }
+                  repository {
+                    name
+                    owner {
+                      login
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `;
+        
+        const searchStr = `type:pr is:merged merged:>=${oneWeekAgoISO} author:${username}`;
+        const searchData = await githubGraphQLWithRetry(searchQuery, { query: searchStr });
+        
+        const commits = [];
+        if (searchData?.search?.nodes) {
+          for (const pr of searchData.search.nodes) {
+            if (pr.commits?.nodes) {
+              pr.commits.nodes.forEach(node => {
+                const commit = node.commit;
+                commits.push({
+                  ...commit,
+                  repository: {
+                    name: pr.repository.name,
+                    owner: pr.repository.owner.login,
+                    fullName: `${pr.repository.owner.login}/${pr.repository.name}`
+                  }
+                });
+              });
+            }
+          }
+        }
+        console.log(`Fetched ${commits.length} commits via PR search for user ${username}`);
+        return commits;
+      } catch (fallbackError) {
+        console.error('Fallback commit search also failed:', fallbackError);
+        return [];
+      }
+    }
+  };
+
   // Fetch commits for organization using GraphQL
   const fetchOrgCommits = async (org, oneWeekAgoISO) => {
     // Simplified query - fetch fewer repos and commits to avoid timeouts
@@ -345,6 +518,12 @@ export const Changelog = (() => {
                             login
                           }
                           name
+                        }
+                        associatedPullRequests(first: 1) {
+                          nodes {
+                            number
+                            mergedAt
+                          }
                         }
                       }
                     }
@@ -389,6 +568,14 @@ export const Changelog = (() => {
             });
           }
         }
+      }
+      console.log(`Fetched ${commits.length} commits from GraphQL`);
+      if (commits.length > 0) {
+        console.log('Sample commit:', {
+          oid: commits[0].oid?.substring(0, 7),
+          hasAssociatedPRs: !!commits[0].associatedPullRequests,
+          associatedPRs: commits[0].associatedPullRequests
+        });
       }
       return commits;
     } catch (error) {
@@ -470,7 +657,7 @@ export const Changelog = (() => {
       } else if (username) {
         // User's repos across all orgs
         titleText = username;
-        subtitleText = `Pull requests merged across all repositories`;
+        subtitleText = `Pull requests merged and commits made across all GitHub organizations`;
       }
       
       searchQuery = buildPRSearchQuery(org, username, oneWeekAgoISO);
@@ -540,16 +727,35 @@ export const Changelog = (() => {
           projectsData[repoFullName].contributors.add(pr.user.login);
         }
         
+        console.log('Projects with PRs:', Object.keys(projectsData));
+        
+        // Create a map of PR numbers by repository for faster lookup
+        const prsByRepo = {};
+        for (const [repoName, project] of Object.entries(projectsData)) {
+          prsByRepo[repoName] = new Set(project.prs.map(pr => pr.number));
+        }
+        
         // Add commits to projects (for repos without PRs)
         if (commits && commits.length > 0) {
+          console.log('Processing commits:', commits.length);
           for (const commit of commits) {
             const repoFullName = commit.repository.fullName;
             
             // Skip if commit is already associated with a PR we have
             if (commit.associatedPullRequests?.nodes?.length > 0) {
-              const prNumber = commit.associatedPullRequests.nodes[0].number;
-              const hasPR = projectsData[repoFullName]?.prs.some(pr => pr.number === prNumber);
-              if (hasPR) continue;
+              const associatedPR = commit.associatedPullRequests.nodes[0];
+              console.log(`Commit ${commit.oid.substring(0, 7)} in ${repoFullName} has associated PR #${associatedPR.number}`);
+              // Check if the PR was merged within our time window
+              if (associatedPR.mergedAt) {
+                const mergedDate = new Date(associatedPR.mergedAt);
+                const oneWeekAgo = new Date(Date.now() - WEEK_IN_MS);
+                if (mergedDate >= oneWeekAgo) {
+                  // Check if we already have this PR in our list
+                  const hasPR = prsByRepo[repoFullName]?.has(associatedPR.number);
+                  console.log(`PR #${associatedPR.number} ${hasPR ? 'found' : 'NOT found'} in ${repoFullName} PRs (has ${prsByRepo[repoFullName]?.size || 0} PRs)`);
+                  if (hasPR) continue;
+                }
+              }
             }
             
             // Skip bot commits based on preference
@@ -596,6 +802,13 @@ export const Changelog = (() => {
         const totalContributors = new Set(projectsArray.flatMap(p => Array.from(p.contributors))).size;
         const activeProjects = projectsArray.length;
         
+        // Count reverts
+        const totalReverts = projectsArray.reduce((sum, p) => {
+          const prReverts = p.prs.filter(pr => isRevert(pr)).length;
+          const commitReverts = p.commits.filter(commit => isRevert(commit)).length;
+          return sum + prReverts + commitReverts;
+        }, 0);
+        
         // Check if we have any content to display (PRs or commits)
         const hasContent = projectsArray.length > 0 && 
           projectsArray.some(p => p.prs.length > 0 || p.commits.length > 0);
@@ -610,6 +823,8 @@ export const Changelog = (() => {
           if (emptyMessage) {
             if (org && !username) {
               emptyMessage.textContent = 'No pull requests or commits found in the last 7 days';
+            } else if (!org && username) {
+              emptyMessage.textContent = `No pull requests merged or commits made by ${username} in the last 7 days`;
             } else {
               emptyMessage.textContent = 'No pull requests merged in the last 7 days';
             }
@@ -618,16 +833,16 @@ export const Changelog = (() => {
           hide(changelogEmpty);
           show(changelogProjects);
           
-          // Show summary for org view
-          if (org && !username) {
+          // Show summary for org view or user view
+          if ((org && !username) || (!org && username)) {
             show(changelogSummary);
             const summaryHTML = `
-              <div class="summary-grid">
+              <div class="summary-grid centered">
                 <div class="summary-item">
                   <div class="summary-value">${totalPRs}</div>
                   <div class="summary-label">Pull Requests</div>
                 </div>
-                ${org && !username ? `
+                ${(org && !username) || (!org && username) ? `
                 <div class="summary-item">
                   <div class="summary-value">${commitsFetchFailed ? 'N/A' : totalCommits}</div>
                   <div class="summary-label">Direct Commits</div>
@@ -638,10 +853,16 @@ export const Changelog = (() => {
                   <div class="summary-value">${activeProjects}</div>
                   <div class="summary-label">Active Projects</div>
                 </div>
+                <div class="summary-item${totalReverts > 0 ? ' revert-item' : ''}">
+                  <div class="summary-value">${totalReverts}</div>
+                  <div class="summary-label">Reverts</div>
+                </div>
+                ${org && !username ? `
                 <div class="summary-item">
                   <div class="summary-value">${totalContributors}</div>
                   <div class="summary-label">Contributors</div>
                 </div>
+                ` : ''}
               </div>
             `;
             if (changelogSummary) changelogSummary.innerHTML = summaryHTML;
@@ -671,7 +892,7 @@ export const Changelog = (() => {
                 
                 return `
                   <section class="changelog-section">
-                    <h3 class="section-title">${project.name}</h3>
+                    <h3 class="section-title"><a href="https://github.com/${project.name}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none;">${project.name}</a></h3>
                     <ul class="change-list">
                       ${[...sortedPRs, ...sortedCommits].map(item => {
                         if (item.number) {
@@ -679,36 +900,49 @@ export const Changelog = (() => {
                           const score = calculatePRScore(item);
                           const labels = item.labels?.map(l => l.name.toLowerCase()) || [];
                           const importanceClass = score >= 12 ? 'high' : score >= 8 ? 'medium' : 'normal';
+                          const titleLower = item.title.toLowerCase();
+                          const isSecurityPR = labels.some(l => l.includes('security')) || 
+                                             titleLower.includes('security') || 
+                                             titleLower.includes('cve') ||
+                                             titleLower.includes('vulnerability') ||
+                                             titleLower.includes('ghsa') ||
+                                             /\bghsa-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}\b/i.test(item.title) ||
+                                             /\bcve-\d{4}-\d{4,}/i.test(item.title);
+                          
+                          const isRevertPR = isRevert(item);
                           
                           return `
-                            <li class="change-item importance-${importanceClass}">
+                            <li class="change-item importance-${importanceClass}${isSecurityPR ? ' security-pr' : ''}${isRevertPR ? ' revert-pr' : ''}">
                               <div class="change-header">
-                                <span class="change-type pr-type">PR</span>
-                                <a href="${item.html_url}" target="_blank" class="change-link">#${item.number}</a>
-                                <span class="change-title">${escapeHtml(item.title)}</span>
+                                <a href="${item.html_url}" target="_blank" class="change-link">
+                                  <span class="change-title">${escapeHtml(item.title)}</span>
+                                  <span class="change-pr-number">#${item.number}</span>
+                                </a>
                               </div>
-                              <div class="change-meta">
-                                <span class="change-author">by ${item.user.login}</span>
-                                ${item.comments > 5 ? '<span class="discussion-indicator">💬 Active discussion</span>' : ''}
-                                ${labels.includes('security') ? '<span class="security-indicator">🔒 Security</span>' : ''}
-                              </div>
+                              ${item.comments > 5 ? '<div class="change-meta"><span class="discussion-indicator">💬 Active discussion</span></div>' : ''}
                             </li>
                           `;
                         } else {
                           // It's a direct commit
                           const score = calculateCommitScore(item);
                           const importanceClass = score >= 8 ? 'high' : score >= 5 ? 'medium' : 'normal';
-                          const author = item.author?.user?.login || item.author?.name || 'unknown';
+                          const msgLower = item.messageHeadline.toLowerCase();
+                          const isSecurityCommit = msgLower.includes('security') || 
+                                                   msgLower.includes('cve') ||
+                                                   msgLower.includes('vulnerability') ||
+                                                   msgLower.includes('ghsa') ||
+                                                   /\bghsa-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}\b/i.test(item.messageHeadline) ||
+                                                   /\bcve-\d{4}-\d{4,}/i.test(item.messageHeadline);
+                          
+                          const isRevertCommit = isRevert(item);
                           
                           return `
-                            <li class="change-item importance-${importanceClass}">
+                            <li class="change-item importance-${importanceClass} direct-commit${isSecurityCommit ? ' security-pr' : ''}${isRevertCommit ? ' revert-pr' : ''}">
                               <div class="change-header">
-                                <span class="change-type commit-type">COMMIT</span>
-                                <a href="https://github.com/${item.repository.fullName}/commit/${item.oid}" target="_blank" class="change-link">${item.oid.substring(0, 7)}</a>
-                                <span class="change-title">${escapeHtml(item.messageHeadline)}</span>
-                              </div>
-                              <div class="change-meta">
-                                <span class="change-author">by ${author}</span>
+                                <a href="https://github.com/${item.repository.fullName}/commit/${item.oid}" target="_blank" class="change-link">
+                                  <span class="change-title">${escapeHtml(item.messageHeadline)}</span>
+                                  <span class="change-commit-hash">${item.oid.substring(0, 7)}</span>
+                                </a>
                               </div>
                             </li>
                           `;
@@ -796,13 +1030,20 @@ export const Changelog = (() => {
           console.log(`Fetched ${mergedPRs.length} PRs via REST API`);
         }
         
-        // For org view, also fetch commits (for repos without PRs)
-        let commits = [];
-        let commitsFetchFailed = false;
-        if (org && !username && Auth.getStoredToken()) {
+        // Fetch commits - for org view or user view across all orgs
+        commits = [];
+        commitsFetchFailed = false;
+        if (Auth.getStoredToken()) {
           try {
-            commits = await fetchOrgCommits(org, oneWeekAgoISO);
-            console.log('Successfully fetched commits via GraphQL');
+            if (org && !username) {
+              // Fetch all commits in an organization
+              commits = await fetchOrgCommits(org, oneWeekAgoISO);
+              console.log('Successfully fetched org commits via GraphQL');
+            } else if (!org && username) {
+              // Fetch user's commits across all organizations
+              commits = await fetchUserCommits(username, oneWeekAgoISO);
+              console.log('Successfully fetched user commits via GraphQL');
+            }
           } catch (error) {
             console.warn('Failed to fetch commits via GraphQL, continuing without commits:', error);
             commits = [];
