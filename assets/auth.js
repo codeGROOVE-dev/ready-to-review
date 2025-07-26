@@ -264,61 +264,87 @@ export const Auth = (() => {
     return response;
   };
 
-  // GraphQL API function
-  const githubGraphQL = async (query, variables = {}) => {
+  // GraphQL API function with retry logic
+  const githubGraphQL = async (query, variables = {}, retries = 3) => {
     const token = getStoredToken();
     if (!token) {
       throw new Error("No authentication token available");
     }
 
-    try {
-      // Determine token type and use appropriate header format
-      let authHeader;
-      if (token.startsWith('ghp_') || token.startsWith('github_pat_')) {
-        // Personal Access Token (new format)
-        authHeader = `Bearer ${token}`;
-      } else if (token.startsWith('gho_') || token.startsWith('ghu_') || token.startsWith('ghs_')) {
-        // OAuth token or other GitHub token types
-        authHeader = `Bearer ${token}`;
-      } else if (token.length === 40) {
-        // Classic OAuth token (40 chars hex)
-        authHeader = `Bearer ${token}`;
-      } else {
-        // Default to Bearer
-        authHeader = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${CONFIG.API_BASE}/graphql`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authHeader,
-          'Accept': 'application/vnd.github+json'
-        },
-        body: JSON.stringify({ query, variables })
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          handleAuthError();
-        }
-        // For 502 and other errors, log more details
-        console.error(`GraphQL request failed: ${response.status} ${response.statusText}`);
-        console.error('Request details:', { query, variables, authHeader: authHeader.substring(0, 20) + '...' });
-        throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      if (data.errors) {
-        console.error('GraphQL errors:', data.errors);
-        throw new Error('GraphQL query failed: ' + data.errors[0]?.message);
-      }
-
-      return data.data;
-    } catch (error) {
-      console.error('GraphQL request error:', error);
-      throw error;
+    // Determine token type and use appropriate header format
+    let authHeader;
+    if (token.startsWith('ghp_') || token.startsWith('github_pat_')) {
+      // Personal Access Token (new format)
+      authHeader = `Bearer ${token}`;
+    } else if (token.startsWith('gho_') || token.startsWith('ghu_') || token.startsWith('ghs_')) {
+      // OAuth token or other GitHub token types
+      authHeader = `Bearer ${token}`;
+    } else if (token.length === 40) {
+      // Classic OAuth token (40 chars hex)
+      authHeader = `Bearer ${token}`;
+    } else {
+      // Default to Bearer
+      authHeader = `Bearer ${token}`;
     }
+
+    let lastError;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(`${CONFIG.API_BASE}/graphql`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader,
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28'
+          },
+          body: JSON.stringify({ query, variables })
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            handleAuthError();
+          }
+          
+          // Retry on 502, 503, 504 gateway/server errors
+          if (response.status >= 502 && response.status <= 504 && attempt < retries) {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff, max 10s
+            console.warn(`GraphQL request failed with ${response.status}, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          
+          // For other errors, log and throw
+          console.error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+          console.error('Request details:', { query, variables, authHeader: authHeader.substring(0, 20) + '...' });
+          throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        if (data.errors) {
+          console.error('GraphQL errors:', data.errors);
+          throw new Error('GraphQL query failed: ' + data.errors[0]?.message);
+        }
+
+        return data.data;
+      } catch (error) {
+        lastError = error;
+        
+        // If it's a network error and we have retries left, try again
+        if (error.name === 'TypeError' && error.message.includes('fetch') && attempt < retries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          console.warn(`Network error, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // For non-retryable errors, throw immediately
+        throw error;
+      }
+    }
+    
+    console.error('GraphQL request failed after all retries:', lastError);
+    throw lastError;
   };
 
   const loadCurrentUser = async () => {

@@ -189,12 +189,25 @@ export const Leaderboard = (() => {
         setCachedData(cacheKey, mergedPRs);
       }
       
-      // Filter out bots and count PRs by author
+      // Filter out bots and count PRs by author and repo
       const authorCounts = {};
+      const repoCounts = {};
+      
       mergedPRs.forEach(pr => {
         const author = pr.user.login;
         
-        // Skip bots
+        // Count repos
+        const repoName = pr.repository_url.split('/').slice(-2).join('/');
+        if (!repoCounts[repoName]) {
+          repoCounts[repoName] = {
+            name: repoName,
+            count: 0,
+            url: pr.repository_url.replace('api.github.com/repos', 'github.com')
+          };
+        }
+        repoCounts[repoName].count++;
+        
+        // Skip bots for author counting
         const authorLower = author.toLowerCase();
         if (pr.user.type === 'Bot' || 
             authorLower.endsWith('[bot]') || 
@@ -219,18 +232,23 @@ export const Leaderboard = (() => {
       const allContributors = Object.values(authorCounts);
       const totalContributors = allContributors.length;
       
-      const leaderboard = allContributors
+      const topContributors = allContributors
         .sort((a, b) => b.count - a.count)
         .slice(0, 10); // Top 10 contributors
       
+      const topRepos = Object.values(repoCounts)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10); // Top 10 repos
+      
       // Calculate max for scaling
-      const maxCount = leaderboard[0]?.count || 0;
+      const maxContributorCount = topContributors[0]?.count || 0;
+      const maxRepoCount = topRepos[0]?.count || 0;
       
       // Render leaderboard
       hide(loadingDiv);
       show(contentDiv);
       
-      if (leaderboard.length === 0) {
+      if (topContributors.length === 0) {
         contentDiv.innerHTML = `
           <div class="empty-state">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -248,44 +266,85 @@ export const Leaderboard = (() => {
       contentDiv.innerHTML = `
         <div class="leaderboard-container">
           <div class="leaderboard-header">
-            <h1 class="leaderboard-title">Top Contributors 🎆</h1>
-            <p class="leaderboard-period">Last 10 days in ${org} ✨</p>
+            <h1 class="leaderboard-title">Activity Dashboard</h1>
+            <p class="leaderboard-period">Last 10 days in ${org}</p>
           </div>
           <div class="leaderboard-stats-summary">
             <div class="summary-stat">
               <div class="summary-value">${mergedPRs.length}</div>
-              <div class="summary-label">Pull Requests 🎉</div>
+              <div class="summary-label">Pull Requests</div>
             </div>
             <div class="summary-stat">
               <div class="summary-value">${totalContributors}</div>
-              <div class="summary-label">Active Contributors 👥</div>
+              <div class="summary-label">Contributors</div>
             </div>
           </div>
-          <div class="leaderboard-list">
-            ${leaderboard.map((author, index) => {
-              const percentage = (author.count / maxCount) * 100;
-              const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
-              const celebrationEmoji = index === 0 ? '👑' : index < 3 ? '⭐' : '';
-              return `
-                <div class="leaderboard-item ${index < 3 ? 'top-three' : ''}" style="animation-delay: ${index * 0.1}s">
-                  <div class="leaderboard-position">
-                    <span class="position-number">${index + 1}</span>
-                    ${medal ? `<span class="medal">${medal}</span>` : ''}
-                  </div>
-                  <img src="${author.avatar_url}" alt="${author.login}" class="contributor-avatar">
-                  <div class="contributor-info">
-                    <a href="${author.html_url}" target="_blank" rel="noopener" class="contributor-name">${author.login}</a>
-                    <div class="contribution-bar">
-                      <div class="bar-fill" style="width: ${percentage}%"></div>
+          <div class="leaderboard-grid">
+            <!-- Top Contributors -->
+            <div class="leaderboard-chart">
+              <h3 class="chart-title">Top Contributors</h3>
+              <div class="chart-content">
+                ${topContributors.slice(0, 5).map((author, index) => {
+                  const percentage = (author.count / maxContributorCount) * 100;
+                  return `
+                    <div class="chart-item">
+                      <div class="chart-item-header">
+                        <img src="${author.avatar_url}" alt="${author.login}" class="chart-avatar">
+                        <a href="${author.html_url}" target="_blank" rel="noopener" class="chart-item-name">${author.login}</a>
+                        <span class="chart-item-count">${author.count}</span>
+                      </div>
+                      <div class="chart-bar">
+                        <div class="chart-bar-fill" style="width: ${percentage}%"></div>
+                      </div>
                     </div>
-                  </div>
-                  <div class="contribution-count">
-                    <span class="count-number">${author.count}</span>
-                    <span class="count-label">PR${author.count !== 1 ? 's' : ''} ${celebrationEmoji}</span>
-                  </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+            
+            <!-- Top Repos -->
+            <div class="leaderboard-chart">
+              <h3 class="chart-title">Top Repositories</h3>
+              <div class="chart-content">
+                ${topRepos.slice(0, 5).map((repo, index) => {
+                  const percentage = (repo.count / maxRepoCount) * 100;
+                  const shortName = repo.name.split('/')[1] || repo.name;
+                  return `
+                    <div class="chart-item">
+                      <div class="chart-item-header">
+                        <a href="${repo.url}" target="_blank" rel="noopener" class="chart-item-name chart-repo-name" title="${repo.name}">${shortName}</a>
+                        <span class="chart-item-count">${repo.count}</span>
+                      </div>
+                      <div class="chart-bar">
+                        <div class="chart-bar-fill" style="width: ${percentage}%"></div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+            
+            <!-- Top Reviewers by PR Count -->
+            <div class="leaderboard-chart">
+              <h3 class="chart-title">Top Reviewers <span class="chart-subtitle">by PR count</span></h3>
+              <div class="chart-content chart-tbd">
+                <div class="tbd-placeholder">
+                  <span class="tbd-icon">📊</span>
+                  <span class="tbd-text">Coming Soon</span>
                 </div>
-              `;
-            }).join('')}
+              </div>
+            </div>
+            
+            <!-- Top Reviewers by Comment Count -->
+            <div class="leaderboard-chart">
+              <h3 class="chart-title">Top Reviewers <span class="chart-subtitle">by comments</span></h3>
+              <div class="chart-content chart-tbd">
+                <div class="tbd-placeholder">
+                  <span class="tbd-icon">💬</span>
+                  <span class="tbd-text">Coming Soon</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       `;
@@ -294,10 +353,10 @@ export const Leaderboard = (() => {
       if (searchInput) {
         const handleLeaderboardSearch = () => {
           const searchTerm = searchInput.value.toLowerCase();
-          const items = $$('.leaderboard-item');
+          const chartItems = $$('.chart-item');
           
-          items.forEach(item => {
-            const name = item.querySelector('.contributor-name')?.textContent.toLowerCase() || '';
+          chartItems.forEach(item => {
+            const name = item.querySelector('.chart-item-name')?.textContent.toLowerCase() || '';
             if (searchTerm === '' || name.includes(searchTerm)) {
               show(item);
             } else {

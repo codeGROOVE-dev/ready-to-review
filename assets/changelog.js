@@ -1,5 +1,5 @@
 // Changelog Module - Displays merged PRs from the last week
-import { $, $$, show, hide, showToast } from './utils.js';
+import { $, $$, show, hide, showToast, escapeHtml } from './utils.js';
 import { Auth } from './auth.js';
 
 export const Changelog = (() => {
@@ -321,8 +321,9 @@ export const Changelog = (() => {
 
   // Fetch commits for organization using GraphQL
   const fetchOrgCommits = async (org, oneWeekAgoISO) => {
+    // Simplified query - fetch fewer repos and commits to avoid timeouts
     const query = `
-      query OrganizationCommits($orgLogin: String!, $firstRepos: Int = 50, $since: GitTimestamp!) {
+      query OrganizationCommits($orgLogin: String!, $firstRepos: Int = 20, $since: GitTimestamp!) {
         organization(login: $orgLogin) {
           repositories(first: $firstRepos, orderBy: {field: PUSHED_AT, direction: DESC}) {
             nodes {
@@ -334,8 +335,7 @@ export const Changelog = (() => {
               defaultBranchRef {
                 target {
                   ... on Commit {
-                    history(first: 20, since: $since) {
-                      totalCount
+                    history(first: 10, since: $since) {
                       nodes {
                         oid
                         messageHeadline
@@ -345,11 +345,6 @@ export const Changelog = (() => {
                             login
                           }
                           name
-                        }
-                        associatedPullRequests(first: 1) {
-                          nodes {
-                            number
-                          }
                         }
                       }
                     }
@@ -363,10 +358,14 @@ export const Changelog = (() => {
     `;
     
     try {
-      const data = await githubGraphQLWithRetry(query, {
+      const variables = {
         orgLogin: org,
+        firstRepos: 20,  // Explicitly set the limit
         since: oneWeekAgoISO + 'T00:00:00Z'
-      });
+      };
+      
+      console.log('Fetching org commits with variables:', variables);
+      const data = await githubGraphQLWithRetry(query, variables);
       
       const commits = [];
       if (data?.organization?.repositories?.nodes) {
@@ -509,102 +508,10 @@ export const Changelog = (() => {
       }
       
       let mergedPRs;
-      
       let commits = [];
       let commitsFetchFailed = false;
       
-      if (cached) {
-        console.log('Using cached changelog data');
-        if (cached.data.prs) {
-          // New cache format
-          mergedPRs = cached.data.prs;
-          commits = cached.data.commits || [];
-          commitsFetchFailed = cached.data.commitsFetchFailed || false;
-          console.log('Cached changelog data (new format):', {
-            prsCount: mergedPRs.length,
-            commitsCount: commits.length,
-            commitsFetchFailed: commitsFetchFailed,
-            cacheAge: Math.round(cached.age / 60000) + ' minutes',
-            samplePRs: mergedPRs.slice(0, 3).map(pr => ({
-              number: pr.number,
-              title: pr.title,
-              repo: pr.repository_url?.replace('https://api.github.com/repos/', '') || 'unknown'
-            })),
-            sampleCommits: commits.slice(0, 3).map(c => ({
-              sha: c.oid?.substring(0, 7) || 'unknown',
-              message: c.messageHeadline || 'no message',
-              repo: c.repository?.fullName || 'unknown'
-            }))
-          });
-        } else {
-          // Old cache format
-          mergedPRs = cached.data;
-          console.log('Cached changelog data (old format):', {
-            prsCount: mergedPRs.length,
-            cacheAge: Math.round(cached.age / 60000) + ' minutes',
-            samplePRs: mergedPRs.slice(0, 3).map(pr => ({
-              number: pr.number,
-              title: pr.title,
-              repo: pr.repository_url?.replace('https://api.github.com/repos/', '') || 'unknown'
-            }))
-          });
-        }
-        const ageMinutes = Math.floor(cached.age / 60000);
-        if (clearCacheLink) {
-          const ageText = ageMinutes < 60 
-            ? `${ageMinutes}m ago`
-            : `${Math.floor(ageMinutes / 60)}h ago`;
-          clearCacheLink.title = `Cached ${ageText}. Click to refresh.`;
-        }
-      } else {
-        console.log('Fetching fresh changelog data');
-        
-        // Try to fetch PRs with commit counts using GraphQL
-        let usedGraphQL = false;
-        try {
-          mergedPRs = await fetchMergedPRsWithCommits(org, username, oneWeekAgoISO);
-          if (mergedPRs && mergedPRs.length > 0) {
-            console.log(`Successfully fetched ${mergedPRs.length} PRs via GraphQL with commit counts`);
-            usedGraphQL = true;
-          } else {
-            console.log('GraphQL returned no results, falling back to REST API');
-            mergedPRs = null;
-          }
-        } catch (error) {
-          console.warn('GraphQL failed, falling back to REST API:', error);
-          mergedPRs = null;
-        }
-        
-        // If GraphQL fails or returns nothing, fall back to REST API
-        if (!mergedPRs || mergedPRs.length === 0) {
-          const searchUrl = `/search/issues?q=${encodeURIComponent(searchQuery)}&sort=updated&order=desc&per_page=100`;
-          const searchResults = await githubSearchAll(searchUrl, 20, githubAPI);
-          mergedPRs = searchResults.items || [];
-          console.log(`Fetched ${mergedPRs.length} PRs via REST API`);
-        }
-        
-        // For org view, also fetch commits (for repos without PRs)
-        let commits = [];
-        let commitsFetchFailed = false;
-        if (org && !username && Auth.getStoredToken()) {
-          try {
-            commits = await fetchOrgCommits(org, oneWeekAgoISO);
-            console.log('Successfully fetched commits via GraphQL');
-          } catch (error) {
-            console.warn('Failed to fetch commits via GraphQL, continuing without commits:', error);
-            commits = [];
-            commitsFetchFailed = true;
-          }
-        }
-        
-        // Cache the results (including the fetch status)
-        setCachedData(cacheKey, { prs: mergedPRs, commits, commitsFetchFailed });
-        if (clearCacheLink) {
-          clearCacheLink.title = 'Data is fresh. Click to force refresh.';
-        }
-      }
-      
-      // Filter and group PRs
+      // Define all the functions before using them
       const filterAndRenderPRs = () => {
         const shouldIncludeBots = !includeBots || includeBots.checked;
         
@@ -613,19 +520,16 @@ export const Changelog = (() => {
           ? mergedPRs 
           : mergedPRs.filter(pr => !isBot(pr.user));
         
-        // Group PRs by repository
+        // Group PRs by project
         const projectsData = {};
         
-        // Add PRs to projects
         for (const pr of filteredPRs) {
-          const repoFullName = pr.repository_url.replace('https://api.github.com/repos/', '');
-          const [repoOrg, repoName] = repoFullName.split('/');
+          const repoUrl = pr.repository_url || pr.html_url.split('/pull/')[0];
+          const repoFullName = repoUrl.replace('https://api.github.com/repos/', '').replace('https://github.com/', '');
           
           if (!projectsData[repoFullName]) {
             projectsData[repoFullName] = {
-              name: repoName,
-              fullName: repoFullName,
-              url: `https://github.com/${repoFullName}`,
+              name: repoFullName,
               prs: [],
               commits: [],
               contributors: new Set()
@@ -649,14 +553,12 @@ export const Changelog = (() => {
             }
             
             // Skip bot commits based on preference
-            const commitAuthor = commit.author?.user || { login: commit.author?.email || 'unknown' };
-            if (!shouldIncludeBots && isBot(commitAuthor)) continue;
+            const author = commit.author?.user || { login: commit.author?.email || 'unknown' };
+            if (!shouldIncludeBots && isBot(author)) continue;
             
             if (!projectsData[repoFullName]) {
               projectsData[repoFullName] = {
-                name: commit.repository.name,
-                fullName: repoFullName,
-                url: `https://github.com/${repoFullName}`,
+                name: repoFullName,
                 prs: [],
                 commits: [],
                 contributors: new Set()
@@ -664,19 +566,12 @@ export const Changelog = (() => {
             }
             
             projectsData[repoFullName].commits.push(commit);
-            if (commitAuthor.login && commitAuthor.login !== 'unknown') {
-              projectsData[repoFullName].contributors.add(commitAuthor.login);
-            }
+            projectsData[repoFullName].contributors.add(author.login);
           }
         }
         
         renderProjects(projectsData, commitsFetchFailed);
       };
-      
-      // Setup bot toggle handler
-      if (includeBots) {
-        includeBots.onchange = filterAndRenderPRs;
-      }
       
       const renderProjects = (projectsData, commitsFetchFailed = false) => {
         hide(changelogLoading);
@@ -749,16 +644,16 @@ export const Changelog = (() => {
                 </div>
               </div>
             `;
-            changelogSummary.innerHTML = summaryHTML;
+            if (changelogSummary) changelogSummary.innerHTML = summaryHTML;
           } else {
             hide(changelogSummary);
           }
           
-          // Create document-style changelog
+          // Render all projects
           changelogProjects.innerHTML = `
-            <div class="changelog-document">
+            <div class="projects-grid">
               ${projectsArray.map(project => {
-                // Sort PRs by importance score (highest first), then by PR number
+                // Sort PRs by score (highest first)
                 const sortedPRs = [...project.prs].sort((a, b) => {
                   const scoreA = calculatePRScore(a);
                   const scoreB = calculatePRScore(b);
@@ -778,20 +673,46 @@ export const Changelog = (() => {
                   <section class="changelog-section">
                     <h3 class="section-title">${project.name}</h3>
                     <ul class="change-list">
-                      ${sortedPRs.map(pr => {
-                        const score = calculatePRScore(pr);
-                        const commitDataAttr = pr.commitCount ? ` data-commits="${pr.commitCount}"` : '';
-                        return `
-                          <li data-score="${score}"${commitDataAttr}><a href="${pr.html_url}" target="_blank" rel="noopener" class="change-title">${pr.title}</a> <span class="change-number">#${pr.number}</span></li>
-                        `;
-                      }).join('')}
-                      ${sortedCommits.map(commit => {
-                        const score = calculateCommitScore(commit);
-                        const commitUrl = `https://github.com/${project.fullName}/commit/${commit.oid}`;
-                        const shortSha = commit.oid.substring(0, 7);
-                        return `
-                          <li data-score="${score}"><a href="${commitUrl}" target="_blank" rel="noopener" class="change-title">${commit.messageHeadline}</a> <span class="change-number">${shortSha}</span></li>
-                        `;
+                      ${[...sortedPRs, ...sortedCommits].map(item => {
+                        if (item.number) {
+                          // It's a PR
+                          const score = calculatePRScore(item);
+                          const labels = item.labels?.map(l => l.name.toLowerCase()) || [];
+                          const importanceClass = score >= 12 ? 'high' : score >= 8 ? 'medium' : 'normal';
+                          
+                          return `
+                            <li class="change-item importance-${importanceClass}">
+                              <div class="change-header">
+                                <span class="change-type pr-type">PR</span>
+                                <a href="${item.html_url}" target="_blank" class="change-link">#${item.number}</a>
+                                <span class="change-title">${escapeHtml(item.title)}</span>
+                              </div>
+                              <div class="change-meta">
+                                <span class="change-author">by ${item.user.login}</span>
+                                ${item.comments > 5 ? '<span class="discussion-indicator">💬 Active discussion</span>' : ''}
+                                ${labels.includes('security') ? '<span class="security-indicator">🔒 Security</span>' : ''}
+                              </div>
+                            </li>
+                          `;
+                        } else {
+                          // It's a direct commit
+                          const score = calculateCommitScore(item);
+                          const importanceClass = score >= 8 ? 'high' : score >= 5 ? 'medium' : 'normal';
+                          const author = item.author?.user?.login || item.author?.name || 'unknown';
+                          
+                          return `
+                            <li class="change-item importance-${importanceClass}">
+                              <div class="change-header">
+                                <span class="change-type commit-type">COMMIT</span>
+                                <a href="https://github.com/${item.repository.fullName}/commit/${item.oid}" target="_blank" class="change-link">${item.oid.substring(0, 7)}</a>
+                                <span class="change-title">${escapeHtml(item.messageHeadline)}</span>
+                              </div>
+                              <div class="change-meta">
+                                <span class="change-author">by ${author}</span>
+                              </div>
+                            </li>
+                          `;
+                        }
                       }).join('')}
                     </ul>
                   </section>
@@ -802,8 +723,102 @@ export const Changelog = (() => {
         }
       };
       
-      // Initial render
-      filterAndRenderPRs();
+      if (cached) {
+        console.log('Using cached changelog data');
+        if (cached.data.prs) {
+          // New cache format
+          mergedPRs = cached.data.prs;
+          commits = cached.data.commits || [];
+          commitsFetchFailed = cached.data.commitsFetchFailed || false;
+          console.log('Cached changelog data (new format):', {
+            prsCount: mergedPRs.length,
+            commitsCount: commits.length,
+            commitsFetchFailed: commitsFetchFailed,
+            cacheAge: Math.round(cached.age / 60000) + ' minutes',
+            samplePRs: mergedPRs.slice(0, 3).map(pr => ({
+              number: pr.number,
+              title: pr.title,
+              repo: pr.repository_url?.replace('https://api.github.com/repos/', '') || 'unknown'
+            })),
+            sampleCommits: commits.slice(0, 3).map(c => ({
+              sha: c.oid?.substring(0, 7) || 'unknown',
+              message: c.messageHeadline || 'no message',
+              repo: c.repository?.fullName || 'unknown'
+            }))
+          });
+        } else {
+          // Old cache format
+          mergedPRs = cached.data;
+          console.log('Cached changelog data (old format):', {
+            prsCount: mergedPRs.length,
+            cacheAge: Math.round(cached.age / 60000) + ' minutes',
+            samplePRs: mergedPRs.slice(0, 3).map(pr => ({
+              number: pr.number,
+              title: pr.title,
+              repo: pr.repository_url?.replace('https://api.github.com/repos/', '') || 'unknown'
+            }))
+          });
+        }
+        const ageMinutes = Math.floor(cached.age / 60000);
+        if (clearCacheLink) {
+          const ageText = ageMinutes < 60 
+            ? `${ageMinutes}m ago`
+            : `${Math.floor(ageMinutes / 60)}h ago`;
+          clearCacheLink.title = `Cached ${ageText}. Click to refresh.`;
+        }
+        
+        // Render with cached data
+        filterAndRenderPRs();
+      } else {
+        console.log('Fetching fresh changelog data');
+        
+        // Try to fetch PRs with commit counts using GraphQL
+        let usedGraphQL = false;
+        try {
+          mergedPRs = await fetchMergedPRsWithCommits(org, username, oneWeekAgoISO);
+          if (mergedPRs && mergedPRs.length > 0) {
+            console.log(`Successfully fetched ${mergedPRs.length} PRs via GraphQL with commit counts`);
+            usedGraphQL = true;
+          } else {
+            console.log('GraphQL returned no results, falling back to REST API');
+            mergedPRs = null;
+          }
+        } catch (error) {
+          console.warn('GraphQL failed, falling back to REST API:', error);
+          mergedPRs = null;
+        }
+        
+        // If GraphQL fails or returns nothing, fall back to REST API
+        if (!mergedPRs || mergedPRs.length === 0) {
+          const searchUrl = `/search/issues?q=${encodeURIComponent(searchQuery)}&sort=updated&order=desc&per_page=100`;
+          const searchResults = await githubSearchAll(searchUrl, 20, githubAPI);
+          mergedPRs = searchResults.items || [];
+          console.log(`Fetched ${mergedPRs.length} PRs via REST API`);
+        }
+        
+        // For org view, also fetch commits (for repos without PRs)
+        let commits = [];
+        let commitsFetchFailed = false;
+        if (org && !username && Auth.getStoredToken()) {
+          try {
+            commits = await fetchOrgCommits(org, oneWeekAgoISO);
+            console.log('Successfully fetched commits via GraphQL');
+          } catch (error) {
+            console.warn('Failed to fetch commits via GraphQL, continuing without commits:', error);
+            commits = [];
+            commitsFetchFailed = true;
+          }
+        }
+        
+        // Cache the results (including the fetch status)
+        setCachedData(cacheKey, { prs: mergedPRs, commits, commitsFetchFailed });
+        if (clearCacheLink) {
+          clearCacheLink.title = 'Data is fresh. Click to force refresh.';
+        }
+        
+        // Now that we have all data (PRs and commits), render the page
+        filterAndRenderPRs();
+      }
       
     } catch (error) {
       console.error('Error loading changelog:', error);

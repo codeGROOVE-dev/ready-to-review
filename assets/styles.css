@@ -3712,6 +3712,139 @@ a {
     display: block;
 }
 
+/* Leaderboard Grid Layout */
+.leaderboard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+@media (max-width: 768px) {
+    .leaderboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.leaderboard-chart {
+    background: var(--color-surface-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    min-height: 300px;
+}
+
+.chart-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 1.25rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+.chart-subtitle {
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--color-text-secondary);
+}
+
+.chart-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+}
+
+.chart-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.chart-item-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.chart-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.chart-item-name {
+    flex: 1;
+    font-size: 0.9375rem;
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chart-item-name:hover {
+    color: var(--color-link);
+}
+
+.chart-repo-name {
+    padding-left: 0.5rem;
+}
+
+.chart-item-count {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-text);
+    min-width: 2rem;
+    text-align: right;
+}
+
+.chart-bar {
+    height: 6px;
+    background: var(--color-bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.chart-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0071e3 0%, #0077ed 100%);
+    border-radius: 3px;
+    transition: width 0.6s cubic-bezier(0.32, 0, 0.67, 0);
+}
+
+/* TBD Charts */
+.chart-tbd {
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tbd-placeholder {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.tbd-icon {
+    font-size: 2.5rem;
+    opacity: 0.3;
+}
+
+.tbd-text {
+    font-size: 0.875rem;
+    color: var(--color-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+}
+
 /* PR Loading Screen */
 .pr-loading-state {
     min-height: 200px;
