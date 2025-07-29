@@ -241,7 +241,7 @@ export const Auth = (() => {
   };
 
   // API function with auth headers
-  const githubAPI = async (endpoint, options = {}, retries = 3) => {
+  const githubAPI = async (endpoint, options = {}, retries = 5) => {
     const headers = {
       Accept: "application/vnd.github.v3+json",
       ...options.headers,
@@ -284,8 +284,8 @@ export const Auth = (() => {
 
           // Retry on all 500+ server errors
           if (response.status >= 500 && attempt < retries) {
-            const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff, max 10s
-            console.warn(`Retry attempt ${attempt + 1}/${retries}, waiting ${delay}ms...`);
+            const delay = Math.min(250 * Math.pow(2, attempt), 10000); // Exponential backoff starting at 250ms, max 10s
+            console.warn(`[githubAPI] Retry ${attempt + 1}/${retries} for ${CONFIG.API_BASE}${endpoint} - Status: ${response.status}, Delay: ${delay}ms`);
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
@@ -298,8 +298,8 @@ export const Auth = (() => {
         
         // If it's a network error and we have retries left, try again
         if (attempt < retries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-          console.warn(`Network error, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries})`);
+          const delay = Math.min(250 * Math.pow(2, attempt), 10000);
+          console.warn(`[githubAPI] Network error retry ${attempt + 1}/${retries} for ${CONFIG.API_BASE}${endpoint} - Error: ${error.message}, Delay: ${delay}ms`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
@@ -313,7 +313,7 @@ export const Auth = (() => {
   };
 
   // GraphQL API function with retry logic
-  const githubGraphQL = async (query, variables = {}, retries = 3) => {
+  const githubGraphQL = async (query, variables = {}, retries = 5) => {
     const token = getStoredToken();
     if (!token) {
       throw new Error("No authentication token available");
@@ -356,11 +356,10 @@ export const Auth = (() => {
           
           // Retry on all 500+ server errors
           if (response.status >= 500 && attempt < retries) {
-            const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff, max 10s
+            const delay = Math.min(250 * Math.pow(2, attempt), 10000); // Exponential backoff starting at 250ms, max 10s
             
             // Log all available response information
-            console.warn(`GraphQL request failed with ${response.status} ${response.statusText}`);
-            console.warn(`Retry attempt ${attempt + 1}/${retries}, waiting ${delay}ms...`);
+            console.warn(`[githubGraphQL] Retry ${attempt + 1}/${retries} for ${CONFIG.API_BASE}/graphql - Status: ${response.status} ${response.statusText}, Delay: ${delay}ms`);
             console.warn('Response headers:', Object.fromEntries(response.headers.entries()));
             
             // Try to read response body if available (may fail due to CORS)
@@ -393,8 +392,8 @@ export const Auth = (() => {
         
         // If it's a network error and we have retries left, try again
         if (error.name === 'TypeError' && error.message.includes('fetch') && attempt < retries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-          console.warn(`Network error, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries})`);
+          const delay = Math.min(250 * Math.pow(2, attempt), 10000);
+          console.warn(`[githubGraphQL] Network error retry ${attempt + 1}/${retries} for ${CONFIG.API_BASE}/graphql - Error: ${error.message}, Delay: ${delay}ms`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
