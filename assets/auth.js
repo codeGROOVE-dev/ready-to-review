@@ -241,7 +241,7 @@ export const Auth = (() => {
   };
 
   // API function with auth headers
-  const githubAPI = async (endpoint, options = {}) => {
+  const githubAPI = async (endpoint, options = {}, retries = 3) => {
     const headers = {
       Accept: "application/vnd.github.v3+json",
       ...options.headers,
@@ -252,16 +252,64 @@ export const Auth = (() => {
       headers["Authorization"] = `token ${token}`;
     }
 
-    const response = await fetch(`${CONFIG.API_BASE}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    let lastError;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(`${CONFIG.API_BASE}${endpoint}`, {
+          ...options,
+          headers,
+        });
 
-    if (!response.ok && response.status === 401) {
-      handleAuthError();
+        // Handle auth errors
+        if (!response.ok && response.status === 401) {
+          handleAuthError();
+        }
+
+        // Log error responses
+        if (!response.ok) {
+          console.warn(`GitHub REST API request failed: ${response.status} ${response.statusText}`);
+          console.warn(`Endpoint: ${endpoint}`);
+          console.warn('Response headers:', Object.fromEntries(response.headers.entries()));
+          
+          // Try to read response body if available (may fail due to CORS)
+          if (response.status >= 500) {
+            try {
+              const responseClone = response.clone();
+              const responseText = await responseClone.text();
+              console.warn('Response body:', responseText);
+            } catch (e) {
+              console.warn('Could not read response body due to CORS restrictions');
+            }
+          }
+
+          // Retry on all 500+ server errors
+          if (response.status >= 500 && attempt < retries) {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff, max 10s
+            console.warn(`Retry attempt ${attempt + 1}/${retries}, waiting ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+
+        return response;
+      } catch (error) {
+        lastError = error;
+        console.error('GitHub REST API network error:', error);
+        
+        // If it's a network error and we have retries left, try again
+        if (attempt < retries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          console.warn(`Network error, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        throw error;
+      }
     }
-
-    return response;
+    
+    console.error('GitHub REST API request failed after all retries:', lastError);
+    throw lastError;
   };
 
   // GraphQL API function with retry logic
@@ -306,10 +354,23 @@ export const Auth = (() => {
             handleAuthError();
           }
           
-          // Retry on 502, 503, 504 gateway/server errors
-          if (response.status >= 502 && response.status <= 504 && attempt < retries) {
+          // Retry on all 500+ server errors
+          if (response.status >= 500 && attempt < retries) {
             const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff, max 10s
-            console.warn(`GraphQL request failed with ${response.status}, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries})`);
+            
+            // Log all available response information
+            console.warn(`GraphQL request failed with ${response.status} ${response.statusText}`);
+            console.warn(`Retry attempt ${attempt + 1}/${retries}, waiting ${delay}ms...`);
+            console.warn('Response headers:', Object.fromEntries(response.headers.entries()));
+            
+            // Try to read response body if available (may fail due to CORS)
+            try {
+              const responseText = await response.text();
+              console.warn('Response body:', responseText);
+            } catch (e) {
+              console.warn('Could not read response body due to CORS restrictions');
+            }
+            
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
