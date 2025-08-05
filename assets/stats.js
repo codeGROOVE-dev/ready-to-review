@@ -560,7 +560,7 @@ export const Stats = (() => {
               mergedTotalCount: data.mergedTotalCount,
               totalContributors: data.totalContributors,
               totalMergeTime: data.totalMergeTime,
-              sevenDaysAgoISO: data.sevenDaysAgoISO,
+              tenDaysAgoISO: data.tenDaysAgoISO || data.sevenDaysAgoISO, // Support old cache format
               cacheTimestamp: new Date(timestamp).toISOString(),
               dataSampled: data.dataSampled,
               openSampleSize: data.openSampleSize,
@@ -585,13 +585,13 @@ export const Stats = (() => {
       }
       
       const now = new Date();
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const sevenDaysAgoISO = sevenDaysAgo.toISOString().split("T")[0];
+      const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+      const tenDaysAgoISO = tenDaysAgo.toISOString().split("T")[0];
 
-      console.log(`[Stats Debug] Date range: ${sevenDaysAgoISO} to ${now.toISOString().split("T")[0]}`);
+      console.log(`[Stats Debug] Date range: ${tenDaysAgoISO} to ${now.toISOString().split("T")[0]}`);
 
       const openAllQuery = `type:pr is:open org:${org}`;
-      const mergedRecentQuery = `type:pr is:merged org:${org} merged:>=${sevenDaysAgoISO}`;
+      const mergedRecentQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgoISO}`;
 
       console.log(`[Stats Debug] Queries:`, {
         openAll: openAllQuery,
@@ -651,10 +651,10 @@ export const Stats = (() => {
 
       const openStalePRs = openAllPRs.filter((pr) => {
         const updatedAt = new Date(pr.updated_at);
-        return updatedAt < sevenDaysAgo;
+        return updatedAt < tenDaysAgo;
       });
 
-      console.log(`[Stats Debug] Stale PRs (updated before ${sevenDaysAgoISO}):`, openStalePRs.length);
+      console.log(`[Stats Debug] Stale PRs (updated before ${tenDaysAgoISO}):`, openStalePRs.length);
 
       // Use actual total count for merged PRs when available
       const mergedLast10Days = mergedTotalCount || mergedRecentPRs.length;
@@ -727,7 +727,7 @@ export const Stats = (() => {
         mergedLast10Days,
         totalOpenAge,
         totalMergeTime,
-        sevenDaysAgoISO,
+        tenDaysAgoISO,
         now: now.getTime(),
         openTotalCount,
         mergedTotalCount,
@@ -765,7 +765,7 @@ export const Stats = (() => {
       mergedLast10Days,
       totalOpenAge,
       totalMergeTime,
-      sevenDaysAgoISO,
+      tenDaysAgoISO,
       now: nowTime,
       openTotalCount,
       mergedTotalCount,
@@ -780,7 +780,7 @@ export const Stats = (() => {
       mergedLast10Days,
       totalOpenAge,
       totalMergeTime,
-      sevenDaysAgoISO,
+      tenDaysAgoISO,
       nowTime,
       openTotalCount,
       mergedTotalCount,
@@ -873,7 +873,7 @@ export const Stats = (() => {
         const mergedLink = $(`mergedPRsLink-${org}`);
         if (mergedLink) {
           if (mergedLast10Days > 0) {
-            const mergedQuery = `type:pr is:merged org:${org} merged:>=${sevenDaysAgoISO}`;
+            const mergedQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgoISO}`;
             mergedLink.href = `https://github.com/search?q=${encodeURIComponent(mergedQuery)}&type=pullrequests`;
           } else {
             mergedLink.removeAttribute("href");
@@ -889,7 +889,7 @@ export const Stats = (() => {
         const openLink = $(`openPRsLink-${org}`);
         if (openLink) {
           if (openMoreThan10Days > 0) {
-            const openQuery = `type:pr is:open org:${org} updated:<${sevenDaysAgoISO}`;
+            const openQuery = `type:pr is:open org:${org} updated:<${tenDaysAgoISO}`;
             openLink.href = `https://github.com/search?q=${encodeURIComponent(openQuery)}&type=pullrequests`;
           } else {
             openLink.removeAttribute("href");
@@ -920,7 +920,9 @@ export const Stats = (() => {
             displayText = `${Math.round(avgMergeHours)}h`;
             cycleColor = "#34C759"; // Green for < 1 day
           } else {
-            displayText = `${Math.round(avgMergeDays)}d`;
+            // Show hours with days in parentheses for times >= 24h
+            const totalHours = Math.round(avgMergeHours);
+            displayText = `${totalHours}h (${avgMergeDays.toFixed(1)}d)`;
             // Color coding for days: <1 green, 1-3 orange, >3 red
             if (avgMergeDays < 1) {
               cycleColor = "#34C759"; // Green
@@ -934,7 +936,7 @@ export const Stats = (() => {
           avgElement.style.color = cycleColor;
 
           if (avgLink) {
-            const mergedQuery = `type:pr is:merged org:${org} merged:>=${sevenDaysAgoISO}`;
+            const mergedQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgoISO}`;
             avgLink.href = `https://github.com/search?q=${encodeURIComponent(mergedQuery)}&type=pullrequests`;
           }
         } else {

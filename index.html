@@ -42,8 +42,13 @@
                                         text-decoration: none;
                                         color: inherit;
                                     "
-                                    >🚀 <span class="gradient-text">Ready To Review</span>
-                                    <span class="header-beta-badge">Alpha</span></a
+                                    >🚀
+                                    <span class="gradient-text"
+                                        >Ready To Review</span
+                                    >
+                                    <span class="header-beta-badge"
+                                        >Alpha</span
+                                    ></a
                                 >
                             </h1>
                             <div class="controls">
@@ -155,7 +160,11 @@
                         </svg>
                         Org Statistics
                     </a>
-                    <a href="/changelog/gh/*" id="changelogLink" class="menu-link">
+                    <a
+                        href="/changelog/gh/*"
+                        id="changelogLink"
+                        class="menu-link"
+                    >
                         <svg
                             width="20"
                             height="20"
@@ -164,14 +173,20 @@
                             stroke="currentColor"
                             stroke-width="2"
                         >
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <path
+                                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                            ></path>
                             <polyline points="14 2 14 8 20 8"></polyline>
                             <line x1="16" y1="13" x2="8" y2="13"></line>
                             <line x1="16" y1="17" x2="8" y2="17"></line>
                         </svg>
                         Org Changelog
                     </a>
-                    <a href="/leaderboard" id="leaderboardLink" class="menu-link">
+                    <a
+                        href="/leaderboard"
+                        id="leaderboardLink"
+                        class="menu-link"
+                    >
                         <svg
                             width="20"
                             height="20"
@@ -448,7 +463,11 @@
                     <!-- PR Sections -->
                     <div id="prSections" class="pr-sections" hidden>
                         <!-- Loading State -->
-                        <div id="prLoadingOverlay" class="pr-loading-state" hidden>
+                        <div
+                            id="prLoadingOverlay"
+                            class="pr-loading-state"
+                            hidden
+                        >
                             <div class="pr-loading-content">
                                 <div class="pr-loading-animation">
                                     <div class="pr-loading-spinner"></div>
@@ -457,9 +476,24 @@
                                 <div class="pr-loading-text">
                                     <h3>Loading pull requests</h3>
                                     <p id="prLoadingStatus">Searching GitHub</p>
-                                    <div id="prLoadingProgress" class="pr-loading-progress" hidden>
-                                        <span class="pr-count-found"><strong id="prCountFound">0</strong> PRs found</span>
-                                        <span class="pr-count-loaded" hidden>Loading <strong id="prCountLoaded">0</strong> details</span>
+                                    <div
+                                        id="prLoadingProgress"
+                                        class="pr-loading-progress"
+                                        hidden
+                                    >
+                                        <span class="pr-count-found"
+                                            ><strong id="prCountFound"
+                                                >0</strong
+                                            >
+                                            PRs found</span
+                                        >
+                                        <span class="pr-count-loaded" hidden
+                                            >Loading
+                                            <strong id="prCountLoaded"
+                                                >0</strong
+                                            >
+                                            details</span
+                                        >
                                     </div>
                                 </div>
                             </div>
@@ -555,8 +589,17 @@
                             </p>
                         </div>
                         <!-- Blocker Logic Note -->
-                        <div style="margin-top: 2rem; padding: 1rem; text-align: center; color: var(--color-text-secondary); font-size: 0.8125rem;">
-                            NOTE: Blocker assignment logic is currently inaccurate and half-broken.
+                        <div
+                            style="
+                                margin-top: 2rem;
+                                padding: 1rem;
+                                text-align: center;
+                                color: var(--color-text-secondary);
+                                font-size: 0.8125rem;
+                            "
+                        >
+                            NOTE: access to private repositories will eventually
+                            require a subscription.
                         </div>
                     </div>
 
@@ -1095,42 +1138,93 @@
                     <!-- Changelog Page -->
                     <div id="changelogContent" class="changelog-content" hidden>
                         <div class="changelog-header">
-                            <h1 class="changelog-title" id="changelogTitleText">What's New</h1>
-                            <p class="changelog-period" id="changelogPeriod"></p>
-                            <div class="changelog-org-link" id="changelogOrgLink" hidden>
-                                <a href="#" id="changelogOrgLinkAnchor">See everyone's changes to this organization</a>
+                            <h1 class="changelog-title" id="changelogTitleText">
+                                What's New
+                            </h1>
+                            <p
+                                class="changelog-period"
+                                id="changelogPeriod"
+                            ></p>
+                            <div
+                                class="changelog-org-link"
+                                id="changelogOrgLink"
+                                hidden
+                            >
+                                <a href="#" id="changelogOrgLinkAnchor"
+                                    >See everyone's changes to this
+                                    organization</a
+                                >
                             </div>
                             <div class="changelog-controls">
-                                <div class="changelog-bot-toggle" id="changelogBotToggle" hidden>
+                                <div
+                                    class="changelog-bot-toggle"
+                                    id="changelogBotToggle"
+                                    hidden
+                                >
                                     <label class="toggle-switch">
-                                        <input type="checkbox" id="includeBots">
+                                        <input
+                                            type="checkbox"
+                                            id="includeBots"
+                                        />
                                         <span class="toggle-slider"></span>
                                     </label>
-                                    <span class="toggle-label">Include automated changes</span>
+                                    <span class="toggle-label"
+                                        >Include automated changes</span
+                                    >
                                 </div>
-                                <a href="#" id="clearChangelogCache" class="changelog-refresh-link">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-4.75 3.25-9 9-9s9 3 9 8.5M22 12c0 4.75-3.25 9-9 9s-9-3-9-8.5"/>
+                                <a
+                                    href="#"
+                                    id="clearChangelogCache"
+                                    class="changelog-refresh-link"
+                                >
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-4.75 3.25-9 9-9s9 3 9 8.5M22 12c0 4.75-3.25 9-9 9s-9-3-9-8.5"
+                                        />
                                     </svg>
                                     Update
                                 </a>
                             </div>
                         </div>
-                        
-                        <div id="changelogSummary" class="changelog-summary" hidden>
+
+                        <div
+                            id="changelogSummary"
+                            class="changelog-summary"
+                            hidden
+                        >
                             <!-- Executive summary will be inserted here -->
                         </div>
-                        
+
                         <div id="changelogProjects" class="changelog-projects">
                             <!-- Projects will be dynamically inserted here -->
                         </div>
-                        <div id="changelogLoading" class="changelog-loading" hidden>
+                        <div
+                            id="changelogLoading"
+                            class="changelog-loading"
+                            hidden
+                        >
                             <div class="spinner"></div>
                             <p>Loading changelog...</p>
                         </div>
                         <div id="changelogEmpty" class="changelog-empty" hidden>
-                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <svg
+                                width="64"
+                                height="64"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <path
+                                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                                ></path>
                                 <polyline points="14 2 14 8 20 8"></polyline>
                             </svg>
                             <p>No pull requests merged in the last 7 days</p>
@@ -1138,12 +1232,23 @@
                     </div>
 
                     <!-- Leaderboard Page -->
-                    <div id="leaderboardContent" class="leaderboard-content" hidden>
-                        <div id="leaderboardLoading" class="leaderboard-loading">
+                    <div
+                        id="leaderboardContent"
+                        class="leaderboard-content"
+                        hidden
+                    >
+                        <div
+                            id="leaderboardLoading"
+                            class="leaderboard-loading"
+                        >
                             <div class="spinner"></div>
                             <p>Loading leaderboard...</p>
                         </div>
-                        <div id="leaderboardData" class="leaderboard-data" hidden>
+                        <div
+                            id="leaderboardData"
+                            class="leaderboard-data"
+                            hidden
+                        >
                             <!-- Leaderboard will be dynamically inserted here -->
                         </div>
                     </div>
@@ -1154,7 +1259,8 @@
                 <div class="footer-notification-banner">
                     <span class="notification-icon">🔔</span>
                     <span class="notification-text">
-                        <strong>Never miss a PR!</strong> Get instant desktop notifications with the new
+                        <strong>Never miss a PR!</strong> Get instant desktop
+                        notifications with the new
                         <a
                             href="https://github.com/ready-to-review/pr-menubar"
                             target="_blank"
@@ -1164,7 +1270,13 @@
                         >
                     </span>
                     <span class="notification-icon">✨</span>
-                    <button id="footerCloseBtn" class="footer-close-btn" aria-label="Close notification">×</button>
+                    <button
+                        id="footerCloseBtn"
+                        class="footer-close-btn"
+                        aria-label="Close notification"
+                    >
+                        ×
+                    </button>
                 </div>
             </footer>
         </div>
