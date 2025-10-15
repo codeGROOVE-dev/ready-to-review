@@ -5,14 +5,6 @@ addEventListener("fetch", (event) => {
 });
 
 async function handleRequest(request, event) {
-  // Only support GET requests
-  if (request.method !== "GET") {
-    return new Response("Method Not Allowed", {
-      status: 405,
-      headers: { Allow: "GET" },
-    });
-  }
-
   try {
     const url = new URL(request.url);
     const targetHost =
@@ -27,16 +19,27 @@ async function handleRequest(request, event) {
     headers.set("X-Original-Host", url.hostname);
     headers.set("Host", targetHost);
 
-    const response = await fetch(targetUrl.toString(), {
-      method: "GET",
+    // Forward the request with the same method and body
+    const fetchOptions = {
+      method: request.method,
       headers: headers,
       redirect: "manual",
-    });
+    };
+
+    // Include body for POST, PUT, PATCH requests
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      fetchOptions.body = request.body;
+    }
+
+    const response = await fetch(targetUrl.toString(), fetchOptions);
+
+    // Create response headers, preserving Set-Cookie headers
+    const responseHeaders = new Headers(response.headers);
 
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
-      headers: response.headers,
+      headers: responseHeaders,
     });
   } catch (error) {
     console.error("Proxy error:", error.message);

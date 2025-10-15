@@ -5,6 +5,10 @@
 deploy:
 	./hacks/deploy.sh
 
+.PHONY: deploy-worker
+deploy-worker:
+	cd workers && npx wrangler deploy proxy.js
+
 .PHONY: lint
 lint: _lint
 

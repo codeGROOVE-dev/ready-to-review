@@ -32,7 +32,8 @@ const (
 	defaultPort        = "8080"
 	defaultAppID       = 1546081
 	defaultClientID    = "Iv23liYmAKkBpvhHAnQQ"
-	defaultRedirectURI = "https://dash.ready-to-review.dev/oauth/callback"
+	defaultRedirectURI = "https://auth.ready-to-review.dev/oauth/callback"
+	baseDomain         = "ready-to-review.dev"
 
 	// Rate limiting.
 	rateLimitRequests = 10
@@ -110,6 +111,83 @@ func (rl *rateLimiter) limitHandler(next http.HandlerFunc) http.HandlerFunc {
 		rl.requests[ip] = append(validRequests, now)
 		next(w, r)
 	}
+}
+
+// isValidGitHubHandle validates that a string looks like a valid GitHub handle.
+// GitHub handles can only contain alphanumeric characters and single hyphens,
+// cannot begin or end with a hyphen, and must be 1-39 characters long.
+func isValidGitHubHandle(handle string) bool {
+	if handle == "" || len(handle) > 39 {
+		return false
+	}
+
+	// Cannot start or end with hyphen
+	if strings.HasPrefix(handle, "-") || strings.HasSuffix(handle, "-") {
+		return false
+	}
+
+	// Check each character
+	for i, ch := range handle {
+		if ch >= 'a' && ch <= 'z' {
+			continue
+		}
+		if ch >= 'A' && ch <= 'Z' {
+			continue
+		}
+		if ch >= '0' && ch <= '9' {
+			continue
+		}
+		if ch == '-' {
+			// No consecutive hyphens
+			if i > 0 && handle[i-1] == '-' {
+				return false
+			}
+			continue
+		}
+		return false
+	}
+
+	return true
+}
+
+// homeOrg extracts the home organization from the request hostname.
+// Examples:
+//   - "chainguard-dev.ready-to-review.dev" -> "chainguard-dev"
+//   - "ready-to-review.dev" -> ""
+//   - "tstromberg.ready-to-review.dev" -> "tstromberg".
+func homeOrg(r *http.Request) string {
+	// Try X-Original-Host first (set by reverse proxy)
+	host := r.Header.Get("X-Original-Host")
+	if host == "" {
+		host = r.Host
+	}
+
+	// Remove port if present
+	if colon := strings.LastIndex(host, ":"); colon != -1 {
+		host = host[:colon]
+	}
+
+	// Extract subdomain
+	parts := strings.Split(host, ".")
+	if len(parts) >= 3 {
+		// Has subdomain
+		subdomain := parts[0]
+		// Don't treat reserved subdomains as home orgs
+		if subdomain == "www" || subdomain == "dash" || subdomain == "api" || subdomain == "auth" {
+			return ""
+		}
+
+		// Validate that subdomain looks like a valid GitHub handle
+		if !isValidGitHubHandle(subdomain) {
+			log.Printf("[SECURITY] Invalid GitHub handle in subdomain: %s", subdomain)
+			return ""
+		}
+
+		return subdomain
+	}
+
+	// Base domain or invalid
+	return ""
 }
 
 // clientIP extracts the client IP address from the request.
@@ -327,11 +405,50 @@ func main() {
 	log.Println("Server exited")
 }
 
+// redirectToWorkspace handles redirecting from base domain to personal workspace.
+func redirectToWorkspace(w http.ResponseWriter, r *http.Request) {
+	// Check for redirect loop protection header
+	if r.Header.Get("X-Redirected-From-Base") == "true" {
+		log.Print("[WARNING] Redirect loop detected for user")
+		// Don't redirect again - serve the base domain page
+		return
+	}
+
+	cookie, err := r.Cookie("access_token")
+	if err != nil || cookie.Value == "" {
+		return
+	}
+
+	// Check for username cookie
+	usernameCookie, err := r.Cookie("username")
+	if err != nil || usernameCookie.Value == "" {
+		return
+	}
+
+	// Validate username format before redirecting
+	if !isValidGitHubHandle(usernameCookie.Value) {
+		log.Printf("[SECURITY] Invalid username in cookie: %s", usernameCookie.Value)
+		return
+	}
+
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	redirectURL := fmt.Sprintf("%s://%s.%s/?from=base", scheme, usernameCookie.Value, baseDomain)
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
 func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 	// Only allow GET and HEAD methods
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
+	}
+
+	// If accessing base domain while logged in, redirect to personal workspace
+	if homeOrg(r) == "" && r.URL.Path == "/" {
+		redirectToWorkspace(w, r)
 	}
 
 	// Clean the path
@@ -401,38 +518,67 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
-	// Add CORS headers for popup windows
-	requestOrigin := origin(r)
-	if isAllowedOrigin(requestOrigin) {
-		w.Header().Set("Access-Control-Allow-Origin", requestOrigin)
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-	}
-
 	if *clientID == "" {
 		log.Print("OAuth login attempted but client ID not configured. Set GITHUB_CLIENT_ID environment variable or use --client-id flag")
 		http.Error(w, "Service temporarily unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
+	// Check if we're on the auth subdomain
+	currentHost := r.Header.Get("X-Original-Host")
+	if currentHost == "" {
+		currentHost = r.Host
+	}
+
+	// If not on auth subdomain, redirect there with return_to parameter
+	if !strings.HasPrefix(currentHost, "auth.") {
+		scheme := "http"
+		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+			scheme = "https"
+		}
+		// Store where to return after auth
+		returnTo := fmt.Sprintf("%s://%s%s", scheme, currentHost, r.URL.Path)
+		authURL := fmt.Sprintf("%s://auth.%s/oauth/login?return_to=%s", scheme, baseDomain, url.QueryEscape(returnTo))
+		log.Printf("[OAuth] Redirecting to auth subdomain: %s", authURL)
+		http.Redirect(w, r, authURL, http.StatusFound)
+		return
+	}
+
+	// We're on auth subdomain - proceed with OAuth flow
+	// Store return_to in cookie so callback can use it
+	returnTo := r.URL.Query().Get("return_to")
+	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+
+	if returnTo != "" {
+		returnCookie := &http.Cookie{
+			Name:     "oauth_return_to",
+			Value:    returnTo,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   isSecure,
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   900, // 15 minutes
+		}
+		http.SetCookie(w, returnCookie)
+	}
+
 	// Generate state for CSRF protection
 	state := generateID(16)
 
-	// Store state in cookie with secure settings
-	cookie := &http.Cookie{
+	// Store state in cookie - SameSite=Lax is secure since callback is on same subdomain
+	stateCookie := &http.Cookie{
 		Name:     "oauth_state",
 		Value:    state,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isSecure,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(stateExpiry),
 	}
 
-	// Set Secure flag for HTTPS
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		cookie.Secure = true
-	}
-
-	http.SetCookie(w, cookie)
+	http.SetCookie(w, stateCookie)
+	log.Printf("[OAuth] Set oauth_state cookie for %s: state=%s secure=%v sameSite=%v expires=%v",
+		clientIP(r), state, stateCookie.Secure, stateCookie.SameSite, stateCookie.Expires)
 
 	// Build authorization URL
 	authURL := fmt.Sprintf(
@@ -539,25 +685,28 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
 	if state == "" {
 		trackFailedAttempt(clientIP(r))
+		log.Printf("[OAuth] Missing state parameter from %s", clientIP(r))
 		http.Error(w, "Missing state parameter", http.StatusBadRequest)
 		return
 	}
 
 	cookie, err := r.Cookie("oauth_state")
-	if err != nil || cookie.Value != state {
+	if err != nil {
 		trackFailedAttempt(clientIP(r))
+		log.Printf("[OAuth] Missing oauth_state cookie from %s: %v. State parameter received: %s", clientIP(r), err, state)
+		log.Printf("[OAuth] Available cookies: %v", r.Cookies())
 		http.Error(w, "Invalid state", http.StatusBadRequest)
 		return
 	}
 
-	// Clear the state cookie immediately
-	http.SetCookie(w, &http.Cookie{
-		Name:     "oauth_state",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-	})
+	if cookie.Value != state {
+		trackFailedAttempt(clientIP(r))
+		log.Printf("[OAuth] State mismatch from %s: cookie=%s query=%s", clientIP(r), cookie.Value, state)
+		http.Error(w, "Invalid state", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("[OAuth] State validation successful for %s", clientIP(r))
 
 	// Get authorization code
 	code := r.URL.Query().Get("code")
@@ -577,44 +726,97 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For OAuth callbacks, derive the target origin from the redirect URI
-	// since the request origin will be GitHub
-	parsedRedirectURI, err := url.Parse(*redirectURI)
+	// Fetch username to determine personal workspace
+	user, err := userInfo(ctx, token)
 	if err != nil {
-		log.Printf("Failed to parse redirect URI: %v", err)
-		http.Error(w, "Configuration error", http.StatusInternalServerError)
+		log.Printf("Failed to get user info after OAuth: %v", err)
+		http.Error(w, "Failed to get user info", http.StatusInternalServerError)
 		return
 	}
-	targetOrigin := fmt.Sprintf("%s://%s", parsedRedirectURI.Scheme, parsedRedirectURI.Host)
 
-	// Return HTML that posts the token to the parent window with specific origin
-	html := fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <title>OAuth Callback</title>
-</head>
-<body>
-    <script>
-        const targetOrigin = '%s';
-        if (window.opener && window.opener.origin === targetOrigin) {
-            window.opener.postMessage({
-                type: 'oauth-callback',
-                token: '%s'
-            }, targetOrigin);
-            window.close();
-        } else {
-            document.body.innerHTML = 'Authentication successful. You can close this window.';
-        }
-    </script>
-</body>
-</html>
-`, targetOrigin, token)
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if _, err := w.Write([]byte(html)); err != nil {
-		log.Printf("Failed to write OAuth callback response: %v", err)
+	// Validate username format
+	if !isValidGitHubHandle(user.Login) {
+		log.Printf("[SECURITY] Invalid username format from GitHub OAuth: %s", user.Login)
+		http.Error(w, "Invalid username format", http.StatusBadRequest)
+		return
 	}
+
+	// Clear the state cookie after all validations pass
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
+
+	// Set domain-wide access token cookie
+	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	tokenCookie := &http.Cookie{
+		Name:     "access_token",
+		Value:    token,
+		Path:     "/",
+		Domain:   "." + baseDomain, // Domain-wide cookie
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   isSecure,
+		MaxAge:   86400 * 30, // 30 days
+	}
+	http.SetCookie(w, tokenCookie)
+
+	// Set username cookie for easy access
+	usernameCookie := &http.Cookie{
+		Name:     "username",
+		Value:    user.Login,
+		Path:     "/",
+		Domain:   "." + baseDomain, // Domain-wide cookie
+		SameSite: http.SameSiteLaxMode,
+		Secure:   isSecure,
+		MaxAge:   86400 * 30, // 30 days
+	}
+	http.SetCookie(w, usernameCookie)
+
+	// Check for return_to cookie
+	returnTo := ""
+	if returnCookie, err := r.Cookie("oauth_return_to"); err == nil && returnCookie.Value != "" {
+		returnTo = returnCookie.Value
+		// Clear the return_to cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "oauth_return_to",
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+		})
+	}
+
+	// Determine redirect URL
+	scheme := "http"
+	if isSecure {
+		scheme = "https"
+	}
+
+	var redirectURL string
+	if returnTo != "" {
+		// Validate return_to URL is for our domain
+		if parsedURL, err := url.Parse(returnTo); err == nil {
+			host := parsedURL.Hostname()
+			if host == baseDomain || strings.HasSuffix(host, "."+baseDomain) {
+				redirectURL = returnTo
+				log.Printf("[OAuth] Redirecting back to: %s", redirectURL)
+			} else {
+				log.Printf("[SECURITY] Invalid return_to domain: %s", host)
+			}
+		}
+	}
+
+	// Default to user's personal workspace if no valid return_to
+	if redirectURL == "" {
+		redirectURL = fmt.Sprintf("%s://%s.%s", scheme, user.Login, baseDomain)
+		log.Printf("[OAuth] Redirecting to user workspace: %s", redirectURL)
+	}
+
+	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
 func handleGetUser(w http.ResponseWriter, r *http.Request) {
@@ -881,13 +1083,13 @@ func isAllowedOrigin(origin string) bool {
 		return false
 	}
 
-	// Allow localhost for development and the production domain
+	// Allow localhost for development and the production domain (including all subdomains)
 	host := u.Hostname()
 	return host == "localhost" ||
 		host == "127.0.0.1" ||
 		strings.HasPrefix(host, "localhost:") ||
-		host == "dash.ready-to-review.dev" ||
-		host == "ready-to-review.dev"
+		host == baseDomain ||
+		strings.HasSuffix(host, "."+baseDomain) // Allow all subdomains
 }
 
 // requestSizeLimiter prevents large request bodies from exhausting server resources.

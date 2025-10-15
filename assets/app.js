@@ -6,6 +6,7 @@ import { Stats } from './stats.js';
 import { Robots } from './robots.js';
 import { Changelog } from './changelog.js';
 import { Leaderboard } from './leaderboard.js';
+import { Workspace } from './workspace.js';
 
 const App = (() => {
   "use strict";
@@ -666,7 +667,16 @@ const App = (() => {
     const urlParams = new URLSearchParams(window.location.search);
     const demo = urlParams.get("demo");
     const urlContext = parseURL();
-    
+
+    // Hide demo button if visiting a custom workspace (not base domain)
+    const workspace = Workspace.currentWorkspace();
+    if (workspace) {
+      const demoButton = document.getElementById('demoButton');
+      if (demoButton) {
+        demoButton.style.display = 'none';
+      }
+    }
+
     // Initialize footer
     initializeFooter();
 

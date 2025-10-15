@@ -10,7 +10,7 @@ export const Auth = (() => {
     API_BASE: "https://api.github.com",
     STORAGE_KEY: "github_token",
     COOKIE_KEY: "github_pat",
-    OAUTH_REDIRECT_URI: window.location.origin + "/oauth/callback",
+    OAUTH_REDIRECT_URI: "https://auth.ready-to-review.dev/oauth/callback",
   };
 
   // Cookie Functions
@@ -36,87 +36,43 @@ export const Auth = (() => {
   }
 
   const getStoredToken = () => {
-    // Check cookie first (for PAT)
+    // Check for domain-wide access_token cookie (set by server after OAuth)
+    const accessToken = getCookie('access_token');
+    if (accessToken) return accessToken;
+
+    // Check cookie for PAT
     const cookieToken = getCookie(CONFIG.COOKIE_KEY);
     if (cookieToken) return cookieToken;
 
-    // Fall back to localStorage (for OAuth)
+    // Fall back to localStorage (for OAuth - legacy)
     return localStorage.getItem(CONFIG.STORAGE_KEY);
   };
 
   const storeToken = (token, useCookie = false) => {
+    // For PAT, store in a non-HttpOnly cookie
     if (useCookie) {
       setCookie(CONFIG.COOKIE_KEY, token, 365); // 1 year
     } else {
-      localStorage.setItem(CONFIG.STORAGE_KEY, token);
+      // For OAuth, token is now set by server as HttpOnly cookie
+      // We don't store it in localStorage anymore
+      // This function is kept for backward compatibility
     }
   };
 
   const clearToken = () => {
     localStorage.removeItem(CONFIG.STORAGE_KEY);
     deleteCookie(CONFIG.COOKIE_KEY);
+    // Clear domain-wide cookies
+    deleteCookie('access_token');
+    deleteCookie('username');
   };
 
   const initiateOAuthLogin = () => {
     console.log('[Auth.initiateOAuthLogin] Starting OAuth flow...');
-    
-    // Generate state and store in cookie for server validation
-    const state = Math.random().toString(36).substr(2, 15);
-    
-    // Set cookie that the server expects
-    document.cookie = `oauth_state=${state};path=/;max-age=900;SameSite=Lax`;
-    console.log('[Auth.initiateOAuthLogin] State cookie set:', state);
-    
-    // Use the actual redirect URI that the server expects
-    const redirectUri = window.location.origin + "/oauth/callback";
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${CONFIG.CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user%20repo&state=${state}`;
-    
-    console.log('[Auth.initiateOAuthLogin] Opening popup window...');
-    
-    // Open OAuth flow in popup window as the server expects
-    const popup = window.open(authUrl, "github-oauth", "width=600,height=700");
-    
-    // Listen for OAuth completion message from the popup
-    const messageHandler = (event) => {
-      console.log('[Auth.initiateOAuthLogin] Received message:', event);
-      
-      // Verify the message is from our domain
-      if (event.origin !== window.location.origin) {
-        console.log('[Auth.initiateOAuthLogin] Ignoring message from different origin:', event.origin);
-        return;
-      }
-      
-      // Handle the OAuth callback
-      if (event.data && event.data.type === 'oauth-callback' && event.data.token) {
-        console.log('[Auth.initiateOAuthLogin] Received OAuth token');
-        
-        // Store the token
-        storeToken(event.data.token);
-        
-        // Close the popup if it's still open
-        if (popup && !popup.closed) {
-          popup.close();
-        }
-        
-        // Remove the message listener
-        window.removeEventListener('message', messageHandler);
-        
-        // Reload the page to reinitialize with the new token
-        window.location.reload();
-      }
-    };
-    
-    // Add the message listener
-    window.addEventListener('message', messageHandler);
-    
-    // Also handle if the popup is closed without completing auth
-    const checkPopup = setInterval(() => {
-      if (popup && popup.closed) {
-        console.log('[Auth.initiateOAuthLogin] Popup was closed');
-        clearInterval(checkPopup);
-        window.removeEventListener('message', messageHandler);
-      }
-    }, 500);
+
+    // Simply redirect to the backend OAuth endpoint
+    // The backend will handle state generation and cookie management
+    window.location.href = '/oauth/login';
   };
 
   const showGitHubAppModal = () => {
@@ -223,11 +179,8 @@ export const Auth = (() => {
     }
   };
 
-  const handleOAuthCallback = async () => {
-    // The server handles the OAuth callback and token exchange
-    // This function is kept for backward compatibility
-    console.log('[Auth.handleOAuthCallback] Called - server should have handled the OAuth flow');
-  };
+  // OAuth callback is now fully handled by the backend
+  // The backend sets domain-wide cookies and redirects to the user's workspace
 
   const handleAuthError = () => {
     clearToken();
@@ -427,7 +380,6 @@ export const Auth = (() => {
     initiatePATLogin,
     closePATModal,
     submitPAT,
-    handleOAuthCallback,
     handleAuthError,
     logout,
     githubAPI,
