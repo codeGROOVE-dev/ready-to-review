@@ -63,10 +63,30 @@ var (
 	redirectURI    = flag.String("redirect-uri", defaultRedirectURI, "OAuth redirect URI")
 	allowedOrigins = flag.String("allowed-origins", "", "Comma-separated list of allowed origins for CORS")
 
+	// Build timestamp for cache busting (set at startup).
+	buildTimestamp string
+
 	// Security: Track failed login attempts.
 	failedAttempts = make(map[string][]time.Time)
 	failedMutex    sync.Mutex
+
+	// One-time auth code exchange (token -> code mapping).
+	// Used to securely transfer tokens from auth subdomain to user subdomain.
+	authCodes      = make(map[string]authCodeData)
+	authCodesMutex sync.Mutex
+
+	// Rate limiter for auth code exchange endpoint (prevent brute force attacks).
+	exchangeRateLimiter *rateLimiter
 )
+
+// authCodeData stores a one-time use auth code with expiration.
+type authCodeData struct {
+	token    string
+	username string
+	expiry   time.Time
+	returnTo string
+	used     bool
+}
 
 // rateLimiter implements a simple in-memory rate limiter.
 type rateLimiter struct {
@@ -236,7 +256,7 @@ func securityHeaders(next http.Handler) http.Handler {
 			"script-src 'self' 'unsafe-inline'", // Needed for inline event handlers
 			"style-src 'self' 'unsafe-inline'",  // Needed for inline styles
 			"img-src 'self' https://avatars.githubusercontent.com data:",
-			"connect-src 'self' https://api.github.com https://turn.ready-to-review.dev",
+			"connect-src 'self' https://api.github.com https://turn.github.codegroove.app",
 			"font-src 'self'",
 			"object-src 'none'",
 			"frame-src 'none'",
@@ -299,6 +319,9 @@ func getClientSecret(ctx context.Context) string {
 func main() {
 	flag.Parse()
 
+	// Set build timestamp for cache busting
+	buildTimestamp = strconv.FormatInt(time.Now().Unix(), 10)
+
 	// Determine port with flag taking precedence over environment
 	serverPort := *port
 	if serverPort == "" {
@@ -341,21 +364,25 @@ func main() {
 		}
 	}
 
-	// Initialize rate limiter
-	rl := newRateLimiter(rateLimitRequests, rateLimitWindow)
+	// Initialize rate limiter for auth code exchange (strict: 10 attempts per minute per IP)
+	exchangeRateLimiter = newRateLimiter(rateLimitRequests, rateLimitWindow)
 
 	// Set up routes
 	mux := http.NewServeMux()
 
-	// OAuth endpoints with rate limiting
-	mux.HandleFunc("/oauth/login", rl.limitHandler(handleOAuthLogin))
-	mux.HandleFunc("/oauth/callback", rl.limitHandler(handleOAuthCallback))
-	mux.HandleFunc("/oauth/user", rl.limitHandler(handleGetUser))
+	// OAuth endpoints
+	// Register API endpoints before catch-all to ensure they match first
+	// Auth code exchange has rate limiting to prevent brute force attacks
+	mux.HandleFunc("/oauth/exchange", exchangeRateLimiter.limitHandler(handleExchangeAuthCode))
+	mux.HandleFunc("/oauth/login", handleOAuthLogin)
+	mux.HandleFunc("/oauth/callback", handleOAuthCallback)
+	mux.HandleFunc("/oauth/user", handleGetUser)
 
 	// Health check endpoint
 	mux.HandleFunc("/health", handleHealthCheck)
 
 	// Serve everything else as SPA (including assets)
+	// This MUST be registered last as it's a catch-all
 	mux.HandleFunc("/", serveStaticFiles)
 
 	// Wrap with security middleware
@@ -375,6 +402,7 @@ func main() {
 	log.Printf("Starting server on %s", addr)
 	log.Printf("GitHub App ID: %d", *appID)
 	log.Printf("OAuth Client ID: %s", *clientID)
+	log.Printf("OAuth Redirect URI: %s", *redirectURI)
 	if *clientSecret == "" {
 		log.Print("WARNING: OAuth Client Secret not set. OAuth login will not work.")
 		log.Print("Set GITHUB_CLIENT_SECRET environment variable or use --client-secret flag")
@@ -442,6 +470,7 @@ func redirectToWorkspace(w http.ResponseWriter, r *http.Request) {
 func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 	// Only allow GET and HEAD methods
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		log.Printf("[serveStaticFiles] Rejecting %s request to %s (405)", r.Method, r.URL.Path)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -493,6 +522,8 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case strings.HasSuffix(path, ".html"):
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		// Replace BUILD_TIMESTAMP placeholder with actual timestamp for cache busting
+		data = []byte(strings.ReplaceAll(string(data), "BUILD_TIMESTAMP", buildTimestamp))
 	case strings.HasSuffix(path, ".css"):
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 	case strings.HasSuffix(path, ".js"):
@@ -524,20 +555,21 @@ func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if we're on the auth subdomain
+	// Get current host to determine return destination
 	currentHost := r.Header.Get("X-Original-Host")
 	if currentHost == "" {
 		currentHost = r.Host
 	}
 
+	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	scheme := "http"
+	if isSecure {
+		scheme = "https"
+	}
+
 	// If not on auth subdomain, redirect there with return_to parameter
 	if !strings.HasPrefix(currentHost, "auth.") {
-		scheme := "http"
-		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-			scheme = "https"
-		}
-		// Store where to return after auth
-		returnTo := fmt.Sprintf("%s://%s%s", scheme, currentHost, r.URL.Path)
+		returnTo := fmt.Sprintf("%s://%s/", scheme, currentHost)
 		authURL := fmt.Sprintf("%s://auth.%s/oauth/login?return_to=%s", scheme, baseDomain, url.QueryEscape(returnTo))
 		log.Printf("[OAuth] Redirecting to auth subdomain: %s", authURL)
 		http.Redirect(w, r, authURL, http.StatusFound)
@@ -545,50 +577,47 @@ func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// We're on auth subdomain - proceed with OAuth flow
-	// Store return_to in cookie so callback can use it
+	// Store return_to in state
 	returnTo := r.URL.Query().Get("return_to")
-	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 
+	// Generate state for CSRF protection (include return_to)
+	stateData := generateID(16)
 	if returnTo != "" {
+		// Store return_to in cookie so callback can use it
 		returnCookie := &http.Cookie{
 			Name:     "oauth_return_to",
 			Value:    returnTo,
 			Path:     "/",
 			HttpOnly: true,
 			Secure:   isSecure,
-			SameSite: http.SameSiteLaxMode,
-			MaxAge:   900, // 15 minutes
+			SameSite: http.SameSiteLaxMode, // Lax required for OAuth redirect from GitHub
+			MaxAge:   900,                  // 15 minutes
 		}
 		http.SetCookie(w, returnCookie)
 	}
 
-	// Generate state for CSRF protection
-	state := generateID(16)
-
-	// Store state in cookie - SameSite=Lax is secure since callback is on same subdomain
+	// Store state in cookie
 	stateCookie := &http.Cookie{
 		Name:     "oauth_state",
-		Value:    state,
+		Value:    stateData,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   isSecure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteLaxMode, // Lax required for OAuth redirect from GitHub
 		Expires:  time.Now().Add(stateExpiry),
 	}
-
 	http.SetCookie(w, stateCookie)
-	log.Printf("[OAuth] Set oauth_state cookie for %s: state=%s secure=%v sameSite=%v expires=%v",
-		clientIP(r), state, stateCookie.Secure, stateCookie.SameSite, stateCookie.Expires)
 
-	// Build authorization URL
+	// Build authorization URL (always use auth.ready-to-review.dev callback)
 	authURL := fmt.Sprintf(
 		"https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s&scope=%s&state=%s",
 		url.QueryEscape(*clientID),
 		url.QueryEscape(*redirectURI),
 		url.QueryEscape("repo read:org"),
-		url.QueryEscape(state),
+		url.QueryEscape(stateData),
 	)
 
+	log.Printf("[OAuth] Starting OAuth with return_to=%s", returnTo)
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
@@ -686,6 +715,7 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if state == "" {
 		trackFailedAttempt(clientIP(r))
 		log.Printf("[OAuth] Missing state parameter from %s", clientIP(r))
+		clearStateCookie(w)
 		http.Error(w, "Missing state parameter", http.StatusBadRequest)
 		return
 	}
@@ -695,6 +725,7 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		trackFailedAttempt(clientIP(r))
 		log.Printf("[OAuth] Missing oauth_state cookie from %s: %v. State parameter received: %s", clientIP(r), err, state)
 		log.Printf("[OAuth] Available cookies: %v", r.Cookies())
+		clearStateCookie(w)
 		http.Error(w, "Invalid state", http.StatusBadRequest)
 		return
 	}
@@ -702,6 +733,7 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if cookie.Value != state {
 		trackFailedAttempt(clientIP(r))
 		log.Printf("[OAuth] State mismatch from %s: cookie=%s query=%s", clientIP(r), cookie.Value, state)
+		clearStateCookie(w)
 		http.Error(w, "Invalid state", http.StatusBadRequest)
 		return
 	}
@@ -712,11 +744,12 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	if code == "" || len(code) > 512 {
 		trackFailedAttempt(clientIP(r))
+		clearStateCookie(w)
 		http.Error(w, "Invalid authorization code", http.StatusBadRequest)
 		return
 	}
 
-	// Exchange code for token
+	// Exchange code for token (use registered callback URI)
 	ctx := r.Context()
 	token, err := exchangeCodeForToken(ctx, code, *redirectURI)
 	if err != nil {
@@ -742,41 +775,9 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clear the state cookie after all validations pass
-	http.SetCookie(w, &http.Cookie{
-		Name:     "oauth_state",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-	})
+	clearStateCookie(w)
 
-	// Set domain-wide access token cookie
-	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
-	tokenCookie := &http.Cookie{
-		Name:     "access_token",
-		Value:    token,
-		Path:     "/",
-		Domain:   "." + baseDomain, // Domain-wide cookie
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   isSecure,
-		MaxAge:   86400 * 30, // 30 days
-	}
-	http.SetCookie(w, tokenCookie)
-
-	// Set username cookie for easy access
-	usernameCookie := &http.Cookie{
-		Name:     "username",
-		Value:    user.Login,
-		Path:     "/",
-		Domain:   "." + baseDomain, // Domain-wide cookie
-		SameSite: http.SameSiteLaxMode,
-		Secure:   isSecure,
-		MaxAge:   86400 * 30, // 30 days
-	}
-	http.SetCookie(w, usernameCookie)
-
-	// Check for return_to cookie
+	// Get return_to from cookie
 	returnTo := ""
 	if returnCookie, err := r.Cookie("oauth_return_to"); err == nil && returnCookie.Value != "" {
 		returnTo = returnCookie.Value
@@ -790,7 +791,8 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Determine redirect URL
+	// Validate return_to URL
+	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 	scheme := "http"
 	if isSecure {
 		scheme = "https"
@@ -801,9 +803,27 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		// Validate return_to URL is for our domain
 		if parsedURL, err := url.Parse(returnTo); err == nil {
 			host := parsedURL.Hostname()
-			if host == baseDomain || strings.HasSuffix(host, "."+baseDomain) {
-				redirectURL = returnTo
-				log.Printf("[OAuth] Redirecting back to: %s", redirectURL)
+			urlScheme := parsedURL.Scheme
+
+			// Only allow http/https schemes
+			if urlScheme != "http" && urlScheme != "https" {
+				log.Printf("[SECURITY] Invalid return_to scheme: %s", urlScheme)
+			} else if host == baseDomain || strings.HasSuffix(host, "."+baseDomain) {
+				// Additional hostname validation - only ASCII alphanumeric, hyphens, dots
+				valid := true
+				for _, ch := range host {
+					if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+						(ch >= '0' && ch <= '9') || ch == '-' || ch == '.') {
+						valid = false
+						break
+					}
+				}
+
+				if valid {
+					redirectURL = returnTo
+				} else {
+					log.Printf("[SECURITY] Suspicious characters in return_to hostname: %s", host)
+				}
 			} else {
 				log.Printf("[SECURITY] Invalid return_to domain: %s", host)
 			}
@@ -813,10 +833,115 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	// Default to user's personal workspace if no valid return_to
 	if redirectURL == "" {
 		redirectURL = fmt.Sprintf("%s://%s.%s", scheme, user.Login, baseDomain)
-		log.Printf("[OAuth] Redirecting to user workspace: %s", redirectURL)
 	}
 
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	// Create one-time auth code for secure token transfer
+	authCode := generateID(32)
+	authCodesMutex.Lock()
+	authCodes[authCode] = authCodeData{
+		token:    token,
+		username: user.Login,
+		expiry:   time.Now().Add(30 * time.Second), // Short-lived
+		returnTo: redirectURL,
+		used:     false,
+	}
+	authCodesMutex.Unlock()
+
+	// Redirect with one-time auth code in fragment (not sent to server)
+	// Fragment identifiers are not sent in Referer headers or logged by servers
+	redirectWithCode := fmt.Sprintf("%s#auth_code=%s", redirectURL, url.QueryEscape(authCode))
+	log.Printf("[OAuth] Redirecting to %s with one-time auth code (in fragment)", sanitizeURL(redirectURL))
+	http.Redirect(w, r, redirectWithCode, http.StatusFound)
+}
+
+func handleExchangeAuthCode(w http.ResponseWriter, r *http.Request) {
+	// Record start time for constant-time responses (prevent timing attacks)
+	startTime := time.Now()
+	// Minimum response time: 50ms to prevent timing-based code validity detection
+	const minResponseTime = 50 * time.Millisecond
+
+	// Ensure constant-time response at function exit
+	defer func() {
+		elapsed := time.Since(startTime)
+		if elapsed < minResponseTime {
+			time.Sleep(minResponseTime - elapsed)
+		}
+	}()
+
+	log.Printf("[handleExchangeAuthCode] Called with method=%s path=%s", r.Method, r.URL.Path)
+	if r.Method != http.MethodPost {
+		log.Printf("[handleExchangeAuthCode] Rejecting non-POST request: %s", r.Method)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// CSRF Protection: Verify Origin header to ensure request is from our domain
+	requestOrigin := origin(r)
+	if !isAllowedOrigin(requestOrigin) {
+		log.Printf("[SECURITY] Invalid origin for auth code exchange: %s from %s", requestOrigin, clientIP(r))
+		http.Error(w, "Invalid origin", http.StatusForbidden)
+		return
+	}
+
+	// Get auth code from request
+	var req struct {
+		AuthCode string `json:"auth_code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.AuthCode == "" {
+		http.Error(w, "Missing auth_code", http.StatusBadRequest)
+		return
+	}
+
+	// Atomically validate and consume auth code (all checks under single lock to prevent TOCTOU race)
+	authCodesMutex.Lock()
+	data, exists := authCodes[req.AuthCode]
+
+	// Perform all validation checks before releasing lock
+	if !exists {
+		authCodesMutex.Unlock()
+		log.Printf("[OAuth] Invalid or expired auth code from %s", clientIP(r))
+		http.Error(w, "Invalid or expired auth code", http.StatusUnauthorized)
+		return
+	}
+
+	if data.used {
+		authCodesMutex.Unlock()
+		log.Printf("[SECURITY] Attempt to reuse auth code from %s", clientIP(r))
+		http.Error(w, "Auth code already used", http.StatusUnauthorized)
+		return
+	}
+
+	if time.Now().After(data.expiry) {
+		authCodesMutex.Unlock()
+		log.Printf("[OAuth] Expired auth code from %s", clientIP(r))
+		http.Error(w, "Auth code expired", http.StatusUnauthorized)
+		return
+	}
+
+	// All validations passed - atomically delete the auth code before releasing lock
+	delete(authCodes, req.AuthCode)
+	authCodesMutex.Unlock()
+
+	// Return token and username
+	response := struct {
+		Token    string `json:"token"`
+		Username string `json:"username"`
+	}{
+		Token:    data.token,
+		Username: data.username,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to encode auth exchange response: %v", err)
+	}
+
+	log.Printf("[OAuth] Successfully exchanged auth code for user %s", data.username)
 }
 
 func handleGetUser(w http.ResponseWriter, r *http.Request) {
@@ -1014,6 +1139,30 @@ func generateID(bytes int) string {
 		panic(fmt.Sprintf("CRITICAL: Failed to generate secure random ID: %v", err))
 	}
 	return base64.URLEncoding.EncodeToString(b)
+}
+
+func clearStateCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
+}
+
+// sanitizeURL removes sensitive parameters from URLs for logging.
+func sanitizeURL(urlStr string) string {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return "[INVALID_URL]"
+	}
+
+	// Remove fragment and query parameters
+	u.Fragment = ""
+	u.RawQuery = ""
+
+	return u.String()
 }
 
 func trackFailedAttempt(ip string) {

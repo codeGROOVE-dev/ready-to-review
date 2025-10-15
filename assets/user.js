@@ -110,7 +110,7 @@ export const User = (() => {
 
     try {
       const response = await fetch(
-        "https://turn.ready-to-review.dev/v1/validate",
+        "https://turn.github.codegroove.app/v1/validate",
         {
           method: "POST",
           headers,

@@ -1,5 +1,17 @@
 // Authentication Module for Ready To Review
 console.log('[Auth Module] Loading...');
+
+// Log URL parameters on page load for debugging OAuth flow
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('code') || urlParams.has('state') || urlParams.has('error')) {
+  console.log('[Auth] OAuth callback detected!');
+  console.log('[Auth] URL:', window.location.href);
+  console.log('[Auth] Code:', urlParams.get('code') ? 'present (length=' + urlParams.get('code').length + ')' : 'missing');
+  console.log('[Auth] State:', urlParams.get('state') ? 'present' : 'missing');
+  console.log('[Auth] Error:', urlParams.get('error'));
+  console.log('[Auth] Error description:', urlParams.get('error_description'));
+}
+
 export const Auth = (() => {
   "use strict";
   console.log('[Auth Module] Initializing...');
@@ -36,39 +48,38 @@ export const Auth = (() => {
   }
 
   const getStoredToken = () => {
-    // Check for domain-wide access_token cookie (set by server after OAuth)
-    const accessToken = getCookie('access_token');
-    if (accessToken) return accessToken;
+    // Check localStorage for OAuth token
+    const localToken = localStorage.getItem(CONFIG.STORAGE_KEY);
+    if (localToken) return localToken;
 
-    // Check cookie for PAT
+    // Check for PAT (user-entered token, stored in non-HttpOnly cookie)
     const cookieToken = getCookie(CONFIG.COOKIE_KEY);
     if (cookieToken) return cookieToken;
 
-    // Fall back to localStorage (for OAuth - legacy)
-    return localStorage.getItem(CONFIG.STORAGE_KEY);
+    return null;
   };
 
   const storeToken = (token, useCookie = false) => {
-    // For PAT, store in a non-HttpOnly cookie
     if (useCookie) {
+      // For PAT, store in cookie
       setCookie(CONFIG.COOKIE_KEY, token, 365); // 1 year
     } else {
-      // For OAuth, token is now set by server as HttpOnly cookie
-      // We don't store it in localStorage anymore
-      // This function is kept for backward compatibility
+      // For OAuth, store in localStorage
+      localStorage.setItem(CONFIG.STORAGE_KEY, token);
     }
   };
 
   const clearToken = () => {
+    // Clear localStorage
     localStorage.removeItem(CONFIG.STORAGE_KEY);
+    // Clear PAT cookie
     deleteCookie(CONFIG.COOKIE_KEY);
-    // Clear domain-wide cookies
-    deleteCookie('access_token');
-    deleteCookie('username');
   };
 
   const initiateOAuthLogin = () => {
     console.log('[Auth.initiateOAuthLogin] Starting OAuth flow...');
+    console.log('[Auth.initiateOAuthLogin] Current URL:', window.location.href);
+    console.log('[Auth.initiateOAuthLogin] Redirecting to:', window.location.origin + '/oauth/login');
 
     // Simply redirect to the backend OAuth endpoint
     // The backend will handle state generation and cookie management
@@ -179,8 +190,53 @@ export const Auth = (() => {
     }
   };
 
-  // OAuth callback is now fully handled by the backend
-  // The backend sets domain-wide cookies and redirects to the user's workspace
+  // Handle OAuth callback with auth code
+  const handleAuthCodeCallback = async () => {
+    // Auth code is in fragment (hash) not query parameter for security
+    // Fragments are not sent to server in Referer headers
+    const fragment = window.location.hash.substring(1); // Remove leading #
+    const fragmentParams = new URLSearchParams(fragment);
+    const authCode = fragmentParams.get('auth_code');
+
+    if (!authCode) {
+      return false; // No auth code, nothing to do
+    }
+
+    console.log('[Auth] Found auth_code in fragment, exchanging for token...');
+
+    try {
+      // Exchange auth code for token
+      const response = await fetch('/oauth/exchange', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ auth_code: authCode }),
+      });
+
+      if (!response.ok) {
+        console.error('[Auth] Failed to exchange auth code:', response.status);
+        return false;
+      }
+
+      const data = await response.json();
+
+      // Store token in localStorage
+      storeToken(data.token);
+
+      console.log('[Auth] Successfully exchanged auth code for token, user:', data.username);
+
+      // Remove auth_code from URL fragment
+      const url = new URL(window.location);
+      url.hash = ''; // Clear the fragment
+      window.history.replaceState({}, '', url);
+
+      return true;
+    } catch (error) {
+      console.error('[Auth] Error exchanging auth code:', error);
+      return false;
+    }
+  };
 
   const handleAuthError = () => {
     clearToken();
@@ -374,6 +430,7 @@ export const Auth = (() => {
     storeToken,
     clearToken,
     initiateOAuthLogin,
+    handleAuthCodeCallback,
     showGitHubAppModal,
     closeGitHubAppModal,
     proceedWithOAuth,

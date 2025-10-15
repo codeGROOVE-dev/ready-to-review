@@ -1,14 +1,15 @@
 # Cloudflare Worker - Wildcard DNS Proxy
 
-This Cloudflare Worker acts as a reverse proxy for wildcard DNS domains, forwarding GET requests to a Google Cloud Run service while preserving the original hostname.
+This Cloudflare Worker acts as a reverse proxy for wildcard DNS domains, forwarding all HTTP requests to a Google Cloud Run service while preserving the original hostname.
 
-This is a crap workaround for the fact that Google doesn't support wildcard DNS, but Cloudflare workers do.
+This is a workaround for the fact that Google Cloud Run doesn't support wildcard DNS, but Cloudflare workers do.
 
 ## Features
 
 - **Original Hostname Preservation**: Adds `X-Original-Host` header
-- **GET-only**: Only accepts GET requests for simplicity and security
-- **Error Handling**: Returns 502 Bad Gateway on errors, 405 Method Not Allowed for non-GET requests
+- **All HTTP Methods**: Supports GET, POST, PUT, PATCH, DELETE, etc.
+- **Request Body Forwarding**: Properly forwards request bodies for POST/PUT/PATCH requests
+- **Error Handling**: Returns 502 Bad Gateway on proxy errors
 
 ## Configuration
 

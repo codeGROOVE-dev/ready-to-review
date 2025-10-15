@@ -837,6 +837,21 @@ const App = (() => {
       return;
     }
 
+    // Handle OAuth callback with auth code
+    console.log('[App.init] Checking for OAuth auth code...');
+    const authCodeExchanged = await Auth.handleAuthCodeCallback();
+
+    // Re-check for authentication token (it might have been set after module load or auth code exchange)
+    state.accessToken = Auth.getStoredToken();
+    console.log('[App.init] Checked for access token:', state.accessToken ? 'found' : 'not found');
+
+    // If we just exchanged an auth code successfully, reload to start with fresh state
+    if (authCodeExchanged) {
+      console.log('[App.init] Auth code exchanged successfully, reloading page...');
+      window.location.reload();
+      return;
+    }
+
     // Check for authentication
     if (!state.accessToken) {
       updateSearchInputVisibility();
