@@ -1,0 +1,7 @@
+name = "dashboard-proxy"
+main = "proxy.js"
+compatibility_date = "2024-01-01"
+
+# Production environment variables
+[env.production.vars]
+TARGET_HOST = "your-cloud-run-service.run.app"

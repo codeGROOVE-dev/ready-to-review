@@ -8,6 +8,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -22,25 +23,27 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/r2r/dashboard/secrets"
 )
 
-// Constants for configuration
+// Constants for configuration.
 const (
 	defaultPort        = "8080"
 	defaultAppID       = 1546081
 	defaultClientID    = "Iv23liYmAKkBpvhHAnQQ"
 	defaultRedirectURI = "https://dash.ready-to-review.dev/oauth/callback"
 
-	// Rate limiting
+	// Rate limiting.
 	rateLimitRequests = 10
 	rateLimitWindow   = 1 * time.Minute
 
-	// Timeouts
+	// Timeouts.
 	httpTimeout     = 10 * time.Second
 	shutdownTimeout = 30 * time.Second
 	stateExpiry     = 15 * time.Minute
 
-	// Security
+	// Security.
 	maxRequestSize    = 1 << 20 // 1MB
 	maxHeaderSize     = 1 << 20 // 1MB
 	maxFailedLogins   = 5
@@ -59,12 +62,12 @@ var (
 	redirectURI    = flag.String("redirect-uri", defaultRedirectURI, "OAuth redirect URI")
 	allowedOrigins = flag.String("allowed-origins", "", "Comma-separated list of allowed origins for CORS")
 
-	// Security: Track failed login attempts
+	// Security: Track failed login attempts.
 	failedAttempts = make(map[string][]time.Time)
 	failedMutex    sync.Mutex
 )
 
-// rateLimiter implements a simple in-memory rate limiter
+// rateLimiter implements a simple in-memory rate limiter.
 type rateLimiter struct {
 	requests map[string][]time.Time
 	mu       sync.Mutex
@@ -109,22 +112,15 @@ func (rl *rateLimiter) limitHandler(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// clientIP extracts the client IP address from the request
+// clientIP extracts the client IP address from the request.
 func clientIP(r *http.Request) string {
-	// Check X-Forwarded-For header first
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if idx := strings.IndexByte(xff, ','); idx != -1 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
-	}
-
-	// Check X-Real-IP header
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
-	}
-
-	// Fall back to RemoteAddr
+	// SECURITY: Only use RemoteAddr to prevent header spoofing attacks
+	// X-Forwarded-For and X-Real-IP are trivially spoofable and should not be trusted
+	// for security-critical functions like rate limiting
+	//
+	// When behind a trusted proxy (like Cloud Run), RemoteAddr will be the proxy IP
+	// This means rate limiting happens at the proxy level, which is acceptable
+	// as it still prevents single-source DoS attacks
 	ip := r.RemoteAddr
 	if colon := strings.LastIndex(ip, ":"); colon != -1 {
 		return ip[:colon]
@@ -132,7 +128,7 @@ func clientIP(r *http.Request) string {
 	return ip
 }
 
-// securityHeaders adds security headers to all responses
+// securityHeaders adds security headers to all responses.
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Add request ID for tracking
@@ -181,7 +177,7 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// oauthTokenResponse represents the GitHub OAuth token response
+// oauthTokenResponse represents the GitHub OAuth token response.
 type oauthTokenResponse struct {
 	AccessToken      string `json:"access_token"`
 	TokenType        string `json:"token_type"`
@@ -190,11 +186,36 @@ type oauthTokenResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-// githubUser represents a GitHub user
+// githubUser represents a GitHub user.
 type githubUser struct {
-	Login string `json:"login"`
 	ID    int    `json:"id"`
+	Login string `json:"login"`
 	Name  string `json:"name"`
+}
+
+// getClientSecret retrieves the GitHub OAuth client secret from environment or Secret Manager.
+func getClientSecret(ctx context.Context) string {
+	// Check if running in Cloud Run
+	isCloudRun := os.Getenv("K_SERVICE") != "" || os.Getenv("CLOUD_RUN_TIMEOUT_SECONDS") != ""
+	if !isCloudRun {
+		log.Print("Not running in Cloud Run, skipping Secret Manager")
+		return ""
+	}
+
+	// Fetch secret with environment variable override
+	// The gsm library auto-detects the project ID from metadata server
+	secretValue, err := secrets.Fetch(ctx, "GITHUB_CLIENT_SECRET", "GITHUB_CLIENT_SECRET")
+	if err != nil {
+		log.Printf("Failed to fetch secret from Secret Manager: %v", err)
+		return ""
+	}
+
+	// Validate secret is not empty
+	if secretValue == "" {
+		log.Print("WARNING: Secret Manager returned empty value for GITHUB_CLIENT_SECRET")
+	}
+
+	return secretValue
 }
 
 func main() {
@@ -224,10 +245,10 @@ func main() {
 		}
 	}
 
+	// Get client secret from environment or Secret Manager
 	if *clientSecret == "" {
-		if envSecret := os.Getenv("GITHUB_CLIENT_SECRET"); envSecret != "" {
-			*clientSecret = envSecret
-		}
+		ctx := context.Background()
+		*clientSecret = getClientSecret(ctx)
 	}
 
 	if *redirectURI == defaultRedirectURI || *redirectURI == "" {
@@ -277,14 +298,16 @@ func main() {
 	log.Printf("GitHub App ID: %d", *appID)
 	log.Printf("OAuth Client ID: %s", *clientID)
 	if *clientSecret == "" {
-		log.Printf("Warning: OAuth Client Secret not set. OAuth login will not work.")
+		log.Print("WARNING: OAuth Client Secret not set. OAuth login will not work.")
+		log.Print("Set GITHUB_CLIENT_SECRET environment variable or use --client-secret flag")
+	} else {
+		log.Printf("OAuth Client Secret: configured (length=%d)", len(*clientSecret))
 	}
 
 	// Start server in goroutine
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("Server failed to start: %v", err)
-			os.Exit(1)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("Server failed to start: %v", err)
 		}
 	}()
 
@@ -299,7 +322,6 @@ func main() {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
-		os.Exit(1)
 	}
 
 	log.Println("Server exited")
@@ -341,7 +363,9 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Header().Set("Cache-Control", "no-cache")
-			w.Write(data)
+			if _, err := w.Write(data); err != nil {
+				log.Printf("Failed to write response: %v", err)
+			}
 			return
 		}
 		http.NotFound(w, r)
@@ -366,10 +390,14 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 	case strings.HasSuffix(path, ".ico"):
 		w.Header().Set("Content-Type", "image/x-icon")
+	default:
+		// No specific content type
 	}
 
 	// Write the file content
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("Failed to write file content: %v", err)
+	}
 }
 
 func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
@@ -381,7 +409,7 @@ func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if *clientID == "" {
-		log.Printf("OAuth login attempted but client ID not configured")
+		log.Print("OAuth login attempted but client ID not configured. Set GITHUB_CLIENT_ID environment variable or use --client-id flag")
 		http.Error(w, "Service temporarily unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -420,7 +448,9 @@ func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
 
 func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if *clientID == "" || *clientSecret == "" {
-		log.Printf("OAuth callback attempted but not configured")
+		log.Printf("OAuth callback attempted but not configured: client_id=%q client_secret_set=%v",
+			*clientID, *clientSecret != "")
+		log.Print("Set GITHUB_CLIENT_SECRET environment variable or --client-secret flag")
 		http.Error(w, "Service temporarily unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -431,6 +461,13 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		log.Printf("OAuth error: %s - %s", errCode, errDesc)
 
 		// Return user-friendly error page
+		escapedMsg := strings.NewReplacer(
+			"&", "&amp;",
+			"<", "&lt;",
+			">", "&gt;",
+			"\"", "&quot;",
+			"'", "&#39;",
+		).Replace("Authentication was cancelled or failed. Please try again.")
 		html := fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
@@ -443,9 +480,11 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
     <p>You can close this window and try again.</p>
 </body>
 </html>
-`, strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&quot;", "'", "&#39;").Replace("Authentication was cancelled or failed. Please try again."))
+`, escapedMsg)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(html))
+		if _, err := w.Write([]byte(html)); err != nil {
+			log.Printf("Failed to write error response: %v", err)
+		}
 		return
 	}
 
@@ -490,7 +529,9 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 </html>
 `, escapedAction, escapedID, escapedID, escapedAction)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(html))
+		if _, err := w.Write([]byte(html)); err != nil {
+			log.Printf("Failed to write GitHub App installation response: %v", err)
+		}
 		return
 	}
 
@@ -527,7 +568,8 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Exchange code for token
-	token, err := exchangeCodeForToken(code, *redirectURI)
+	ctx := r.Context()
+	token, err := exchangeCodeForToken(ctx, code, *redirectURI)
 	if err != nil {
 		trackFailedAttempt(clientIP(r))
 		log.Printf("Failed to exchange code for token: %v", err)
@@ -570,7 +612,9 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 `, targetOrigin, token)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(html))
+	if _, err := w.Write([]byte(html)); err != nil {
+		log.Printf("Failed to write OAuth callback response: %v", err)
+	}
 }
 
 func handleGetUser(w http.ResponseWriter, r *http.Request) {
@@ -588,7 +632,8 @@ func handleGetUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user info from GitHub
-	user, err := userInfo(token)
+	ctx := r.Context()
+	user, err := userInfo(ctx, token)
 	if err != nil {
 		log.Printf("Failed to get user info: %v", err)
 		http.Error(w, "Failed to get user info", http.StatusInternalServerError)
@@ -596,13 +641,20 @@ func handleGetUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		log.Printf("Failed to encode user response: %v", err)
+	}
 }
 
-func exchangeCodeForToken(code, redirectURI string) (string, error) {
+func exchangeCodeForToken(ctx context.Context, code, redirectURI string) (string, error) {
 	// Validate inputs
 	if code == "" || redirectURI == "" {
-		return "", fmt.Errorf("invalid parameters")
+		return "", errors.New("invalid parameters")
+	}
+
+	// Additional validation for code length to prevent injection
+	if len(code) > 512 {
+		return "", errors.New("authorization code too long")
 	}
 
 	// Prepare request
@@ -612,10 +664,10 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 	data.Set("code", code)
 	data.Set("redirect_uri", redirectURI)
 
-	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+	reqCtx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://github.com/login/oauth/access_token", strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, "https://github.com/login/oauth/access_token", strings.NewReader(data.Encode()))
 	if err != nil {
 		return "", err
 	}
@@ -626,9 +678,9 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 	// Make request with timeout
 	client := &http.Client{
 		Timeout: httpTimeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
 			if len(via) >= 3 {
-				return fmt.Errorf("too many redirects")
+				return errors.New("too many redirects")
 			}
 			return nil
 		},
@@ -638,7 +690,11 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("token exchange failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("token exchange returned status %d", resp.StatusCode)
@@ -661,12 +717,12 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 	if tokenResp.AccessToken == "" {
 		// Log the parsed response for debugging
 		log.Printf("Token response error: %s, description: %s", tokenResp.Error, tokenResp.ErrorDescription)
-		return "", fmt.Errorf("no access token in response")
+		return "", errors.New("no access token in response")
 	}
 
 	// Validate token before returning
 	if len(tokenResp.AccessToken) < 40 || len(tokenResp.AccessToken) > 255 {
-		return "", fmt.Errorf("invalid token length")
+		return "", errors.New("invalid token length")
 	}
 
 	// Check token format (GitHub tokens are typically 40 chars of hex)
@@ -675,17 +731,17 @@ func exchangeCodeForToken(code, redirectURI string) (string, error) {
 		!strings.HasPrefix(tokenResp.AccessToken, "gho_") &&
 		!strings.HasPrefix(tokenResp.AccessToken, "ghs_") &&
 		!strings.HasPrefix(tokenResp.AccessToken, "ghu_") {
-		return "", fmt.Errorf("unknown token format")
+		return "", errors.New("unknown token format")
 	}
 
 	return tokenResp.AccessToken, nil
 }
 
-func userInfo(token string) (*githubUser, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+func userInfo(ctx context.Context, token string) (*githubUser, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user", nil)
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, "https://api.github.com/user", http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -695,8 +751,8 @@ func userInfo(token string) (*githubUser, error) {
 
 	client := &http.Client{
 		Timeout: httpTimeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return fmt.Errorf("unexpected redirect")
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return errors.New("unexpected redirect")
 		},
 	}
 
@@ -704,7 +760,11 @@ func userInfo(token string) (*githubUser, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
@@ -727,28 +787,29 @@ func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 
 	health := struct {
 		Status     string    `json:"status"`
+		Version    string    `json:"version"`
 		Timestamp  time.Time `json:"timestamp"`
 		OAuthReady bool      `json:"oauth_ready"`
-		Version    string    `json:"version"`
 	}{
 		Status:     "healthy",
+		Version:    "1.0.0",
 		Timestamp:  time.Now(),
 		OAuthReady: *clientID != "" && *clientSecret != "",
-		Version:    "1.0.0",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(health)
+	if err := json.NewEncoder(w).Encode(health); err != nil {
+		log.Printf("Failed to encode health response: %v", err)
+	}
 }
 
-// generateID generates a cryptographically secure random ID
+// generateID generates a cryptographically secure random ID.
 func generateID(bytes int) string {
 	b := make([]byte, bytes)
 	if _, err := rand.Read(b); err != nil {
-		log.Printf("Failed to generate random ID: %v", err)
-		// Fall back to less secure method
-		return fmt.Sprintf("%d", time.Now().UnixNano())
+		// Critical security failure - do not fall back to weak randomness
+		panic(fmt.Sprintf("CRITICAL: Failed to generate secure random ID: %v", err))
 	}
 	return base64.URLEncoding.EncodeToString(b)
 }
@@ -774,14 +835,6 @@ func trackFailedAttempt(ip string) {
 	if len(failedAttempts[ip]) > maxFailedLogins {
 		log.Printf("[SECURITY] Excessive failed auth attempts: ip=%s count=%d window=15min", ip, len(failedAttempts[ip]))
 	}
-}
-
-func buildRedirectURI(r *http.Request) string {
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	return fmt.Sprintf("%s://%s/oauth/callback", scheme, r.Host)
 }
 
 func origin(r *http.Request) string {
@@ -837,7 +890,7 @@ func isAllowedOrigin(origin string) bool {
 		host == "ready-to-review.dev"
 }
 
-// requestSizeLimiter prevents large request bodies from exhausting server resources
+// requestSizeLimiter prevents large request bodies from exhausting server resources.
 func requestSizeLimiter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
@@ -853,7 +906,7 @@ func requestSizeLimiter(next http.Handler) http.Handler {
 	})
 }
 
-// requestLogger logs all HTTP requests and responses
+// requestLogger logs all HTTP requests and responses.
 func requestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -879,12 +932,15 @@ func requestLogger(next http.Handler) http.Handler {
 			log.Printf("[SECURITY] [%s] Rate limit exceeded: ip=%s", requestID, clientIP(r))
 		case http.StatusInternalServerError:
 			log.Printf("[ERROR] [%s] Internal server error: method=%s path=%s ip=%s", requestID, r.Method, r.URL.Path, clientIP(r))
+		default:
+			// Other status codes don't require special logging
 		}
 	})
 }
 
 type responseWriter struct {
 	http.ResponseWriter
+
 	statusCode int
 	written    bool
 }
