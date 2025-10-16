@@ -755,15 +755,27 @@ export const Robots = (() => {
 
     if (!config) return;
 
-    const mappingHtml = `
-      <div class="robot-mapping" id="${mappingId}">
-        <input type="text" placeholder="${config.placeholder1}">
-        <input type="text" placeholder="${config.placeholder2}">
-        <button onclick="window.App.removeMapping('${mappingId}')" aria-label="Remove mapping"></button>
-      </div>
-    `;
+    const mappingDiv = document.createElement('div');
+    mappingDiv.className = 'robot-mapping';
+    mappingDiv.id = mappingId;
 
-    container.insertAdjacentHTML("beforeend", mappingHtml);
+    const input1 = document.createElement('input');
+    input1.type = 'text';
+    input1.placeholder = config.placeholder1;
+
+    const input2 = document.createElement('input');
+    input2.type = 'text';
+    input2.placeholder = config.placeholder2;
+
+    const button = document.createElement('button');
+    button.setAttribute('aria-label', 'Remove mapping');
+    button.addEventListener('click', () => removeMapping(mappingId));
+
+    mappingDiv.appendChild(input1);
+    mappingDiv.appendChild(input2);
+    mappingDiv.appendChild(button);
+
+    container.appendChild(mappingDiv);
   };
 
   const removeMapping = (mappingId) => {

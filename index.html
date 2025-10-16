@@ -39,10 +39,7 @@
                             <h1 class="header-title">
                                 <a
                                     href="/"
-                                    style="
-                                        text-decoration: none;
-                                        color: inherit;
-                                    "
+                                    class="header-logo-link"
                                     >🚀
                                     <span class="gradient-text"
                                         >Ready To Review</span
@@ -119,7 +116,7 @@
                         id="notificationsLink"
                         class="menu-link"
                     >
-                        <span style="font-size: 20px">📢</span>
+                        <span class="menu-emoji">📢</span>
                         Notifications
                     </a>
                     <a href="/robot-army" id="settingsLink" class="menu-link">
@@ -251,8 +248,8 @@
                                 </a>
 
                                 <button
+                                    id="githubAppLoginBtn"
                                     class="btn btn-primary btn-large"
-                                    onclick="console.log('[HTML] GitHub App button clicked, window.App:', window.App); window.App.showGitHubAppModal()"
                                 >
                                     <svg
                                         viewBox="0 0 24 24"
@@ -268,8 +265,8 @@
                                 </button>
 
                                 <button
+                                    id="patLoginBtn"
                                     class="btn btn-outline btn-large"
-                                    onclick="console.log('[HTML] PAT button clicked, window.App:', window.App); window.App.initiatePATLogin()"
                                 >
                                     <svg
                                         viewBox="0 0 24 24"
@@ -286,16 +283,7 @@
                                 </button>
                             </div>
 
-                            <div
-                                style="
-                                    margin-top: 1rem;
-                                    padding: 1rem;
-                                    background: #f8fafc;
-                                    border-radius: 0.5rem;
-                                    font-size: 0.8125rem;
-                                    color: #475569;
-                                "
-                            >
+                            <div class="login-note">
                                 <strong>Note:</strong> GitHub OAuth Apps may not
                                 show all PRs in your repositories, particularly
                                 those created by bots (like Dependabot). For
@@ -307,15 +295,15 @@
                     <!-- GitHub App Installation Modal -->
                     <div id="githubAppModal" class="modal" hidden>
                         <div
+                            id="githubAppModalBackdrop"
                             class="modal-backdrop"
-                            onclick="window.App.closeGitHubAppModal()"
                         ></div>
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h3>Install Ready to Review GitHub App</h3>
                                 <button
+                                    id="closeGitHubAppModalBtn"
                                     class="modal-close"
-                                    onclick="window.App.closeGitHubAppModal()"
                                 >
                                     &times;
                                 </button>
@@ -350,23 +338,16 @@
                                         Login"
                                     </li>
                                 </ol>
-                                <div
-                                    style="
-                                        margin-top: 1.5rem;
-                                        display: flex;
-                                        gap: 1rem;
-                                        justify-content: flex-end;
-                                    "
-                                >
+                                <div class="modal-actions">
                                     <button
+                                        id="cancelGitHubAppBtn"
                                         class="btn btn-secondary"
-                                        onclick="window.App.closeGitHubAppModal()"
                                     >
                                         Cancel
                                     </button>
                                     <button
+                                        id="proceedWithOAuthBtn"
                                         class="btn btn-primary"
-                                        onclick="window.App.proceedWithOAuth()"
                                     >
                                         Continue to Login
                                     </button>
@@ -378,15 +359,15 @@
                     <!-- PAT Instructions Modal -->
                     <div id="patModal" class="modal" hidden>
                         <div
+                            id="patModalBackdrop"
                             class="modal-backdrop"
-                            onclick="window.App.closePATModal()"
                         ></div>
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h3>Create a GitHub Personal Access Token</h3>
                                 <button
+                                    id="closePATModalBtn"
                                     class="modal-close"
-                                    onclick="window.App.closePATModal()"
                                 >
                                     &times;
                                 </button>
@@ -396,23 +377,10 @@
                                     <strong>Quick method:</strong> If you have
                                     the GitHub CLI installed, run:
                                 </p>
-                                <pre
-                                    style="
-                                        background: #f3f4f6;
-                                        padding: 0.75rem;
-                                        border-radius: 0.375rem;
-                                        margin: 1rem 0;
-                                    "
-                                ><code>gh auth token</code></pre>
+                                <pre class="code-block"><code>gh auth token</code></pre>
                                 <p>Then paste the token below.</p>
 
-                                <hr
-                                    style="
-                                        margin: 1.5rem 0;
-                                        border: none;
-                                        border-top: 1px solid #e5e7eb;
-                                    "
-                                />
+                                <hr class="divider" />
 
                                 <p>
                                     <strong>Alternative:</strong> Visit
@@ -425,7 +393,7 @@
                                     to create a longer-lived token with these
                                     permissions:
                                 </p>
-                                <ul style="margin: 0.5rem 0 1rem 1.5rem">
+                                <ul class="permission-list">
                                     <li>
                                         <strong>Pull requests:</strong>
                                         Read-only
@@ -440,8 +408,8 @@
                                         placeholder="Paste your token here"
                                     />
                                     <button
+                                        id="submitPATBtn"
                                         class="btn btn-primary"
-                                        onclick="window.App.submitPAT()"
                                     >
                                         Save Token
                                     </button>
@@ -449,11 +417,7 @@
                                 <div
                                     id="patError"
                                     class="error-message"
-                                    style="
-                                        display: none;
-                                        color: #dc2626;
-                                        margin-top: 0.5rem;
-                                    "
+                                    hidden
                                 ></div>
                             </div>
                         </div>
@@ -594,15 +558,7 @@
                             </p>
                         </div>
                         <!-- Blocker Logic Note -->
-                        <div
-                            style="
-                                margin-top: 2rem;
-                                padding: 1rem;
-                                text-align: center;
-                                color: var(--color-text-secondary);
-                                font-size: 0.8125rem;
-                            "
-                        >
+                        <div class="subscription-note">
                             NOTE: access to private repositories will eventually
                             require a subscription.
                         </div>
@@ -1082,15 +1038,15 @@
                         <!-- YAML Export Modal -->
                         <div id="yamlModal" class="modal" hidden>
                             <div
+                                id="yamlModalBackdrop"
                                 class="modal-backdrop"
-                                onclick="window.App.closeYAMLModal()"
                             ></div>
                             <div class="modal-content modal-large">
                                 <div class="modal-header">
                                     <h3>Export Robot Configuration</h3>
                                     <button
+                                        id="closeYAMLModalBtn"
                                         class="modal-close"
-                                        onclick="window.App.closeYAMLModal()"
                                     >
                                         &times;
                                     </button>
@@ -1111,7 +1067,6 @@
                                     <button
                                         id="copyYaml"
                                         class="btn btn-primary"
-                                        onclick="window.App.copyYAML()"
                                     >
                                         <svg
                                             width="16"

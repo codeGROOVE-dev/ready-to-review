@@ -608,7 +608,7 @@ const App = (() => {
       return;
     }
 
-    User.updateUserDisplay(state, initiateLogin);
+    User.updateUserDisplay(state, initiateLogin, logout);
     User.updateOrgFilter(state, parseURL, githubAPI);
     showMainContentWithLoading();
     
@@ -684,7 +684,7 @@ const App = (() => {
     if (urlContext && urlContext.isStats) {
       updateSearchInputVisibility();
       await Stats.showStatsPage(state, githubAPI, loadCurrentUser, 
-        () => User.updateUserDisplay(state, initiateLogin), 
+        () => User.updateUserDisplay(state, initiateLogin, logout), 
         setupHamburgerMenu, 
         () => User.updateOrgFilter(state, parseURL, githubAPI),
         handleOrgChange, handleSearch, parseURL, User.loadUserOrganizations);
@@ -698,7 +698,7 @@ const App = (() => {
       if (token) {
         try {
           await loadCurrentUser();
-          User.updateUserDisplay(state, initiateLogin);
+          User.updateUserDisplay(state, initiateLogin, logout);
           setupHamburgerMenu();
           await User.updateOrgFilter(state, parseURL, githubAPI);
           
@@ -725,7 +725,7 @@ const App = (() => {
     if (urlContext && urlContext.isLeaderboard) {
       updateSearchInputVisibility();
       await Leaderboard.showLeaderboardPage(state, githubAPI, loadCurrentUser, 
-        () => User.updateUserDisplay(state, initiateLogin), 
+        () => User.updateUserDisplay(state, initiateLogin, logout), 
         setupHamburgerMenu, 
         () => User.updateOrgFilter(state, parseURL, githubAPI),
         handleOrgChange, handleSearch, parseURL, User.loadUserOrganizations);
@@ -739,7 +739,7 @@ const App = (() => {
       if (token) {
         try {
           await loadCurrentUser();
-          User.updateUserDisplay(state, initiateLogin);
+          User.updateUserDisplay(state, initiateLogin, logout);
           setupHamburgerMenu();
         } catch (error) {
           console.error("Failed to load user for notifications:", error);
@@ -770,7 +770,7 @@ const App = (() => {
         }
       }
 
-      User.updateUserDisplay(state, initiateLogin);
+      User.updateUserDisplay(state, initiateLogin, logout);
       
       // Always update org filter to ensure dropdown is populated
       await User.updateOrgFilter(state, parseURL, githubAPI);
@@ -815,8 +815,32 @@ const App = (() => {
       await handlePRAction(action, prId);
     });
 
-    // Note: Modal interactions are handled via inline onclick handlers in HTML
-    // No additional event listeners needed here
+    // Modal event listeners
+    const githubAppLoginBtn = $("githubAppLoginBtn");
+    const patLoginBtn = $("patLoginBtn");
+    const githubAppModalBackdrop = $("githubAppModalBackdrop");
+    const closeGitHubAppModalBtn = $("closeGitHubAppModalBtn");
+    const cancelGitHubAppBtn = $("cancelGitHubAppBtn");
+    const proceedWithOAuthBtn = $("proceedWithOAuthBtn");
+    const patModalBackdrop = $("patModalBackdrop");
+    const closePATModalBtn = $("closePATModalBtn");
+    const submitPATBtn = $("submitPATBtn");
+    const yamlModalBackdrop = $("yamlModalBackdrop");
+    const closeYAMLModalBtn = $("closeYAMLModalBtn");
+    const copyYamlBtn = $("copyYaml");
+
+    if (githubAppLoginBtn) githubAppLoginBtn.addEventListener("click", showGitHubAppModal);
+    if (patLoginBtn) patLoginBtn.addEventListener("click", initiatePATLogin);
+    if (githubAppModalBackdrop) githubAppModalBackdrop.addEventListener("click", closeGitHubAppModal);
+    if (closeGitHubAppModalBtn) closeGitHubAppModalBtn.addEventListener("click", closeGitHubAppModal);
+    if (cancelGitHubAppBtn) cancelGitHubAppBtn.addEventListener("click", closeGitHubAppModal);
+    if (proceedWithOAuthBtn) proceedWithOAuthBtn.addEventListener("click", proceedWithOAuth);
+    if (patModalBackdrop) patModalBackdrop.addEventListener("click", closePATModal);
+    if (closePATModalBtn) closePATModalBtn.addEventListener("click", closePATModal);
+    if (submitPATBtn) submitPATBtn.addEventListener("click", submitPAT);
+    if (yamlModalBackdrop) yamlModalBackdrop.addEventListener("click", closeYAMLModal);
+    if (closeYAMLModalBtn) closeYAMLModalBtn.addEventListener("click", closeYAMLModal);
+    if (copyYamlBtn) copyYamlBtn.addEventListener("click", copyYAML);
 
     if ($("patInput")) {
       $("patInput").addEventListener("keypress", (e) => {
@@ -866,7 +890,7 @@ const App = (() => {
           state.viewingUser = await githubAPI(`/users/${urlContext.username}`);
           
           showLoginPrompt();
-          User.updateUserDisplay(state, initiateLogin);
+          User.updateUserDisplay(state, initiateLogin, logout);
           
           // Load public data
           await User.updateOrgFilter(state, parseURL, githubAPI);
@@ -909,7 +933,7 @@ const App = (() => {
         }
       }
 
-      User.updateUserDisplay(state, initiateLogin);
+      User.updateUserDisplay(state, initiateLogin, logout);
       await User.updateOrgFilter(state, parseURL, githubAPI);
       
       // Only load PRs if we're on the PR dashboard page

@@ -1,15 +1,14 @@
 // Authentication Module for Ready To Review
 console.log('[Auth Module] Loading...');
 
-// Log URL parameters on page load for debugging OAuth flow
+// Log URL parameters on page load for debugging OAuth flow (without exposing secrets)
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.has('code') || urlParams.has('state') || urlParams.has('error')) {
   console.log('[Auth] OAuth callback detected!');
-  console.log('[Auth] URL:', window.location.href);
-  console.log('[Auth] Code:', urlParams.get('code') ? 'present (length=' + urlParams.get('code').length + ')' : 'missing');
-  console.log('[Auth] State:', urlParams.get('state') ? 'present' : 'missing');
-  console.log('[Auth] Error:', urlParams.get('error'));
-  console.log('[Auth] Error description:', urlParams.get('error_description'));
+  console.log('[Auth] Code:', urlParams.has('code') ? 'present' : 'missing');
+  console.log('[Auth] State:', urlParams.has('state') ? 'present' : 'missing');
+  console.log('[Auth] Error:', urlParams.get('error')); // Error codes are not secret
+  console.log('[Auth] Error description:', urlParams.get('error_description')); // GitHub's public error messages
 }
 
 export const Auth = (() => {

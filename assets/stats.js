@@ -477,46 +477,38 @@ export const Stats = (() => {
         <!-- Key Metrics Grid -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
           <!-- Stuck PRs - Most Important -->
-          <a href="#" id="openPRsLink-${org}" target="_blank" rel="noopener" style="text-decoration: none;">
-            <div style="background: #ffffff; border-radius: 16px; padding: 2rem; box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: all 0.2s; cursor: pointer; border: 2px solid transparent;" 
-                 onmouseover="this.style.borderColor='#007AFF'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 20px rgba(0,122,255,0.15)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 12px rgba(0,0,0,0.06)';">
-              <div style="font-size: 0.8125rem; color: #86868b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Forgotten Work</div>
-              <div class="stat-value loading" id="openPRs-${org}" style="font-size: 3rem; font-weight: 300; color: #FF3B30; margin: 0.25rem 0;">-</div>
-              <div style="font-size: 0.9375rem; color: #515154;">PRs stuck >10 days</div>
+          <a href="#" id="openPRsLink-${org}" target="_blank" rel="noopener" class="stat-card-link">
+            <div class="stat-card">
+              <div class="stat-card-title">Forgotten Work</div>
+              <div class="stat-card-value stat-value-danger stat-value loading" id="openPRs-${org}">-</div>
+              <div class="stat-card-subtitle">PRs stuck >10 days</div>
             </div>
           </a>
-          
+
           <!-- Average Wait Time -->
-          <a href="#" id="avgOpenAgeLink-${org}" target="_blank" rel="noopener" style="text-decoration: none;">
-            <div style="background: #ffffff; border-radius: 16px; padding: 2rem; box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='#007AFF'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 20px rgba(0,122,255,0.15)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 12px rgba(0,0,0,0.06)';">
-              <div style="font-size: 0.8125rem; color: #86868b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Wait Time</div>
-              <div class="stat-value loading" id="avgOpenAge-${org}" style="font-size: 3rem; font-weight: 300; color: #1a1a1a; margin: 0.25rem 0;">-</div>
-              <div style="font-size: 0.9375rem; color: #515154;">Avg age of open PRs</div>
+          <a href="#" id="avgOpenAgeLink-${org}" target="_blank" rel="noopener" class="stat-card-link">
+            <div class="stat-card">
+              <div class="stat-card-title">Wait Time</div>
+              <div class="stat-card-value stat-value-primary stat-value loading" id="avgOpenAge-${org}">-</div>
+              <div class="stat-card-subtitle">Avg age of open PRs</div>
             </div>
           </a>
-          
+
           <!-- Cycle Time -->
-          <a href="#" id="avgMergeTimeLink-${org}" target="_blank" rel="noopener" style="text-decoration: none;">
-            <div style="background: #ffffff; border-radius: 16px; padding: 2rem; box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='#007AFF'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 20px rgba(0,122,255,0.15)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 12px rgba(0,0,0,0.06)';">
-              <div style="font-size: 0.8125rem; color: #86868b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Cycle Time</div>
-              <div class="stat-value loading" id="avgMergeTime-${org}" style="font-size: 3rem; font-weight: 300; color: #1a1a1a; margin: 0.25rem 0;">-</div>
-              <div style="font-size: 0.9375rem; color: #515154;">Create → merge time</div>
+          <a href="#" id="avgMergeTimeLink-${org}" target="_blank" rel="noopener" class="stat-card-link">
+            <div class="stat-card">
+              <div class="stat-card-title">Cycle Time</div>
+              <div class="stat-card-value stat-value-primary stat-value loading" id="avgMergeTime-${org}">-</div>
+              <div class="stat-card-subtitle">Create → merge time</div>
             </div>
           </a>
-          
+
           <!-- Shipped -->
-          <a href="#" id="mergedPRsLink-${org}" target="_blank" rel="noopener" style="text-decoration: none;">
-            <div style="background: #ffffff; border-radius: 16px; padding: 2rem; box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='#007AFF'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 20px rgba(0,122,255,0.15)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 12px rgba(0,0,0,0.06)';">
-              <div style="font-size: 0.8125rem; color: #86868b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Shipped</div>
-              <div class="stat-value loading" id="mergedPRs-${org}" style="font-size: 3rem; font-weight: 300; color: #34C759; margin: 0.25rem 0;">-</div>
-              <div style="font-size: 0.9375rem; color: #515154;">Last 10 days</div>
+          <a href="#" id="mergedPRsLink-${org}" target="_blank" rel="noopener" class="stat-card-link">
+            <div class="stat-card">
+              <div class="stat-card-title">Shipped</div>
+              <div class="stat-card-value stat-value-success stat-value loading" id="mergedPRs-${org}">-</div>
+              <div class="stat-card-subtitle">Last 10 days</div>
             </div>
           </a>
         </div>
@@ -1053,7 +1045,13 @@ export const Stats = (() => {
         }
       }
       
-      cacheAgeEl.innerHTML = `${cacheText} <button onclick="window.clearStatsCache('${org}')" style="background: none; border: none; color: #007AFF; cursor: pointer; font-size: 0.8125rem; padding: 0 0 0 0.5rem; text-decoration: underline;">[clear]</button>`;
+      const clearBtn = document.createElement('button');
+      clearBtn.className = 'cache-clear-btn';
+      clearBtn.textContent = '[clear]';
+      clearBtn.addEventListener('click', () => clearStatsCache(org));
+
+      cacheAgeEl.textContent = cacheText + ' ';
+      cacheAgeEl.appendChild(clearBtn);
       cacheAgeEl.style.display = 'block';
     }
   };

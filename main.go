@@ -42,7 +42,7 @@ const (
 	// Timeouts.
 	httpTimeout     = 10 * time.Second
 	shutdownTimeout = 30 * time.Second
-	stateExpiry     = 15 * time.Minute
+	stateExpiry     = 5 * time.Minute
 
 	// Security.
 	maxRequestSize    = 1 << 20 // 1MB
@@ -77,6 +77,9 @@ var (
 
 	// Rate limiter for auth code exchange endpoint (prevent brute force attacks).
 	exchangeRateLimiter *rateLimiter
+
+	// CSRF protection using Go 1.25's CrossOriginProtection (Fetch Metadata).
+	csrfProtection *http.CrossOriginProtection
 )
 
 // authCodeData stores a one-time use auth code with expiration.
@@ -250,11 +253,11 @@ func securityHeaders(next http.Handler) http.Handler {
 		// Permissions policy
 		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 
-		// Content Security Policy
+		// Content Security Policy with Trusted Types for DOM XSS protection
 		csp := []string{
 			"default-src 'self'",
-			"script-src 'self' 'unsafe-inline'", // Needed for inline event handlers
-			"style-src 'self' 'unsafe-inline'",  // Needed for inline styles
+			"script-src 'self'",
+			"style-src 'self'",
 			"img-src 'self' https://avatars.githubusercontent.com data:",
 			"connect-src 'self' https://api.github.com https://turn.github.codegroove.app",
 			"font-src 'self'",
@@ -263,12 +266,16 @@ func securityHeaders(next http.Handler) http.Handler {
 			"base-uri 'self'",
 			"form-action 'self'",
 			"frame-ancestors 'none'",
+			"upgrade-insecure-requests",           // Force all resources to HTTPS
+			"require-trusted-types-for 'script'",  // Block DOM XSS via innerHTML
+			"trusted-types default",                // Allow only default policy
 		}
 		w.Header().Set("Content-Security-Policy", strings.Join(csp, "; "))
 
-		// HSTS (only for HTTPS)
+		// HSTS with preload (only for HTTPS)
 		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+			// 2 years (recommended for preload), includeSubDomains, and preload directive
+			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
 		}
 
 		next.ServeHTTP(w, r)
@@ -367,13 +374,23 @@ func main() {
 	// Initialize rate limiter for auth code exchange (strict: 10 attempts per minute per IP)
 	exchangeRateLimiter = newRateLimiter(rateLimitRequests, rateLimitWindow)
 
+	// Initialize CSRF protection using Go 1.25's CrossOriginProtection
+	// Uses Fetch Metadata (Sec-Fetch-Site header) for reliable cross-origin detection
+	csrfProtection = http.NewCrossOriginProtection()
+	// Trust requests from our own domain and all subdomains
+	csrfProtection.AddTrustedOrigin("https://" + baseDomain)
+	csrfProtection.AddTrustedOrigin("https://*." + baseDomain)
+	// Allow localhost for development
+	csrfProtection.AddTrustedOrigin("http://localhost")
+	csrfProtection.AddTrustedOrigin("http://localhost:*")
+
 	// Set up routes
 	mux := http.NewServeMux()
 
 	// OAuth endpoints
 	// Register API endpoints before catch-all to ensure they match first
-	// Auth code exchange has rate limiting to prevent brute force attacks
-	mux.HandleFunc("/oauth/exchange", exchangeRateLimiter.limitHandler(handleExchangeAuthCode))
+	// Auth code exchange has rate limiting + CSRF protection (Go 1.25 CrossOriginProtection)
+	mux.Handle("/oauth/exchange", csrfProtection.Handler(exchangeRateLimiter.limitHandler(handleExchangeAuthCode)))
 	mux.HandleFunc("/oauth/login", handleOAuthLogin)
 	mux.HandleFunc("/oauth/callback", handleOAuthCallback)
 	mux.HandleFunc("/oauth/user", handleGetUser)
@@ -407,8 +424,25 @@ func main() {
 		log.Print("WARNING: OAuth Client Secret not set. OAuth login will not work.")
 		log.Print("Set GITHUB_CLIENT_SECRET environment variable or use --client-secret flag")
 	} else {
-		log.Printf("OAuth Client Secret: configured (length=%d)", len(*clientSecret))
+		log.Print("OAuth Client Secret: configured")
 	}
+
+	// Start auth code cleanup goroutine
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			authCodesMutex.Lock()
+			now := time.Now()
+			for code, data := range authCodes {
+				if now.After(data.expiry) {
+					delete(authCodes, code)
+				}
+			}
+			authCodesMutex.Unlock()
+		}
+	}()
 
 	// Start server in goroutine
 	go func() {
@@ -685,16 +719,8 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
     <h1>GitHub App Installed Successfully</h1>
     <p>The GitHub App has been %s successfully.</p>
     <p>Installation ID: %s</p>
-    <p>You can close this window and return to the dashboard.</p>
+    <p>This window will close automatically in 3 seconds.</p>
     <script>
-        // Notify parent window if it exists
-        if (window.opener) {
-            window.opener.postMessage({
-                type: 'github-app-installed',
-                installationId: '%s',
-                setupAction: '%s'
-            }, '*');
-        }
         // Auto-close after 3 seconds
         setTimeout(function() {
             window.close();
@@ -702,7 +728,7 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
     </script>
 </body>
 </html>
-`, escapedAction, escapedID, escapedID, escapedAction)
+`, escapedAction, escapedID)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if _, err := w.Write([]byte(html)); err != nil {
 			log.Printf("Failed to write GitHub App installation response: %v", err)
@@ -723,8 +749,8 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("oauth_state")
 	if err != nil {
 		trackFailedAttempt(clientIP(r))
-		log.Printf("[OAuth] Missing oauth_state cookie from %s: %v. State parameter received: %s", clientIP(r), err, state)
-		log.Printf("[OAuth] Available cookies: %v", r.Cookies())
+		log.Printf("[OAuth] Missing oauth_state cookie from %s: %v", clientIP(r), err)
+		log.Printf("[OAuth] Available cookies: %d present", len(r.Cookies()))
 		clearStateCookie(w)
 		http.Error(w, "Invalid state", http.StatusBadRequest)
 		return
@@ -732,7 +758,7 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	if cookie.Value != state {
 		trackFailedAttempt(clientIP(r))
-		log.Printf("[OAuth] State mismatch from %s: cookie=%s query=%s", clientIP(r), cookie.Value, state)
+		log.Printf("[OAuth] State mismatch from %s", clientIP(r))
 		clearStateCookie(w)
 		http.Error(w, "Invalid state", http.StatusBadRequest)
 		return
@@ -809,20 +835,23 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 			if urlScheme != "http" && urlScheme != "https" {
 				log.Printf("[SECURITY] Invalid return_to scheme: %s", urlScheme)
 			} else if host == baseDomain || strings.HasSuffix(host, "."+baseDomain) {
-				// Additional hostname validation - only ASCII alphanumeric, hyphens, dots
+				// Validate subdomain is a valid GitHub username/org (stricter than punycode check)
 				valid := true
-				for _, ch := range host {
-					if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-						(ch >= '0' && ch <= '9') || ch == '-' || ch == '.') {
-						valid = false
-						break
+				if host != baseDomain {
+					// Extract subdomain (everything before first dot)
+					parts := strings.Split(host, ".")
+					if len(parts) >= 3 {
+						subdomain := parts[0]
+						// Validate subdomain is a valid GitHub handle (prevents punycode, homograph attacks, etc.)
+						if !isValidGitHubHandle(subdomain) {
+							log.Printf("[SECURITY] Invalid GitHub handle in return_to subdomain: %s", subdomain)
+							valid = false
+						}
 					}
 				}
 
 				if valid {
 					redirectURL = returnTo
-				} else {
-					log.Printf("[SECURITY] Suspicious characters in return_to hostname: %s", host)
 				}
 			} else {
 				log.Printf("[SECURITY] Invalid return_to domain: %s", host)
@@ -841,7 +870,7 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	authCodes[authCode] = authCodeData{
 		token:    token,
 		username: user.Login,
-		expiry:   time.Now().Add(30 * time.Second), // Short-lived
+		expiry:   time.Now().Add(10 * time.Second), // Short-lived (10s sufficient for modern browsers)
 		returnTo: redirectURL,
 		used:     false,
 	}
@@ -875,13 +904,8 @@ func handleExchangeAuthCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// CSRF Protection: Verify Origin header to ensure request is from our domain
-	requestOrigin := origin(r)
-	if !isAllowedOrigin(requestOrigin) {
-		log.Printf("[SECURITY] Invalid origin for auth code exchange: %s from %s", requestOrigin, clientIP(r))
-		http.Error(w, "Invalid origin", http.StatusForbidden)
-		return
-	}
+	// CSRF Protection is handled by Go 1.25's CrossOriginProtection middleware (wraps this handler)
+	// It uses Fetch Metadata (Sec-Fetch-Site header) which is more reliable than Origin header
 
 	// Get auth code from request
 	var req struct {
@@ -1036,13 +1060,13 @@ func exchangeCodeForToken(ctx context.Context, code, redirectURI string) (string
 	// Parse response
 	var tokenResp oauthTokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		// Log the raw response for debugging
-		log.Printf("Token exchange response body: %s", string(body))
+		// Log error without exposing response body (may contain tokens)
+		log.Printf("Failed to parse token response: %v", err)
 		return "", fmt.Errorf("failed to parse token response: %w", err)
 	}
 
 	if tokenResp.AccessToken == "" {
-		// Log the parsed response for debugging
+		// Log error information without exposing tokens
 		log.Printf("Token response error: %s, description: %s", tokenResp.Error, tokenResp.ErrorDescription)
 		return "", errors.New("no access token in response")
 	}

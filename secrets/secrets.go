@@ -15,7 +15,7 @@ import (
 func Fetch(ctx context.Context, envVar, secretName string) (string, error) {
 	// First check environment variable
 	if value := os.Getenv(envVar); value != "" {
-		log.Printf("Using environment variable %s (length: %d)", envVar, len(value))
+		log.Printf("Using environment variable %s", envVar)
 		return value, nil
 	}
 
@@ -26,7 +26,7 @@ func Fetch(ctx context.Context, envVar, secretName string) (string, error) {
 		return "", err
 	}
 
-	log.Printf("Successfully fetched secret %s from Google Secret Manager (length: %d)", secretName, len(value))
+	log.Printf("Successfully fetched secret %s from Google Secret Manager", secretName)
 	return value, nil
 }
 
@@ -34,7 +34,7 @@ func Fetch(ctx context.Context, envVar, secretName string) (string, error) {
 func FetchFromProject(ctx context.Context, projectID, envVar, secretName string) (string, error) {
 	// First check environment variable
 	if value := os.Getenv(envVar); value != "" {
-		log.Printf("Using environment variable %s (length: %d)", envVar, len(value))
+		log.Printf("Using environment variable %s", envVar)
 		return value, nil
 	}
 
@@ -45,6 +45,6 @@ func FetchFromProject(ctx context.Context, projectID, envVar, secretName string)
 		return "", err
 	}
 
-	log.Printf("Successfully fetched secret %s from Google Secret Manager (length: %d)", secretName, len(value))
+	log.Printf("Successfully fetched secret %s from Google Secret Manager", secretName)
 	return value, nil
 }

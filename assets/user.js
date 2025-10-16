@@ -566,34 +566,71 @@ export const User = (() => {
     return ["loading"];
   };
 
-  const updateUserDisplay = (state, initiateLogin) => {
+  const updateUserDisplay = (state, initiateLogin, logout) => {
     const userInfo = $("userInfo");
     if (!userInfo) return;
 
     const viewingUser = state.viewingUser || state.currentUser;
-    let displayContent = "";
+
+    // Clear existing content
+    userInfo.innerHTML = "";
 
     if (state.currentUser) {
-      displayContent = `
-        <img src="${state.currentUser.avatar_url}" alt="${state.currentUser.login}" class="user-avatar" width="32" height="32">
-        <span class="user-name">${state.currentUser.name || state.currentUser.login}</span>
-        <button onclick="window.App.logout()" class="btn btn-primary">Logout</button>
-      `;
+      // Create avatar
+      const avatar = document.createElement('img');
+      avatar.src = state.currentUser.avatar_url;
+      avatar.alt = state.currentUser.login;
+      avatar.className = 'user-avatar';
+      avatar.width = 32;
+      avatar.height = 32;
+
+      // Create user name
+      const userName = document.createElement('span');
+      userName.className = 'user-name';
+      userName.textContent = state.currentUser.name || state.currentUser.login;
+
+      // Create logout button
+      const logoutBtn = document.createElement('button');
+      logoutBtn.className = 'btn btn-primary';
+      logoutBtn.textContent = 'Logout';
+      logoutBtn.addEventListener('click', logout);
+
+      userInfo.appendChild(avatar);
+      userInfo.appendChild(userName);
+      userInfo.appendChild(logoutBtn);
     } else if (viewingUser) {
-      displayContent = `
-        <img src="${viewingUser.avatar_url}" alt="${viewingUser.login}" class="user-avatar" width="32" height="32">
-        <span class="user-name">Viewing: ${viewingUser.name || viewingUser.login}</span>
-        <button id="loginBtn" class="btn btn-primary">Login</button>
-      `;
+      // Create avatar
+      const avatar = document.createElement('img');
+      avatar.src = viewingUser.avatar_url;
+      avatar.alt = viewingUser.login;
+      avatar.className = 'user-avatar';
+      avatar.width = 32;
+      avatar.height = 32;
+
+      // Create viewing label
+      const userName = document.createElement('span');
+      userName.className = 'user-name';
+      userName.textContent = `Viewing: ${viewingUser.name || viewingUser.login}`;
+
+      // Create login button
+      const loginBtn = document.createElement('button');
+      loginBtn.id = 'loginBtn';
+      loginBtn.className = 'btn btn-primary';
+      loginBtn.textContent = 'Login';
+      loginBtn.addEventListener('click', initiateLogin);
+
+      userInfo.appendChild(avatar);
+      userInfo.appendChild(userName);
+      userInfo.appendChild(loginBtn);
     } else {
-      displayContent = `<button id="loginBtn" class="btn btn-primary">Login with GitHub</button>`;
-    }
+      // Create login button only
+      const loginBtn = document.createElement('button');
+      loginBtn.id = 'loginBtn';
+      loginBtn.className = 'btn btn-primary';
+      loginBtn.textContent = 'Login with GitHub';
+      loginBtn.addEventListener('click', initiateLogin);
 
-    userInfo.innerHTML = displayContent;
-
-    const loginBtn = $("loginBtn");
-    if (loginBtn) {
-      loginBtn.addEventListener("click", initiateLogin);
+      userInfo.appendChild(loginBtn);
     }
   };
 
