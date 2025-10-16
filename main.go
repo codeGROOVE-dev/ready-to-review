@@ -378,11 +378,11 @@ func main() {
 	// Uses Fetch Metadata (Sec-Fetch-Site header) for reliable cross-origin detection
 	csrfProtection = http.NewCrossOriginProtection()
 	// Trust requests from our own domain and all subdomains
-	csrfProtection.AddTrustedOrigin("https://" + baseDomain)
-	csrfProtection.AddTrustedOrigin("https://*." + baseDomain)
+	_ = csrfProtection.AddTrustedOrigin("https://" + baseDomain)
+	_ = csrfProtection.AddTrustedOrigin("https://*." + baseDomain)
 	// Allow localhost for development
-	csrfProtection.AddTrustedOrigin("http://localhost")
-	csrfProtection.AddTrustedOrigin("http://localhost:*")
+	_ = csrfProtection.AddTrustedOrigin("http://localhost")
+	_ = csrfProtection.AddTrustedOrigin("http://localhost:*")
 
 	// Set up routes
 	mux := http.NewServeMux()
@@ -1212,58 +1212,6 @@ func trackFailedAttempt(ip string) {
 	}
 }
 
-func origin(r *http.Request) string {
-	// Check Origin header first
-	if origin := r.Header.Get("Origin"); origin != "" {
-		return origin
-	}
-
-	// Check Referer as fallback
-	if referer := r.Header.Get("Referer"); referer != "" {
-		if u, err := url.Parse(referer); err == nil {
-			return fmt.Sprintf("%s://%s", u.Scheme, u.Host)
-		}
-	}
-
-	// Default to request origin
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	return fmt.Sprintf("%s://%s", scheme, r.Host)
-}
-
-func isAllowedOrigin(origin string) bool {
-	// Always allow same-origin
-	if origin == "" {
-		return true
-	}
-
-	// Parse allowed origins from flag
-	if *allowedOrigins != "" {
-		allowed := strings.Split(*allowedOrigins, ",")
-		for _, ao := range allowed {
-			if strings.TrimSpace(ao) == origin {
-				return true
-			}
-		}
-		return false
-	}
-
-	// Default allowed origins
-	u, err := url.Parse(origin)
-	if err != nil {
-		return false
-	}
-
-	// Allow localhost for development and the production domain (including all subdomains)
-	host := u.Hostname()
-	return host == "localhost" ||
-		host == "127.0.0.1" ||
-		strings.HasPrefix(host, "localhost:") ||
-		host == baseDomain ||
-		strings.HasSuffix(host, "."+baseDomain) // Allow all subdomains
-}
 
 // requestSizeLimiter prevents large request bodies from exhausting server resources.
 func requestSizeLimiter(next http.Handler) http.Handler {

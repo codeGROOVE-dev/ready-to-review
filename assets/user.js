@@ -414,16 +414,16 @@ export const User = (() => {
           );
 
           pr.turnData = turnResponse;
-          pr.prState = turnResponse?.pr_state;
+          pr.prState = turnResponse?.analysis; // Updated to use new structure
           pr.status_tags = getStatusTags(pr);
 
-          const lastActivity = turnResponse?.pr_state?.last_activity;
+          const lastActivity = turnResponse?.analysis?.last_activity;
           if (lastActivity) {
             pr.last_activity = {
               type: lastActivity.kind,
               message: lastActivity.message,
               timestamp: lastActivity.timestamp,
-              actor: lastActivity.author,
+              actor: lastActivity.actor, // Updated from 'author' to 'actor'
             };
           }
 
@@ -482,16 +482,16 @@ export const User = (() => {
         );
 
         pr.turnData = turnResponse;
-        pr.prState = turnResponse?.pr_state;
+        pr.prState = turnResponse?.analysis; // Updated to use new structure
         pr.status_tags = getStatusTags(pr);
 
-        const lastActivity = turnResponse?.pr_state?.last_activity;
+        const lastActivity = turnResponse?.analysis?.last_activity;
         if (lastActivity) {
           pr.last_activity = {
             type: lastActivity.kind,
             message: lastActivity.message,
             timestamp: lastActivity.timestamp,
-            actor: lastActivity.author,
+            actor: lastActivity.actor, // Updated from 'author' to 'actor'
           };
         }
 
@@ -510,53 +510,59 @@ export const User = (() => {
 
   const getStatusTags = (pr) => {
     if (pr.turnData !== undefined) {
-      if (!pr.turnData || !pr.turnData.pr_state) {
+      if (!pr.turnData || !pr.turnData.analysis) {
         return [];
       }
 
-      const prState = pr.turnData.pr_state;
+      const analysis = pr.turnData.analysis;
+      const prData = pr.turnData.pull_request;
       const tags = [];
 
-      if (pr.draft || prState.mergeable_state === "draft") {
+      if (pr.draft || prData?.draft) {
         tags.push("draft");
       }
 
-      if (prState.labels) {
-        prState.labels.forEach((label) => {
-          tags.push(`label:${label}`);
+      // Tags are now directly in analysis.tags array
+      if (analysis.tags) {
+        analysis.tags.forEach((tag) => {
+          tags.push(`label:${tag}`);
         });
       }
 
-      const blockedOnYou = prState.blocked_on?.you || false;
-      const blockedOnOthers = prState.blocked_on?.others || false;
+      // Check next_action to determine if blocked
+      const currentUser = window.App?.state?.currentUser || window.App?.state?.viewingUser;
+      const nextAction = analysis.next_action || {};
+      const userHasAction = currentUser && nextAction[currentUser.login];
+      const othersHaveAction = Object.keys(nextAction).length > 0;
 
-      if (blockedOnYou) {
+      if (userHasAction) {
         tags.push("blocked on you");
 
-        if (prState.needs_review && prState.requested_reviewers?.includes(pr.user?.login)) {
+        const action = nextAction[currentUser.login];
+        if (action.kind === "review" || action.kind === "re_review") {
           tags.push("needs-review");
         }
-        if (prState.tests_failing) {
+        if (action.kind === "fix_tests" || action.kind === "rerun_tests") {
           tags.push("needs-fixes", "tests_failing");
         }
-        if (prState.has_merge_conflict) {
+        if (action.kind === "fix_conflict") {
           tags.push("needs-rebase", "merge_conflict");
         }
-        if (prState.changes_requested) {
+        if (action.kind === "resolve_comments" || action.kind === "respond") {
           tags.push("needs-changes", "changes_requested");
         }
-      } else if (blockedOnOthers) {
+      } else if (othersHaveAction && !userHasAction) {
         tags.push("blocked on others");
       }
 
-      if (prState.approved && prState.all_checks_passing && !prState.has_merge_conflict) {
+      if (analysis.ready_to_merge) {
         tags.push("ready-to-merge");
       }
 
-      if (prState.approved) {
+      if (analysis.approved) {
         tags.push("approved");
       }
-      if (prState.all_checks_passing) {
+      if (analysis.checks?.failing === 0 && analysis.checks?.total > 0) {
         tags.push("all_checks_passing");
       }
 
@@ -890,8 +896,8 @@ export const User = (() => {
   };
 
   const isBlockedOnUser = (pr, user) => {
-    if (!pr.turnData?.pr_state?.unblock_action || !user) return false;
-    return Object.keys(pr.turnData.pr_state.unblock_action).includes(user.login);
+    if (!pr.turnData?.analysis?.next_action || !user) return false;
+    return Object.keys(pr.turnData.analysis.next_action).includes(user.login);
   };
 
   const renderPRList = (container, prs, isDraft = false, section = "", state) => {
@@ -945,26 +951,26 @@ export const User = (() => {
   };
 
   const buildWaitingOn = (pr, viewingUser, currentUser, isIncomingPR = false) => {
-    if (!pr.turnData?.pr_state?.unblock_action) {
+    if (!pr.turnData?.analysis?.next_action) {
       return '';
     }
-    
-    // unblock_action is a dictionary where keys are usernames and values have critical/reason
-    const unblockAction = pr.turnData.pr_state.unblock_action;
-    const usernames = Object.keys(unblockAction);
-    
+
+    // next_action is a dictionary where keys are usernames and values have kind/critical/reason
+    const nextAction = pr.turnData.analysis.next_action;
+    const usernames = Object.keys(nextAction);
+
     if (usernames.length === 0) {
       return '';
     }
-    
+
     const waitingList = usernames.map(username => {
-      const action = unblockAction[username];
+      const action = nextAction[username];
       const isViewingUser = viewingUser && username === viewingUser.login;
       const isCurrentUser = currentUser && username === currentUser.login;
-      
+
       let displayName = username;
       let className = 'pr-waiting-on-user';
-      
+
       // If viewing someone else's dashboard, highlight their name
       if (viewingUser && currentUser && viewingUser.login !== currentUser.login) {
         if (isViewingUser) {
@@ -979,12 +985,12 @@ export const User = (() => {
           className = 'pr-waiting-on-you';
         }
       }
-      
+
       const title = action.reason || 'Waiting for action';
-      
+
       return `<span class="${className}" title="${escapeHtml(title)}">${escapeHtml(displayName)}</span>`;
     }).join(', ');
-    
+
     return ` <span class="pr-waiting-on"><span class="pr-waiting-on-label">(waiting on</span> ${waitingList}<span class="pr-waiting-on-label">)</span></span>`;
   };
 
@@ -1185,21 +1191,21 @@ export const User = (() => {
     const badges = [];
 
     // Add prominent badges first based on turnData
-    if (pr.turnData?.pr_state?.ready_to_merge) {
+    if (pr.turnData?.analysis?.ready_to_merge) {
       badges.push('<span class="badge badge-ready">ready to merge</span>');
     }
-    
-    if (pr.turnData?.pr_state?.merge_conflict) {
+
+    if (pr.turnData?.analysis?.merge_conflict) {
       badges.push('<span class="badge badge-merge-conflict">merge conflict</span>');
     }
-    
-    if (pr.turnData?.pr_state?.unresolved_comment_count > 0) {
-      const count = pr.turnData.pr_state.unresolved_comment_count;
+
+    if (pr.turnData?.analysis?.unresolved_comments > 0) {
+      const count = pr.turnData.analysis.unresolved_comments;
       badges.push(`<span class="badge badge-unresolved-comments">${count} unresolved comment${count > 1 ? 's' : ''}</span>`);
     }
-    
-    if (pr.turnData?.pr_state?.checks?.failing > 0) {
-      const failing = pr.turnData.pr_state.checks.failing;
+
+    if (pr.turnData?.analysis?.checks?.failing > 0) {
+      const failing = pr.turnData.analysis.checks.failing;
       badges.push(`<span class="badge badge-failing">${failing} failing</span>`);
     }
 

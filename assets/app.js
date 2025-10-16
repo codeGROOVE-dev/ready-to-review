@@ -572,12 +572,11 @@ const App = (() => {
       }
 
       pr.turnData = {
-        pr_state: {
-          unblock_action: unblockAction,
-          updated_at: pr.updated_at,
+        analysis: {
+          next_action: unblockAction,
           last_activity: {
             kind: "comment",
-            author: pr.user.login,
+            actor: pr.user.login,
             message: "Latest activity on this PR",
             timestamp: pr.updated_at,
           },
@@ -586,7 +585,6 @@ const App = (() => {
             ? 3
             : 0,
           size: size,
-          draft: pr.draft || false,
           ready_to_merge:
             labelNames.includes("ready") &&
             !labelNames.includes("blocked on you"),
@@ -594,11 +592,15 @@ const App = (() => {
           approved: labelNames.includes("approved"),
           tags: [],
         },
+        pull_request: {
+          draft: pr.draft || false,
+          updated_at: pr.updated_at,
+        },
         timestamp: new Date().toISOString(),
         commit: "demo-version",
       };
 
-      pr.prState = pr.turnData.pr_state;
+      pr.prState = pr.turnData.analysis;
       pr.status_tags = User.getStatusTags(pr);
     });
 
