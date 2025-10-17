@@ -31,9 +31,7 @@ export const Workspace = (() => {
 
   // Get hidden orgs for current workspace
   const hiddenOrgs = () => {
-    const workspace = currentWorkspace();
-    if (!workspace) return [];
-
+    const workspace = currentWorkspace() || 'personal';
     const cookieName = `hidden_orgs_${workspace}`;
     const cookieValue = getCookie(cookieName);
 
@@ -49,12 +47,7 @@ export const Workspace = (() => {
 
   // Set hidden orgs for current workspace
   const setHiddenOrgs = (orgs) => {
-    const workspace = currentWorkspace();
-    if (!workspace) {
-      console.warn('[Workspace] Cannot set hidden orgs for base domain');
-      return;
-    }
-
+    const workspace = currentWorkspace() || 'personal';
     const cookieName = `hidden_orgs_${workspace}`;
     const cookieValue = JSON.stringify(orgs);
 
@@ -68,10 +61,10 @@ export const Workspace = (() => {
       return;
     }
 
-    // Set cookie with domain-wide scope for 1 year
+    // Set cookie with path scope for 1 year
     const expires = new Date();
     expires.setTime(expires.getTime() + 365 * 24 * 60 * 60 * 1000);
-    document.cookie = `${cookieName}=${cookieValue};expires=${expires.toUTCString()};path=/;domain=.${BASE_DOMAIN};SameSite=Lax`;
+    document.cookie = `${cookieName}=${cookieValue};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
   };
 
   // Toggle org visibility
@@ -96,10 +89,23 @@ export const Workspace = (() => {
     return hiddenOrgs().includes(org);
   };
 
-  // Switch workspace (redirect to different subdomain)
+  // Switch workspace (redirect to different subdomain, preserving current path)
   const switchWorkspace = (org) => {
     const protocol = window.location.protocol;
-    const newURL = `${protocol}//${org}.${BASE_DOMAIN}`;
+    const currentPath = window.location.pathname;
+    const currentSearch = window.location.search;
+    const currentHash = window.location.hash;
+
+    let newHostname;
+    if (org === '' || org === 'Personal' || org === null) {
+      // Personal workspace - no subdomain
+      newHostname = BASE_DOMAIN;
+    } else {
+      // Org workspace - use org as subdomain
+      newHostname = `${org}.${BASE_DOMAIN}`;
+    }
+
+    const newURL = `${protocol}//${newHostname}${currentPath}${currentSearch}${currentHash}`;
     window.location.href = newURL;
   };
 

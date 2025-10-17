@@ -641,7 +641,7 @@ export const Changelog = (() => {
       // Show org link only when viewing a specific user in an org
       if (username && org) {
         show(changelogOrgLink);
-        changelogOrgLinkAnchor.href = `/changelog/gh/${org}`;
+        changelogOrgLinkAnchor.href = `https://${org}.ready-to-review.dev/changelog`;
       } else {
         hide(changelogOrgLink);
       }

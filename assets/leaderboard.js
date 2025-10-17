@@ -131,7 +131,7 @@ export const Leaderboard = (() => {
           <p class="org-selector-subtitle">Choose from your organizations to see top contributors</p>
           <div class="org-list">
             ${orgs.map(orgName => `
-              <a href="/leaderboard/gh/${escapeHtml(orgName)}" class="org-list-item">
+              <a href="https://${escapeHtml(orgName)}.ready-to-review.dev/leaderboard" class="org-list-item">
                 <div class="org-list-name">${escapeHtml(orgName)}</div>
               </a>
             `).join('')}

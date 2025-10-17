@@ -8,16 +8,16 @@
             content="A modern dashboard for managing GitHub pull requests"
         />
         <title>Ready To Review - GitHub PR Dashboard</title>
-        <link rel="stylesheet" href="/assets/styles.css?v=BUILD_TIMESTAMP" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="stylesheet" href="https://ready-to-review.dev/assets/styles.css?v=BUILD_TIMESTAMP" />
+        <link rel="icon" href="https://ready-to-review.dev/favicon.ico" />
         <link rel="preconnect" href="https://api.github.com" />
         <link rel="dns-prefetch" href="https://api.github.com" />
         <link rel="preconnect" href="https://avatars.githubusercontent.com" />
         <link rel="dns-prefetch" href="https://avatars.githubusercontent.com" />
-        <link rel="modulepreload" href="/assets/app.js?v=BUILD_TIMESTAMP" />
-        <link rel="modulepreload" href="/assets/user.js?v=BUILD_TIMESTAMP" />
-        <link rel="modulepreload" href="/assets/utils.js?v=BUILD_TIMESTAMP" />
-        <link rel="modulepreload" href="/assets/workspace.js?v=BUILD_TIMESTAMP" />
+        <link rel="modulepreload" href="https://ready-to-review.dev/assets/app.js?v=BUILD_TIMESTAMP" />
+        <link rel="modulepreload" href="https://ready-to-review.dev/assets/user.js?v=BUILD_TIMESTAMP" />
+        <link rel="modulepreload" href="https://ready-to-review.dev/assets/utils.js?v=BUILD_TIMESTAMP" />
+        <link rel="modulepreload" href="https://ready-to-review.dev/assets/workspace.js?v=BUILD_TIMESTAMP" />
     </head>
     <body>
         <div id="app">
@@ -47,13 +47,6 @@
                                 >
                             </h1>
                             <div class="controls">
-                                <select
-                                    id="orgSelect"
-                                    class="org-select"
-                                    aria-label="Filter by organization"
-                                >
-                                    <option value="">All Organizations</option>
-                                </select>
                                 <input
                                     type="search"
                                     id="searchInput"
@@ -61,6 +54,29 @@
                                     placeholder="Search PRs..."
                                     aria-label="Search pull requests"
                                 />
+                                <!-- Filters in header -->
+                                <div class="header-filters" id="headerFilters" hidden>
+                                    <div class="filter-group filter-group-compact">
+                                        <button type="button" id="hideOrgsDropdown" class="filter-dropdown-btn">
+                                            <span>Hide organizations</span>
+                                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                                                <path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/>
+                                            </svg>
+                                        </button>
+                                        <div id="hideOrgsMenu" class="filter-dropdown-menu" hidden>
+                                            <!-- Org items will be dynamically added here -->
+                                        </div>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label class="filter-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                id="globalFilterStale"
+                                            />
+                                            <span title="Hide PRs last modified more than 90 days ago">Hide stale PRs</span>
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="header-right">
@@ -95,6 +111,16 @@
                         </svg>
                     </button>
                 </div>
+                <div class="workspace-selector-container">
+                    <label for="workspaceSelect" class="workspace-label">Workspace</label>
+                    <select
+                        id="workspaceSelect"
+                        class="workspace-select"
+                        aria-label="Select workspace"
+                    >
+                        <option value="">Personal</option>
+                    </select>
+                </div>
                 <nav class="slide-menu-nav">
                     <a href="/" id="dashboardLink" class="menu-link">
                         <svg
@@ -119,22 +145,6 @@
                         <span class="menu-emoji">📢</span>
                         Notifications
                     </a>
-                    <a href="/robot-army" id="settingsLink" class="menu-link">
-                        <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                        >
-                            <circle cx="12" cy="12" r="3" />
-                            <path
-                                d="M12 1v6m0 6v6m11-7h-6m-6 0H1m20.5-6.5L17 9l-4.5-4.5M20.5 17.5L17 14l-4.5 4.5M3.5 6.5L8 11l4.5-4.5M3.5 17.5L8 14l4.5 4.5"
-                            />
-                        </svg>
-                        Robot Army
-                    </a>
                     <a href="/stats" id="statsLink" class="menu-link">
                         <svg
                             width="20"
@@ -153,10 +163,10 @@
                                 fill="currentColor"
                             />
                         </svg>
-                        Org Statistics
+                        Statistics
                     </a>
                     <a
-                        href="/changelog/gh/*"
+                        href="/changelog"
                         id="changelogLink"
                         class="menu-link"
                     >
@@ -175,7 +185,7 @@
                             <line x1="16" y1="13" x2="8" y2="13"></line>
                             <line x1="16" y1="17" x2="8" y2="17"></line>
                         </svg>
-                        Org Changelog
+                        Changelog
                     </a>
                     <a
                         href="/leaderboard"
@@ -194,7 +204,7 @@
                             <rect x="10.5" y="6" width="3" height="14" rx="1" />
                             <rect x="17" y="9" width="3" height="11" rx="1" />
                         </svg>
-                        Org Leaderboard
+                        Leaderboard
                     </a>
                 </nav>
             </aside>
@@ -461,6 +471,7 @@
                                 </div>
                             </div>
                         </div>
+
                         <!-- Incoming PRs -->
                         <section class="pr-section">
                             <header class="section-header">
@@ -478,16 +489,6 @@
                                     <span id="incomingCount" class="count"
                                         >0</span
                                     >
-                                    <label class="filter-checkbox">
-                                        <input
-                                            type="checkbox"
-                                            id="incomingFilterStale"
-                                        />
-                                        <span
-                                            >Hide stale (unchanged for 90
-                                            days)</span
-                                        >
-                                    </label>
                                 </div>
                                 <div class="section-stats">
                                     <span
@@ -516,16 +517,6 @@
                                     <span id="outgoingCount" class="count"
                                         >0</span
                                     >
-                                    <label class="filter-checkbox">
-                                        <input
-                                            type="checkbox"
-                                            id="outgoingFilterStale"
-                                        />
-                                        <span
-                                            >Hide stale (unchanged for 90
-                                            days)</span
-                                        >
-                                    </label>
                                 </div>
                                 <div class="section-stats">
                                     <span
@@ -1241,7 +1232,7 @@
             </footer>
         </div>
 
-        <script src="/assets/demo-data.js?v=BUILD_TIMESTAMP"></script>
-        <script type="module" src="/assets/app.js?v=BUILD_TIMESTAMP"></script>
+        <script src="https://ready-to-review.dev/assets/demo-data.js?v=BUILD_TIMESTAMP"></script>
+        <script type="module" src="https://ready-to-review.dev/assets/app.js?v=BUILD_TIMESTAMP"></script>
     </body>
 </html>

@@ -213,8 +213,12 @@ export const Robots = (() => {
     if (goToRobotArmyBtn) {
       goToRobotArmyBtn.onclick = () => {
         const urlContext = parseURL();
-        const org = urlContext?.org || orgSelect?.value || "*";
-        window.location.href = `/robots/gh/${org}`;
+        const org = urlContext?.org || orgSelect?.value;
+        if (org && org !== "*") {
+          window.location.href = `https://${org}.ready-to-review.dev/robots`;
+        } else {
+          window.location.href = `/robots`;
+        }
       };
     }
   };
@@ -447,7 +451,7 @@ export const Robots = (() => {
             ${orgs
               .map(
                 (orgName) => `
-              <a href="/robots/gh/${escapeHtml(orgName)}" class="org-list-item">
+              <a href="https://${escapeHtml(orgName)}.ready-to-review.dev/robots" class="org-list-item">
                 <div class="org-list-name">${escapeHtml(orgName)}</div>
               </a>
             `,
@@ -506,11 +510,11 @@ export const Robots = (() => {
 
   const onOrgSelected = (e) => {
     selectedOrg = e.target.value;
-    if (!selectedOrg) {
-      selectedOrg = "*";
+    if (!selectedOrg || selectedOrg === "*") {
+      window.location.href = `/robots`;
+    } else {
+      window.location.href = `https://${selectedOrg}.ready-to-review.dev/robots`;
     }
-
-    window.location.href = `/robots/gh/${selectedOrg}`;
   };
 
   const renderRobotCards = (searchTerm = '') => {

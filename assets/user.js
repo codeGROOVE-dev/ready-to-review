@@ -1,5 +1,6 @@
 // User PR Dashboard Module for Ready To Review
-import { $, $$, show, hide, escapeHtml } from './utils.js';
+import { $, $$, show, hide, escapeHtml, sanitizeUrl, escapeAttr, setHTML, el, text, clearChildren, replaceChildren } from './utils.js';
+import { Workspace } from './workspace.js';
 
 // Request deduplication cache
 const pendingRequests = new Map();
@@ -40,7 +41,7 @@ export const User = (() => {
     return `${Math.floor(days / 365)}y`;
   };
 
-  const STALE_THRESHOLD_MS = 60 * 86400000; // 60 days in milliseconds
+  const STALE_THRESHOLD_MS = 90 * 86400000; // 90 days in milliseconds
   const isStale = (pr) => {
     return (Date.now() - new Date(pr.updated_at)) >= STALE_THRESHOLD_MS;
   };
@@ -578,63 +579,74 @@ export const User = (() => {
 
     const viewingUser = state.viewingUser || state.currentUser;
 
-    // Clear existing content
-    userInfo.innerHTML = "";
+    // Clear existing content - XSS-safe
+    clearChildren(userInfo);
 
     if (state.currentUser) {
-      // Create avatar
-      const avatar = document.createElement('img');
-      avatar.src = state.currentUser.avatar_url;
-      avatar.alt = state.currentUser.login;
-      avatar.className = 'user-avatar';
-      avatar.width = 32;
-      avatar.height = 32;
+      // Create avatar - XSS-safe (src is from trusted GitHub API)
+      const avatar = el('img', {
+        className: 'user-avatar',
+        attrs: {
+          src: state.currentUser.avatar_url,
+          alt: state.currentUser.login,
+          width: 32,
+          height: 32
+        }
+      });
 
-      // Create user name
-      const userName = document.createElement('span');
-      userName.className = 'user-name';
-      userName.textContent = state.currentUser.name || state.currentUser.login;
+      // Create user name - XSS-safe (textContent)
+      const userName = el('span', {
+        className: 'user-name',
+        text: state.currentUser.name || state.currentUser.login
+      });
 
-      // Create logout button
-      const logoutBtn = document.createElement('button');
-      logoutBtn.className = 'btn btn-primary';
-      logoutBtn.textContent = 'Logout';
-      logoutBtn.addEventListener('click', logout);
+      // Create logout button - XSS-safe
+      const logoutBtn = el('button', {
+        className: 'btn btn-primary',
+        text: 'Logout',
+        on: { click: logout }
+      });
 
       userInfo.appendChild(avatar);
       userInfo.appendChild(userName);
       userInfo.appendChild(logoutBtn);
     } else if (viewingUser) {
-      // Create avatar
-      const avatar = document.createElement('img');
-      avatar.src = viewingUser.avatar_url;
-      avatar.alt = viewingUser.login;
-      avatar.className = 'user-avatar';
-      avatar.width = 32;
-      avatar.height = 32;
+      // Create avatar - XSS-safe
+      const avatar = el('img', {
+        className: 'user-avatar',
+        attrs: {
+          src: viewingUser.avatar_url,
+          alt: viewingUser.login,
+          width: 32,
+          height: 32
+        }
+      });
 
-      // Create viewing label
-      const userName = document.createElement('span');
-      userName.className = 'user-name';
-      userName.textContent = `Viewing: ${viewingUser.name || viewingUser.login}`;
+      // Create viewing label - XSS-safe (textContent)
+      const userName = el('span', {
+        className: 'user-name',
+        text: `Viewing: ${viewingUser.name || viewingUser.login}`
+      });
 
-      // Create login button
-      const loginBtn = document.createElement('button');
-      loginBtn.id = 'loginBtn';
-      loginBtn.className = 'btn btn-primary';
-      loginBtn.textContent = 'Login';
-      loginBtn.addEventListener('click', initiateLogin);
+      // Create login button - XSS-safe
+      const loginBtn = el('button', {
+        className: 'btn btn-primary',
+        text: 'Login',
+        attrs: { id: 'loginBtn' },
+        on: { click: initiateLogin }
+      });
 
       userInfo.appendChild(avatar);
       userInfo.appendChild(userName);
       userInfo.appendChild(loginBtn);
     } else {
-      // Create login button only
-      const loginBtn = document.createElement('button');
-      loginBtn.id = 'loginBtn';
-      loginBtn.className = 'btn btn-primary';
-      loginBtn.textContent = 'Login with GitHub';
-      loginBtn.addEventListener('click', initiateLogin);
+      // Create login button only - XSS-safe
+      const loginBtn = el('button', {
+        className: 'btn btn-primary',
+        text: 'Login with GitHub',
+        attrs: { id: 'loginBtn' },
+        on: { click: initiateLogin }
+      });
 
       userInfo.appendChild(loginBtn);
     }
@@ -796,12 +808,16 @@ export const User = (() => {
       uniqueOrgs.sort(); // Keep alphabetical order
     }
 
-    // Update select element
-    orgSelect.innerHTML = '<option value="">All Organizations</option>';
+    // Update select element - XSS-safe (using DOM APIs)
+    clearChildren(orgSelect);
+    const defaultOption = el('option', { attrs: { value: '' }, text: 'All Organizations' });
+    orgSelect.appendChild(defaultOption);
+
     uniqueOrgs.forEach((org) => {
-      const option = document.createElement("option");
-      option.value = org;
-      option.textContent = org;
+      const option = el('option', {
+        attrs: { value: org },
+        text: org // XSS-safe (textContent)
+      });
       orgSelect.appendChild(option);
     });
 
@@ -821,6 +837,15 @@ export const User = (() => {
 
   const updatePRSections = (state) => {
     let totalVisible = 0;
+
+    // Show filter UI in header
+    const headerFilters = $("headerFilters");
+    if (headerFilters) {
+      show(headerFilters);
+    }
+
+    // Populate org filters
+    populateOrgFilters(state);
 
     ["incoming", "outgoing"].forEach((section) => {
       const prs = state.pullRequests[section];
@@ -848,13 +873,116 @@ export const User = (() => {
   };
 
   const updateFilterCounts = (state) => {
-    ["incoming", "outgoing"].forEach((section) => {
-      const prs = state.pullRequests[section];
-      const staleCount = prs.filter(isStale).length;
-      const staleLabel = $(`${section}FilterStale`)?.nextElementSibling;
+    // Filter counts are now static labels - no dynamic updates needed
+  };
 
-      if (staleLabel) staleLabel.textContent = `Hide stale (${staleCount})`;
+  const populateOrgFilters = (state) => {
+    const hideOrgsMenu = $("hideOrgsMenu");
+    const hideOrgsDropdown = $("hideOrgsDropdown");
+    if (!hideOrgsMenu || !hideOrgsDropdown) {
+      console.error('[populateOrgFilters] Missing hideOrgsMenu or hideOrgsDropdown');
+      return;
+    }
+
+    // Workspace is now imported at the top of the file
+    if (!Workspace) {
+      console.error('[populateOrgFilters] Workspace module not available');
+      return;
+    }
+
+    // Get all unique orgs from PRs
+    const allPRs = [...state.pullRequests.incoming, ...state.pullRequests.outgoing];
+    const orgs = new Set();
+
+    allPRs.forEach(pr => {
+      const org = pr.repository.full_name.split("/")[0];
+      orgs.add(org);
     });
+
+    const sortedOrgs = Array.from(orgs).sort();
+    const hiddenOrgs = Workspace.hiddenOrgs();
+
+    console.log('[populateOrgFilters] All orgs:', sortedOrgs);
+    console.log('[populateOrgFilters] Hidden orgs:', hiddenOrgs);
+
+    // Update button text to show count of hidden orgs
+    const buttonText = hideOrgsDropdown.querySelector('span');
+    if (hiddenOrgs.length > 0) {
+      buttonText.textContent = `Hide organizations (${hiddenOrgs.length})`;
+    } else {
+      buttonText.textContent = 'Hide organizations';
+    }
+
+    // Clear existing menu items - XSS-safe
+    clearChildren(hideOrgsMenu);
+
+    if (sortedOrgs.length === 0) {
+      const emptyMsg = el('div', {
+        className: 'filter-dropdown-empty',
+        text: 'No organizations found' // XSS-safe
+      });
+      hideOrgsMenu.appendChild(emptyMsg);
+      return;
+    }
+
+    // Create menu item for each org - XSS-safe
+    sortedOrgs.forEach(org => {
+      const isHidden = hiddenOrgs.includes(org);
+
+      // Simple Unicode checkmark - XSS impossible
+      const checkbox = el('span', {
+        className: 'filter-dropdown-checkbox',
+        text: isHidden ? '✓' : '' // Pure text, automatically safe
+      });
+
+      const label = el('span', {
+        className: 'filter-dropdown-label',
+        text: org // XSS-safe (textContent)
+      });
+
+      const item = el('div', {
+        className: isHidden ? 'filter-dropdown-item active' : 'filter-dropdown-item',
+        children: [checkbox, label]
+      });
+
+      hideOrgsMenu.appendChild(item);
+
+      // Handle org visibility toggle
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        console.log('[populateOrgFilters] Toggling org:', org);
+        Workspace.toggleOrgVisibility(org);
+        const newHiddenOrgs = Workspace.hiddenOrgs();
+        console.log('[populateOrgFilters] After toggle, hidden orgs:', newHiddenOrgs);
+
+        // Refresh the menu and PR sections
+        populateOrgFilters(state);
+        updatePRSections(state);
+      });
+    });
+
+    // Setup dropdown toggle (only once)
+    if (!hideOrgsDropdown._listenerAttached) {
+      hideOrgsDropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = hideOrgsMenu.hasAttribute('hidden');
+        console.log('[populateOrgFilters] Dropdown clicked, currently hidden:', isHidden);
+        if (isHidden) {
+          hideOrgsMenu.removeAttribute('hidden');
+        } else {
+          hideOrgsMenu.setAttribute('hidden', '');
+        }
+      });
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!hideOrgsMenu.contains(e.target) && !hideOrgsDropdown.contains(e.target)) {
+          hideOrgsMenu.setAttribute('hidden', '');
+        }
+      });
+
+      hideOrgsDropdown._listenerAttached = true;
+    }
   };
 
   const updateAverages = (section, filteredPRs) => {
@@ -879,18 +1007,30 @@ export const User = (() => {
   };
 
   const applyFilters = (prs, section) => {
-    const orgSelect = $("orgSelect");
-    const selectedOrg = orgSelect?.value;
-    const hideStale = getCookie(`${section}FilterStale`) === "true";
-    const staleCheckbox = $(`${section}FilterStale`);
+    // Workspace module imported at top of file
+
+    // Get workspace-specific settings
+    const hiddenOrgs = Workspace.hiddenOrgs();
+    const hideStale = getCookie(`globalFilterStale_${Workspace.currentWorkspace() || 'personal'}`) === "true";
+
+    // Update UI if checkboxes exist
+    const staleCheckbox = $("globalFilterStale");
     if (staleCheckbox) staleCheckbox.checked = hideStale;
 
     let filtered = prs;
-    if (selectedOrg)
-      filtered = filtered.filter((pr) =>
-        pr.repository.full_name.startsWith(selectedOrg + "/"),
-      );
-    if (hideStale) filtered = filtered.filter((pr) => !isStale(pr));
+
+    // Filter out hidden organizations
+    if (hiddenOrgs.length > 0) {
+      filtered = filtered.filter((pr) => {
+        const org = pr.repository.full_name.split("/")[0];
+        return !hiddenOrgs.includes(org);
+      });
+    }
+
+    // Filter out stale PRs if enabled
+    if (hideStale) {
+      filtered = filtered.filter((pr) => !isStale(pr));
+    }
 
     return filtered;
   };
@@ -943,7 +1083,10 @@ export const User = (() => {
       return new Date(b.updated_at) - new Date(a.updated_at);
     });
 
-    container.innerHTML = sortedPRs.map((pr) => createPRCard(pr)).join("");
+    // Clear container and append PR cards - XSS-safe with setHTML + Trusted Types
+    clearChildren(container);
+    const cardsHTML = sortedPRs.map((pr) => createPRCard(pr)).join("");
+    setHTML(container, cardsHTML);
 
     if (section === "incoming" || section === "outgoing") {
       updateAverages(section, filteredPRs);
@@ -1139,8 +1282,9 @@ export const User = (() => {
     } else {
       const newCardHTML = createPRCard(pr);
 
+      // Parse HTML using setHTML with Trusted Types
       const temp = document.createElement("div");
-      temp.innerHTML = newCardHTML;
+      setHTML(temp, newCardHTML);
       const newCard = temp.firstElementChild;
 
       existingCard.parentNode.replaceChild(newCard, existingCard);
@@ -1234,9 +1378,13 @@ export const User = (() => {
 
       badges.push(...needsBadges);
 
-      if (pr.status_tags.includes("ready-to-merge")) {
+      // Only add status_tags badges if turnData hasn't already determined ready to merge
+      const alreadyReadyToMerge = pr.turnData?.analysis?.ready_to_merge;
+
+      if (pr.status_tags.includes("ready-to-merge") && !alreadyReadyToMerge) {
         badges.push('<span class="badge badge-ready">ready to merge</span>');
-      } else {
+      } else if (!alreadyReadyToMerge) {
+        // Don't show approved/checks if already showing ready to merge
         if (pr.status_tags.includes("approved")) {
           badges.push('<span class="badge badge-approved">approved</span>');
         }

@@ -255,12 +255,12 @@ func securityHeaders(next http.Handler) http.Handler {
 
 		// Content Security Policy with Trusted Types for DOM XSS protection
 		csp := []string{
-			"default-src 'self'",
-			"script-src 'self'",
-			"style-src 'self'",
-			"img-src 'self' https://avatars.githubusercontent.com data:",
+			"default-src 'self' https://ready-to-review.dev",
+			"script-src 'self' https://ready-to-review.dev",
+			"style-src 'self' https://ready-to-review.dev",
+			"img-src 'self' https://ready-to-review.dev https://avatars.githubusercontent.com data:",
 			"connect-src 'self' https://api.github.com https://turn.github.codegroove.app",
-			"font-src 'self'",
+			"font-src 'self' https://ready-to-review.dev",
 			"object-src 'none'",
 			"frame-src 'none'",
 			"base-uri 'self'",
@@ -502,17 +502,41 @@ func redirectToWorkspace(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
-	// Only allow GET and HEAD methods
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+	// Only allow GET, HEAD, and OPTIONS methods
+	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
 		log.Printf("[serveStaticFiles] Rejecting %s request to %s (405)", r.Method, r.URL.Path)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// If accessing base domain while logged in, redirect to personal workspace
-	if homeOrg(r) == "" && r.URL.Path == "/" {
-		redirectToWorkspace(w, r)
+	// CORS: Allow subdomains to load assets from naked domain
+	// Check Origin header and allow all subdomains of ready-to-review.dev
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		// Parse origin to validate it's one of our subdomains
+		if u, err := url.Parse(origin); err == nil {
+			host := u.Hostname()
+			// Allow naked domain and all subdomains
+			if host == baseDomain || strings.HasSuffix(host, "."+baseDomain) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type")
+				w.Header().Set("Vary", "Origin")
+			}
+		}
 	}
+
+	// Handle preflight requests
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Allow base domain access - don't force redirect to personal workspace
+	// Users can navigate to their workspace via the workspace selector
+	// if homeOrg(r) == "" && r.URL.Path == "/" {
+	// 	redirectToWorkspace(w, r)
+	// }
 
 	// Clean the path
 	path := filepath.Clean(r.URL.Path)
@@ -552,16 +576,28 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set content type based on file extension
+	// Set content type and cache headers based on file extension
 	switch {
 	case strings.HasSuffix(path, ".html"):
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		// Never cache HTML files - they contain BUILD_TIMESTAMP references to versioned assets
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
 		// Replace BUILD_TIMESTAMP placeholder with actual timestamp for cache busting
 		data = []byte(strings.ReplaceAll(string(data), "BUILD_TIMESTAMP", buildTimestamp))
 	case strings.HasSuffix(path, ".css"):
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		// Cache CSS for 1 year since URL includes version query param
+		if r.URL.Query().Get("v") != "" {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
 	case strings.HasSuffix(path, ".js"):
 		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		// Cache JS for 1 year since URL includes version query param
+		if r.URL.Query().Get("v") != "" {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
 	case strings.HasSuffix(path, ".json"):
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	case strings.HasSuffix(path, ".png"):
@@ -859,9 +895,10 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Default to user's personal workspace if no valid return_to
+	// Default to base domain if no valid return_to
+	// Users can navigate to their workspace via the workspace selector if desired
 	if redirectURL == "" {
-		redirectURL = fmt.Sprintf("%s://%s.%s", scheme, user.Login, baseDomain)
+		redirectURL = fmt.Sprintf("%s://%s", scheme, baseDomain)
 	}
 
 	// Create one-time auth code for secure token transfer

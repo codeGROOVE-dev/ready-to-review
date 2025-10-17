@@ -263,7 +263,7 @@ export const Stats = (() => {
               </svg>
               <p>GitHub API rate limit exceeded</p>
               <p class="text-secondary">Please wait ${error.minutesUntilReset || 'a few'} minutes before refreshing</p>
-              ${error.resetTime ? `<p class="text-secondary" style="font-size: 0.8rem; margin-top: 0.5rem;">Reset time: ${error.resetTime.toLocaleTimeString()}</p>` : ''}
+              ${error.resetTime ? `<p class="text-secondary error-reset-time">Reset time: ${error.resetTime.toLocaleTimeString()}</p>` : ''}
             </div>
           `;
         } else {
@@ -293,24 +293,18 @@ export const Stats = (() => {
 
       if (!org) {
         container.innerHTML = `
-          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px;">
-            <div style="text-align: center;">
-              <div style="margin-bottom: 1.5rem;">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" style="animation: spin 2s linear infinite;">
+          <div class="stats-loading-container">
+            <div class="stats-loading-indicator">
+              <div class="stats-loading-spinner-container">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" class="stats-loading-spinner">
                   <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
                   <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
                 </svg>
               </div>
-              <div style="font-size: 1.125rem; color: #1a1a1a; font-weight: 500;">Finding your teams...</div>
-              <div style="font-size: 0.875rem; color: #86868b; margin-top: 0.5rem;">Discovering where the magic happens ✨</div>
+              <div class="stats-loading-title">Finding your teams...</div>
+              <div class="stats-loading-subtitle">Discovering where the magic happens ✨</div>
             </div>
           </div>
-          <style>
-            @keyframes spin {
-              from { transform: rotate(0deg); }
-              to { transform: rotate(360deg); }
-            }
-          </style>
         `;
 
         // Use the same cached organizations as the dropdown
@@ -330,7 +324,7 @@ export const Stats = (() => {
               ${orgs
                 .map(
                   (orgName) => `
-                <a href="/stats/gh/${escapeHtml(orgName)}" class="org-list-item">
+                <a href="https://${escapeHtml(orgName)}.ready-to-review.dev/stats" class="org-list-item">
                   <div class="org-list-name">${escapeHtml(orgName)}</div>
                 </a>
               `,
@@ -344,28 +338,18 @@ export const Stats = (() => {
 
       // Show loading indicator
       container.innerHTML = `
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px;" id="loadingContainer">
-          <div id="statsLoadingIndicator" style="text-align: center;">
-            <div style="margin-bottom: 1.5rem;">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" style="animation: spin 2s linear infinite;">
+        <div class="stats-loading-container" id="loadingContainer">
+          <div id="statsLoadingIndicator" class="stats-loading-indicator">
+            <div class="stats-loading-spinner-container">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" class="stats-loading-spinner">
                 <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
                 <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
               </svg>
             </div>
-            <div style="font-size: 1.125rem; color: #1a1a1a; font-weight: 500;">Loading pull requests...</div>
-            <div style="font-size: 0.875rem; color: #86868b; margin-top: 0.5rem;" id="loadingSubtext">Counting all the shipped goodness 📊</div>
+            <div class="stats-loading-title">Loading pull requests...</div>
+            <div class="stats-loading-subtitle" id="loadingSubtext">Counting all the shipped goodness 📊</div>
           </div>
         </div>
-        <style>
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-          @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.8; transform: scale(0.95); }
-          }
-        </style>
       `;
 
       // Create a wrapper that can update the loading message
@@ -384,16 +368,16 @@ export const Stats = (() => {
                 `GitHub says slow down! Resuming in ${delayMs/1000} seconds... 🐌`
               ];
               const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-              
+
               loadingEl.innerHTML = `
-                <div style="margin-bottom: 1.5rem;">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#FF9500" stroke-width="2" style="animation: pulse 2s ease-in-out infinite;">
+                <div class="stats-loading-spinner-container">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#FF9500" stroke-width="2" class="stats-loading-spinner-pulse">
                     <circle cx="12" cy="12" r="10"/>
                     <path d="M12 6v6l4 2"/>
                   </svg>
                 </div>
-                <div style="font-size: 1.125rem; color: #1a1a1a; font-weight: 500;">${randomMessage}</div>
-                <div style="font-size: 0.875rem; color: #86868b; margin-top: 0.5rem;">Your stats will be worth the wait!</div>
+                <div class="stats-loading-title">${randomMessage}</div>
+                <div class="stats-loading-subtitle">Your stats will be worth the wait!</div>
               `;
             }
           }
@@ -402,18 +386,18 @@ export const Stats = (() => {
 
       // Create the org section and add it to the DOM immediately (but hidden)
       const orgSection = createOrgSection(org);
-      orgSection.style.display = 'none';
+      orgSection.classList.add('display-none');
       container.appendChild(orgSection);
-      
+
       // Process stats and display them
       await processOrgStats(org, username, githubAPIWithStatus);
-      
+
       // Remove loading screen and show the populated org section
       const loadingContainer = document.getElementById('loadingContainer');
       if (loadingContainer) {
         loadingContainer.remove();
       }
-      orgSection.style.display = 'block';
+      orgSection.classList.remove('display-none');
     } catch (error) {
       console.error("Error loading stats:", error);
 
@@ -427,7 +411,7 @@ export const Stats = (() => {
             </svg>
             <p>GitHub API rate limit exceeded</p>
             <p class="text-secondary">Please wait ${error.minutesUntilReset} minutes before refreshing</p>
-            <p class="text-secondary" style="font-size: 0.8rem; margin-top: 0.5rem;">Reset time: ${error.resetTime.toLocaleTimeString()}</p>
+            <p class="text-secondary error-reset-time">Reset time: ${error.resetTime.toLocaleTimeString()}</p>
           </div>
         `;
       } else {
@@ -452,30 +436,30 @@ export const Stats = (() => {
     section.id = `org-section-${org}`;
 
     section.innerHTML = `
-      <div class="org-section-content" style="max-width: 1000px; margin: 0 auto;">
+      <div class="org-section-content">
         <!-- Header -->
-        <div style="text-align: center; margin-bottom: 3rem;">
-          <h2 style="font-size: 2.5rem; font-weight: 600; color: #1a1a1a; margin: 0;">${escapeHtml(org)}</h2>
-          <div id="cache-age-${org}" class="cache-age" style="display: none; font-size: 0.8125rem; color: #86868b; margin-top: 0.5rem;"></div>
+        <div class="stats-header">
+          <h2 class="stats-org-title">${escapeHtml(org)}</h2>
+          <div id="cache-age-${org}" class="cache-age display-none"></div>
         </div>
-        
+
         <!-- Hero Score -->
-        <div style="background: #ffffff; border-radius: 20px; padding: 3rem; margin-bottom: 2rem; box-shadow: 0 2px 20px rgba(0,0,0,0.08); text-align: center;">
-          <div style="font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.1em; color: #86868b; margin-bottom: 1rem;">Code Review Health Ratio</div>
-          <div class="ratio-display loading" id="ratioDisplay-${org}" style="font-size: 4.5rem; font-weight: 300; color: #1a1a1a; margin: 0; line-height: 1;">-</div>
-          <div class="ratio-description" id="ratioDescription-${org}" style="font-size: 1.125rem; color: #515154; margin-top: 1rem; font-weight: 400;"></div>
-          
+        <div class="hero-score-card">
+          <div class="ratio-label">Code Review Health Ratio</div>
+          <div class="ratio-display loading" id="ratioDisplay-${org}">-</div>
+          <div class="ratio-description" id="ratioDescription-${org}"></div>
+
           <!-- Visual indicator -->
-          <div style="margin: 2.5rem auto 0; max-width: 500px;">
-            <div style="display: flex; align-items: center; gap: 2rem;">
-              <canvas id="prRatioChart-${org}" width="160" height="160" style="max-width: 160px;"></canvas>
-              <div class="chart-legend" id="chartLegend-${org}" style="text-align: left; font-size: 0.9375rem;"></div>
+          <div class="chart-visual-container">
+            <div class="chart-flex-container">
+              <canvas id="prRatioChart-${org}" width="160" height="160" class="chart-canvas"></canvas>
+              <div class="chart-legend" id="chartLegend-${org}"></div>
             </div>
           </div>
         </div>
 
         <!-- Key Metrics Grid -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+        <div class="stats-metrics-grid">
           <!-- Stuck PRs - Most Important -->
           <a href="#" id="openPRsLink-${org}" target="_blank" rel="noopener" class="stat-card-link">
             <div class="stat-card">
@@ -512,14 +496,14 @@ export const Stats = (() => {
             </div>
           </a>
         </div>
-        
+
         <!-- Insight -->
-        <div style="background: #f5f5f7; border-radius: 16px; padding: 2rem; text-align: center;">
-          <p style="font-size: 1.0625rem; color: #1a1a1a; line-height: 1.7; margin: 0; max-width: 700px; margin: 0 auto;">
-            Focus on reducing forgotten PRs. Each one represents completed work that isn't delivering value. 
-            <span style="color: #86868b;">Target: <21 days average wait, <10% stuck.</span>
+        <div class="stats-insight-box">
+          <p class="stats-insight-text">
+            Focus on reducing forgotten PRs. Each one represents completed work that isn't delivering value.
+            <span class="stats-insight-target">Target: <21 days average wait, <10% stuck.</span>
           </p>
-          <p class="data-limit-note" id="dataLimitNote-${org}" style="display: none; font-size: 0.875rem; color: #86868b; margin-top: 1rem;">
+          <p class="data-limit-note display-none" id="dataLimitNote-${org}">
             *Statistics based on a representative sample for performance.
           </p>
         </div>
@@ -800,7 +784,7 @@ export const Stats = (() => {
             totalOpenLink.href = `https://github.com/search?q=${encodeURIComponent(openQuery)}&type=pullrequests`;
           } else {
             totalOpenLink.removeAttribute("href");
-            totalOpenLink.style.cursor = "default";
+            totalOpenLink.classList.add("cursor-default");
           }
         }
       }
@@ -838,7 +822,18 @@ export const Stats = (() => {
             }
           }
           avgOpenAgeElement.textContent = displayText;
-          avgOpenAgeElement.style.color = warningColor;
+          // Remove any previous color classes
+          avgOpenAgeElement.classList.remove('text-color-green', 'text-color-orange', 'text-color-red', 'text-color-default');
+          // Apply the appropriate color class
+          if (warningColor === "#34C759") {
+            avgOpenAgeElement.classList.add('text-color-green');
+          } else if (warningColor === "#FF9500") {
+            avgOpenAgeElement.classList.add('text-color-orange');
+          } else if (warningColor === "#FF3B30") {
+            avgOpenAgeElement.classList.add('text-color-red');
+          } else {
+            avgOpenAgeElement.classList.add('text-color-default');
+          }
 
           if (avgOpenAgeLink) {
             const openQuery = `type:pr is:open org:${org}`;
@@ -848,7 +843,7 @@ export const Stats = (() => {
           avgOpenAgeElement.textContent = "-";
           if (avgOpenAgeLink) {
             avgOpenAgeLink.removeAttribute("href");
-            avgOpenAgeLink.style.cursor = "default";
+            avgOpenAgeLink.classList.add("cursor-default");
           }
         }
       }
@@ -869,7 +864,7 @@ export const Stats = (() => {
             mergedLink.href = `https://github.com/search?q=${encodeURIComponent(mergedQuery)}&type=pullrequests`;
           } else {
             mergedLink.removeAttribute("href");
-            mergedLink.style.cursor = "default";
+            mergedLink.classList.add("cursor-default");
           }
         }
       }
@@ -885,7 +880,7 @@ export const Stats = (() => {
             openLink.href = `https://github.com/search?q=${encodeURIComponent(openQuery)}&type=pullrequests`;
           } else {
             openLink.removeAttribute("href");
-            openLink.style.cursor = "default";
+            openLink.classList.add("cursor-default");
           }
         }
       }
@@ -925,7 +920,18 @@ export const Stats = (() => {
             }
           }
           avgElement.textContent = displayText;
-          avgElement.style.color = cycleColor;
+          // Remove any previous color classes
+          avgElement.classList.remove('text-color-green', 'text-color-orange', 'text-color-red', 'text-color-default');
+          // Apply the appropriate color class
+          if (cycleColor === "#34C759") {
+            avgElement.classList.add('text-color-green');
+          } else if (cycleColor === "#FF9500") {
+            avgElement.classList.add('text-color-orange');
+          } else if (cycleColor === "#FF3B30") {
+            avgElement.classList.add('text-color-red');
+          } else {
+            avgElement.classList.add('text-color-default');
+          }
 
           if (avgLink) {
             const mergedQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgoISO}`;
@@ -935,7 +941,7 @@ export const Stats = (() => {
           avgElement.textContent = "-";
           if (avgLink) {
             avgLink.removeAttribute("href");
-            avgLink.style.cursor = "default";
+            avgLink.classList.add("cursor-default");
           }
         }
       }
@@ -1023,7 +1029,7 @@ export const Stats = (() => {
           const noteElement = document.getElementById(`dataLimitNote-${org}`);
           if (noteElement) {
             noteElement.textContent = noteText;
-            noteElement.style.display = 'block';
+            noteElement.classList.remove('display-none');
           }
         }
       }
@@ -1052,7 +1058,7 @@ export const Stats = (() => {
 
       cacheAgeEl.textContent = cacheText + ' ';
       cacheAgeEl.appendChild(clearBtn);
-      cacheAgeEl.style.display = 'block';
+      cacheAgeEl.classList.remove('display-none');
     }
   };
 
@@ -1141,12 +1147,12 @@ export const Stats = (() => {
 
       legendEl.innerHTML = `
         <div class="legend-item">
-          <span class="legend-color" style="background-color: #10b981;"></span>
+          <span class="legend-color legend-color-green"></span>
           <span>Healthy Flow (${merged} PRs)</span>
           <span class="legend-percent">${mergedPercent}%</span>
         </div>
         <div class="legend-item">
-          <span class="legend-color" style="background-color: #f59e0b;"></span>
+          <span class="legend-color legend-color-orange"></span>
           <span>Bottlenecked (${openOld} PRs)</span>
           <span class="legend-percent">${openPercent}%</span>
         </div>

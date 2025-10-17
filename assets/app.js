@@ -1,5 +1,5 @@
 // Ready To Review - Modern ES6+ Application
-import { $, $$, show, hide, showToast } from './utils.js';
+import { $, $$, show, hide, showToast, setHTML, el, clearChildren } from './utils.js';
 import { Auth } from './auth.js';
 import { User } from './user.js';
 import { Stats } from './stats.js';
@@ -27,99 +27,73 @@ const App = (() => {
   // Parse URL to get viewing context
   const parseURL = () => {
     let path = window.location.pathname;
-    
+
     // Remove trailing slash to normalize paths
     path = path.replace(/\/$/, '');
 
-    // Check for changelog page patterns: /changelog/gh/org/username or /changelog/gh/org or /changelog/gh/*/username
-    const changelogMatch = path.match(/^\/changelog\/gh\/([^\/]+)(?:\/([^\/]+))?$/);
-    if (changelogMatch) {
-      const [, org, username] = changelogMatch;
+    // Get org from subdomain (workspace)
+    const workspace = Workspace.currentWorkspace();
+
+    // Check for changelog page patterns: /changelog or /changelog/username
+    if (path === '/changelog') {
       return {
-        org: org === '*' ? null : org,
-        username: username || null,
+        org: workspace,
+        username: null,
+        isChangelog: true,
+      };
+    }
+    const changelogMatch = path.match(/^\/changelog\/([^\/]+)$/);
+    if (changelogMatch) {
+      const [, username] = changelogMatch;
+      return {
+        org: workspace,
+        username: username,
         isChangelog: true,
       };
     }
 
-    // Check for leaderboard page patterns: /leaderboard or /leaderboard/gh/org
+    // Check for leaderboard page: /leaderboard
     if (path === '/leaderboard') {
       return {
-        org: null,
-        username: state.currentUser?.login,
-        isLeaderboard: true,
-      };
-    }
-    const leaderboardMatch = path.match(/^\/leaderboard\/gh\/([^\/]+)$/);
-    if (leaderboardMatch) {
-      const [, org] = leaderboardMatch;
-      return {
-        org: org === '*' ? null : org,
+        org: workspace,
         username: state.currentUser?.login,
         isLeaderboard: true,
       };
     }
 
-    // Check for robot page patterns: /robots or /robots/gh/org
+    // Check for robot page: /robots
     if (path === '/robots') {
       return {
-        org: null,
-        username: state.currentUser?.login,
-        isSettings: true,
-      };
-    }
-    const robotsMatch = path.match(/^\/robots\/gh\/([^\/]+)$/);
-    if (robotsMatch) {
-      const [, org] = robotsMatch;
-      return {
-        org: org === '*' ? null : org,
+        org: workspace,
         username: state.currentUser?.login,
         isSettings: true,
       };
     }
 
-    // Check for stats page patterns: /stats or /stats/gh/org
+    // Check for stats page: /stats
     if (path === '/stats') {
       return {
-        org: null,
-        username: state.viewingUser?.login || state.currentUser?.login,
-        isStats: true,
-      };
-    }
-    const statsMatch = path.match(/^\/stats\/gh\/([^\/]+)$/);
-    if (statsMatch) {
-      const [, org] = statsMatch;
-      return {
-        org: org === '*' ? null : org,
+        org: workspace,
         username: state.viewingUser?.login || state.currentUser?.login,
         isStats: true,
       };
     }
 
-    // Check for notifications page patterns: /notifications or /notifications/gh/org
+    // Check for notifications page: /notifications
     if (path === '/notifications') {
       return {
-        org: null,
-        username: state.currentUser?.login,
-        isNotifications: true,
-      };
-    }
-    const notificationsMatch = path.match(/^\/notifications\/gh\/([^\/]+)$/);
-    if (notificationsMatch) {
-      const [, org] = notificationsMatch;
-      return {
-        org: org === '*' ? null : org,
+        org: workspace,
         username: state.currentUser?.login,
         isNotifications: true,
       };
     }
 
-    // Check for user dashboard pattern: /u/gh/org/username
-    const userMatch = path.match(/^\/u\/gh\/([^\/]+)\/([^\/]+)$/);
+    // Check for user dashboard pattern: /u/username
+    const userMatch = path.match(/^\/u\/([^\/]+)$/);
     if (userMatch) {
-      const [, org, username] = userMatch;
+      const [, username] = userMatch;
       return {
-        org: org === '*' ? null : org,
+        org: workspace,
         username: username,
         isStats: false,
       };
@@ -162,6 +136,52 @@ const App = (() => {
   // Hamburger Menu Functions
   let hamburgersSetup = false;
   
+  // Setup workspace selector in hamburger menu
+  let workspaceSelectorSetup = false;
+  const setupWorkspaceSelector = async () => {
+    const workspaceSelect = $("workspaceSelect");
+    if (!workspaceSelect) return;
+
+    const currentWorkspace = Workspace.currentWorkspace();
+
+    // Load user's organizations (cached for 1 hour)
+    try {
+      const orgs = await User.loadUserOrganizations(state, githubAPI);
+
+      // Clear existing options - XSS-safe
+      clearChildren(workspaceSelect);
+      const defaultOption = el('option', { attrs: { value: '' }, text: 'Personal' });
+      workspaceSelect.appendChild(defaultOption);
+
+      // Add org options - XSS-safe (textContent)
+      orgs.forEach(org => {
+        const option = el('option', {
+          attrs: { value: org },
+          text: org // XSS-safe
+        });
+        workspaceSelect.appendChild(option);
+      });
+
+      // Set current workspace as selected
+      if (currentWorkspace) {
+        workspaceSelect.value = currentWorkspace;
+      } else {
+        workspaceSelect.value = '';
+      }
+
+      // Handle workspace changes (only set up listener once)
+      if (!workspaceSelectorSetup) {
+        workspaceSelect.addEventListener('change', () => {
+          const selectedOrg = workspaceSelect.value;
+          Workspace.switchWorkspace(selectedOrg);
+        });
+        workspaceSelectorSetup = true;
+      }
+    } catch (error) {
+      console.error('Failed to load organizations for workspace selector:', error);
+    }
+  };
+
   const updateHamburgerMenuLinks = () => {
     const dashboardLink = $("dashboardLink");
     const statsLink = $("statsLink");
@@ -169,52 +189,45 @@ const App = (() => {
     const notificationsLink = $("notificationsLink");
     const changelogLink = $("changelogLink");
     const leaderboardLink = $("leaderboardLink");
-    const orgSelect = $("orgSelect");
     const urlContext = parseURL();
-    const { username, org: urlOrg } = urlContext || {};
-    
-    // Prefer org from URL over dropdown value
-    const selectedOrg = urlOrg || orgSelect?.value;
-    
+    const { username } = urlContext || {};
+
     const currentUser = state.currentUser || state.viewingUser;
     const defaultUsername = currentUser?.login || '';
     const targetUsername = username || defaultUsername;
-    
+
+    // All links use new format without org in path (org is in subdomain)
     if (dashboardLink && targetUsername) {
-      dashboardLink.href = `/u/gh/${selectedOrg || '*'}/${targetUsername}`;
+      dashboardLink.href = `/u/${targetUsername}`;
     }
-    
+
     if (statsLink) {
-      statsLink.href = selectedOrg ? `/stats/gh/${selectedOrg}` : '/stats';
+      statsLink.href = '/stats';
     }
-    
+
     if (settingsLink) {
-      settingsLink.href = selectedOrg ? `/robots/gh/${selectedOrg}` : '/robots';
+      settingsLink.href = '/robots';
     }
-    
+
     if (notificationsLink) {
-      notificationsLink.href = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
+      notificationsLink.href = '/notifications';
     }
-    
+
     if (changelogLink) {
       // For org-focused pages (stats, robots, leaderboard), show org changelog
       const isOrgPage = urlContext?.isStats || urlContext?.isSettings || urlContext?.isLeaderboard;
-      
-      if (isOrgPage && selectedOrg) {
-        changelogLink.href = `/changelog/gh/${selectedOrg}`;
-      } else if (selectedOrg && targetUsername && !isOrgPage) {
-        changelogLink.href = `/changelog/gh/${selectedOrg}/${targetUsername}`;
-      } else if (selectedOrg) {
-        changelogLink.href = `/changelog/gh/${selectedOrg}`;
+
+      if (isOrgPage) {
+        changelogLink.href = '/changelog';
       } else if (targetUsername) {
-        changelogLink.href = `/changelog/gh/*/${targetUsername}`;
+        changelogLink.href = `/changelog/${targetUsername}`;
       } else {
-        changelogLink.href = '/changelog/gh/*';
+        changelogLink.href = '/changelog';
       }
     }
-    
+
     if (leaderboardLink) {
-      leaderboardLink.href = selectedOrg ? `/leaderboard/gh/${selectedOrg}` : '/leaderboard';
+      leaderboardLink.href = '/leaderboard';
     }
   };
   
@@ -249,6 +262,11 @@ const App = (() => {
     menuBackdrop?.addEventListener("click", closeMenu);
 
     hamburgersSetup = true;
+
+    // Setup workspace selector asynchronously after hamburger is ready
+    setupWorkspaceSelector().catch(error => {
+      console.error('Failed to setup workspace selector:', error);
+    });
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && slideMenu.classList.contains("open")) {
@@ -340,72 +358,32 @@ const App = (() => {
 
   // Event handlers
   const handleOrgChange = () => {
-    const orgSelect = $("orgSelect");
-    const selectedOrg = orgSelect?.value;
-    const path = window.location.pathname;
-    const urlContext = parseURL();
-    
-    // For PR dashboard pages, update in place without navigation
-    if (urlContext && urlContext.username && !urlContext.isStats && !urlContext.isSettings) {
-      // Update URL without reload using pushState
-      const newUrl = `/u/gh/${selectedOrg || '*'}/${urlContext.username}`;
-      window.history.pushState({}, '', newUrl);
-      
-      // Just re-render the PR sections with the new filter
-      User.updatePRSections(state);
-      
-      // Update hamburger menu links to reflect new org
-      updateHamburgerMenuLinks();
-      
-      return;
-    }
-    
-    // Update hamburger menu links when org changes
-    updateHamburgerMenuLinks();
-    
-    // Navigate for other page types that require full reload
-    if (path.startsWith('/stats')) {
-      window.location.href = selectedOrg ? `/stats/gh/${selectedOrg}` : '/stats';
-    } else if (path.startsWith('/robots')) {
-      window.location.href = selectedOrg ? `/robots/gh/${selectedOrg}` : '/robots';
-    } else if (path.startsWith('/notifications')) {
-      window.location.href = selectedOrg ? `/notifications/gh/${selectedOrg}` : '/notifications';
-    } else if (path.startsWith('/changelog')) {
-      const urlContext = parseURL();
-      const currentUser = state.currentUser || state.viewingUser;
-      
-      // If we're viewing a specific user's changelog, maintain that view
-      if (urlContext?.username) {
-        if (selectedOrg && selectedOrg !== '*') {
-          window.location.href = `/changelog/gh/${selectedOrg}/${urlContext.username}`;
-        } else {
-          window.location.href = `/changelog/gh/*/${urlContext.username}`;
-        }
-      } else {
-        // Organization-wide changelog
-        if (selectedOrg && selectedOrg !== '*') {
-          window.location.href = `/changelog/gh/${selectedOrg}`;
-        } else {
-          window.location.href = '/changelog/gh/*';
-        }
-      }
-    } else if (path.startsWith('/leaderboard')) {
-      window.location.href = selectedOrg ? `/leaderboard/gh/${selectedOrg}` : '/leaderboard';
-    } else {
-      // For root or unknown pages, go to user dashboard
-      const currentUser = state.currentUser || state.viewingUser;
-      if (currentUser?.login) {
-        window.location.href = `/u/gh/${selectedOrg || '*'}/${currentUser.login}`;
-      }
-    }
+    // Org change is now handled via workspace switching (subdomain change)
+    // This function is deprecated but kept for compatibility
+    console.warn('handleOrgChange called but org filtering is now done via workspace selector');
   };
 
   const handleSearch = () => {
     User.handleSearch();
   };
 
-  const handleFilterChange = (filter, section) => {
-    User.handleFilterChange(filter, section);
+  const handleFilterChange = (filterId) => {
+    const Workspace = window.Workspace || { currentWorkspace: () => null };
+    const checkbox = $(filterId);
+    if (!checkbox) return;
+
+    // Save workspace-specific filter state
+    const workspace = Workspace.currentWorkspace() || 'personal';
+    const cookieKey = `${filterId}_${workspace}`;
+
+    setCookie(cookieKey, checkbox.checked, 365);
+    User.updatePRSections(state);
+  };
+
+  const setCookie = (name, value, days) => {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
   };
 
   const handlePRAction = async (action, prId) => {
@@ -606,7 +584,7 @@ const App = (() => {
 
     const urlContext = parseURL();
     if (!urlContext || !urlContext.username) {
-      window.location.href = `/u/gh/*/${DEMO_DATA.user.login}?demo=true`;
+      window.location.href = `/u/${DEMO_DATA.user.login}?demo=true`;
       return;
     }
 
@@ -703,10 +681,10 @@ const App = (() => {
           User.updateUserDisplay(state, initiateLogin, logout);
           setupHamburgerMenu();
           await User.updateOrgFilter(state, parseURL, githubAPI);
-          
-          // Redirect /changelog/gh/* to /changelog/gh/*/username
-          if (!urlContext.org && !urlContext.username && state.currentUser) {
-            window.location.href = `/changelog/gh/*/${state.currentUser.login}`;
+
+          // Redirect /changelog to /changelog/username if no username in URL
+          if (!urlContext.username && state.currentUser) {
+            window.location.href = `/changelog/${state.currentUser.login}`;
             return;
           }
           
@@ -788,10 +766,8 @@ const App = (() => {
     setupHamburgerMenu();
 
     const urlRedirect = urlParams.get("redirect");
-    const orgSelect = $("orgSelect");
     const searchInput = $("searchInput");
 
-    orgSelect?.addEventListener("change", handleOrgChange);
     searchInput?.addEventListener("input", handleSearch);
     searchInput?.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
@@ -801,12 +777,11 @@ const App = (() => {
       }
     });
 
-    ["incoming", "outgoing"].forEach((section) => {
-      const staleFilter = $(`${section}FilterStale`);
-      staleFilter?.addEventListener("change", () =>
-        handleFilterChange(`${section}FilterStale`, section),
-      );
-    });
+    // Set up global stale filter
+    const globalStaleFilter = $("globalFilterStale");
+    globalStaleFilter?.addEventListener("change", () =>
+      handleFilterChange("globalFilterStale"),
+    );
 
     document.addEventListener("keydown", handleKeyboardShortcuts);
     document.addEventListener("click", async (e) => {
@@ -921,7 +896,7 @@ const App = (() => {
 
       // If at root URL, redirect to user's page
       if (!urlContext && state.currentUser) {
-        window.location.href = `/u/gh/*/${state.currentUser.login}`;
+        window.location.href = `/u/${state.currentUser.login}`;
         return;
       }
 
@@ -937,21 +912,26 @@ const App = (() => {
 
       User.updateUserDisplay(state, initiateLogin, logout);
       await User.updateOrgFilter(state, parseURL, githubAPI);
-      
+
       // Only load PRs if we're on the PR dashboard page
       if (!urlContext || (!urlContext.isStats && !urlContext.isSettings && !urlContext.isNotifications)) {
         showMainContentWithLoading();
         await User.loadPullRequests(state, githubAPI, state.isDemoMode);
         // Update org filter again after PRs are loaded to include PR organizations
         await User.updateOrgFilter(state, parseURL, githubAPI);
-        
+
+        // Update workspace selector after all data is loaded
+        await setupWorkspaceSelector().catch(error => {
+          console.error('Failed to update workspace selector after PR load:', error);
+        });
+
         // Reset search input placeholder for PR view
         const searchInput = $("searchInput");
         if (searchInput) {
           searchInput.placeholder = "Search PRs...";
         }
       }
-      
+
       showMainContent();
 
       if (urlRedirect) {
