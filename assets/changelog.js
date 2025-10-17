@@ -1,5 +1,5 @@
 // Changelog Module - Displays merged PRs from the last week
-import { $, $$, show, hide, showToast, escapeHtml } from './utils.js';
+import { $, $$, show, hide, showToast, escapeHtml, el, clearChildren } from './utils.js';
 import { Auth } from './auth.js';
 
 export const Changelog = (() => {
@@ -584,10 +584,62 @@ export const Changelog = (() => {
     }
   };
 
+  // Team caching
+  const TEAM_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+  const TEAM_CACHE_KEY_PREFIX = 'changelog_teams_';
+
+  const fetchTeamsWithMembers = async (org, githubAPI) => {
+    const cacheKey = `${TEAM_CACHE_KEY_PREFIX}${org}`;
+    const cached = getCachedData(cacheKey);
+
+    if (cached) {
+      console.log('Using cached team data');
+      return cached.data;
+    }
+
+    try {
+      // Fetch all teams in the org
+      const teamsResponse = await githubAPI(`/orgs/${org}/teams?per_page=100`);
+      const teams = Array.isArray(teamsResponse) ? teamsResponse : [];
+
+      // Fetch members for each team
+      const teamsWithMembers = [];
+      for (const team of teams) {
+        try {
+          const membersResponse = await githubAPI(`/orgs/${org}/teams/${team.slug}/members?per_page=100`);
+          const members = Array.isArray(membersResponse) ? membersResponse : [];
+          teamsWithMembers.push({
+            name: team.name,
+            slug: team.slug,
+            members: members.map(m => m.login)
+          });
+        } catch (error) {
+          console.warn(`Failed to fetch members for team ${team.name}:`, error);
+        }
+      }
+
+      // Cache with 1-hour expiration
+      setCachedData(cacheKey, teamsWithMembers);
+      console.log(`Fetched ${teamsWithMembers.length} teams with members`);
+      return teamsWithMembers;
+    } catch (error) {
+      console.error('Failed to fetch teams:', error);
+      return null;
+    }
+  };
+
   const showChangelogPage = async (state, githubAPI, parseURL) => {
     // Hide other content
-    $$('[id$="Content"], #prSections, #loginPrompt').forEach(el => el?.setAttribute('hidden', ''));
-    
+    $$('[id$="Content"], #prSections').forEach(el => el?.setAttribute('hidden', ''));
+
+    // Check for authentication first
+    if (!state.accessToken) {
+      const loginPrompt = $('loginPrompt');
+      show(loginPrompt);
+      hide($('changelogContent'));
+      return;
+    }
+
     const changelogContent = $('changelogContent');
     const changelogLoading = $('changelogLoading');
     const changelogEmpty = $('changelogEmpty');
@@ -600,16 +652,24 @@ export const Changelog = (() => {
     const clearCacheLink = $('clearChangelogCache');
     const changelogOrgLink = $('changelogOrgLink');
     const changelogOrgLinkAnchor = $('changelogOrgLinkAnchor');
-    
+    const userFilterSelect = $('changelogUserFilter');
+    const teamFilterSelect = $('changelogTeamFilter');
+
     if (!changelogContent) return;
-    
+
+    hide($('loginPrompt'));
     show(changelogContent);
     show(changelogLoading);
     hide(changelogEmpty);
     hide(changelogProjects);
-    
+
     const urlContext = parseURL();
     const { org, username } = urlContext || {};
+
+    // Parse query parameters for filters
+    const urlParams = new URLSearchParams(window.location.search);
+    const filterUser = urlParams.get('user') || username || '';
+    const filterTeam = urlParams.get('team') || '';
     
     try {
       // Determine what we're fetching
@@ -698,14 +758,102 @@ export const Changelog = (() => {
       let commits = [];
       let commitsFetchFailed = false;
       
+      // Fetch teams if we have an org
+      let teamsData = null;
+      const hasToken = !!Auth.getStoredToken();
+      console.log('Auth token available:', hasToken);
+      if (org && hasToken) {
+        teamsData = await fetchTeamsWithMembers(org, githubAPI);
+
+        // Populate team dropdown
+        if (teamFilterSelect && teamsData) {
+          show(teamFilterSelect);
+          clearChildren(teamFilterSelect);
+          const allTeamsOption = el('option', { attrs: { value: '' }, text: 'All teams' });
+          teamFilterSelect.appendChild(allTeamsOption);
+
+          teamsData.forEach(team => {
+            const option = el('option', {
+              attrs: { value: team.slug },
+              text: team.name
+            });
+            if (team.slug === filterTeam) option.selected = true;
+            teamFilterSelect.appendChild(option);
+          });
+
+          teamFilterSelect.disabled = false;
+        } else if (teamFilterSelect) {
+          // Teams API unavailable - hide the dropdown completely
+          hide(teamFilterSelect);
+        }
+      } else if (teamFilterSelect) {
+        // No org context - hide the dropdown
+        hide(teamFilterSelect);
+      }
+
+      // Helper to update URL with filters
+      const updateURLWithFilters = (user, team) => {
+        const params = new URLSearchParams();
+        if (user) params.set('user', user);
+        if (team) params.set('team', team);
+        const newURL = `/changelog${params.toString() ? '?' + params.toString() : ''}`;
+        window.history.pushState({}, '', newURL);
+      };
+
       // Define all the functions before using them
       const filterAndRenderPRs = () => {
         const shouldIncludeBots = !includeBots || includeBots.checked;
-        
-        // Filter PRs based on bot preference
-        const filteredPRs = shouldIncludeBots 
-          ? mergedPRs 
-          : mergedPRs.filter(pr => !isBot(pr.user));
+        const currentUserFilter = userFilterSelect?.value || '';
+        const currentTeamFilter = teamFilterSelect?.value || '';
+
+        // Get team members if filtering by team
+        let teamMembers = [];
+        if (currentTeamFilter && teamsData) {
+          const team = teamsData.find(t => t.slug === currentTeamFilter);
+          if (team) teamMembers = team.members;
+        }
+
+        // Filter PRs based on preferences
+        let filteredPRs = mergedPRs;
+
+        // Filter by bot preference
+        if (!shouldIncludeBots) {
+          filteredPRs = filteredPRs.filter(pr => !isBot(pr.user));
+        }
+
+        // Filter by user
+        if (currentUserFilter) {
+          filteredPRs = filteredPRs.filter(pr => pr.user.login === currentUserFilter);
+        }
+
+        // Filter by team
+        if (currentTeamFilter && teamMembers.length > 0) {
+          filteredPRs = filteredPRs.filter(pr => teamMembers.includes(pr.user.login));
+        }
+
+        // Populate user dropdown with contributors from the filtered PRs (or all if no team filter)
+        if (userFilterSelect) {
+          // Get unique users from all PRs
+          const users = new Set();
+          mergedPRs.forEach(pr => {
+            if (!isBot(pr.user)) {
+              users.add(pr.user.login);
+            }
+          });
+
+          clearChildren(userFilterSelect);
+          const allUsersOption = el('option', { attrs: { value: '' }, text: 'All users' });
+          userFilterSelect.appendChild(allUsersOption);
+
+          Array.from(users).sort().forEach(username => {
+            const option = el('option', {
+              attrs: { value: username },
+              text: username
+            });
+            if (username === currentUserFilter) option.selected = true;
+            userFilterSelect.appendChild(option);
+          });
+        }
         
         // Group PRs by project
         const projectsData = {};
@@ -740,7 +888,7 @@ export const Changelog = (() => {
           console.log('Processing commits:', commits.length);
           for (const commit of commits) {
             const repoFullName = commit.repository.fullName;
-            
+
             // Skip if commit is already associated with a PR we have
             if (commit.associatedPullRequests?.nodes?.length > 0) {
               const associatedPR = commit.associatedPullRequests.nodes[0];
@@ -757,11 +905,19 @@ export const Changelog = (() => {
                 }
               }
             }
-            
-            // Skip bot commits based on preference
+
+            // Get commit author
             const author = commit.author?.user || { login: commit.author?.email || 'unknown' };
+
+            // Skip bot commits based on preference
             if (!shouldIncludeBots && isBot(author)) continue;
-            
+
+            // Skip commits that don't match user filter
+            if (currentUserFilter && author.login !== currentUserFilter) continue;
+
+            // Skip commits that don't match team filter
+            if (currentTeamFilter && teamMembers.length > 0 && !teamMembers.includes(author.login)) continue;
+
             if (!projectsData[repoFullName]) {
               projectsData[repoFullName] = {
                 name: repoFullName,
@@ -770,7 +926,7 @@ export const Changelog = (() => {
                 contributors: new Set()
               };
             }
-            
+
             projectsData[repoFullName].commits.push(commit);
             projectsData[repoFullName].contributors.add(author.login);
           }
@@ -892,7 +1048,7 @@ export const Changelog = (() => {
                 
                 return `
                   <section class="changelog-section">
-                    <h3 class="section-title"><a href="https://github.com/${project.name}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none;">${project.name}</a></h3>
+                    <h3 class="section-title"><a href="https://github.com/${project.name}" target="_blank" rel="noopener">${project.name}</a></h3>
                     <ul class="change-list">
                       ${[...sortedPRs, ...sortedCommits].map(item => {
                         if (item.number) {
@@ -1003,9 +1159,28 @@ export const Changelog = (() => {
         
         // Render with cached data
         filterAndRenderPRs();
+
+        // Setup filter event listeners
+        if (userFilterSelect) {
+          userFilterSelect.addEventListener('change', () => {
+            updateURLWithFilters(userFilterSelect.value, teamFilterSelect?.value || '');
+            filterAndRenderPRs();
+          });
+        }
+
+        if (teamFilterSelect) {
+          teamFilterSelect.addEventListener('change', () => {
+            updateURLWithFilters(userFilterSelect?.value || '', teamFilterSelect.value);
+            filterAndRenderPRs();
+          });
+        }
+
+        if (includeBots) {
+          includeBots.addEventListener('change', filterAndRenderPRs);
+        }
       } else {
         console.log('Fetching fresh changelog data');
-        
+
         // Try to fetch PRs with commit counts using GraphQL
         let usedGraphQL = false;
         try {
@@ -1033,22 +1208,20 @@ export const Changelog = (() => {
         // Fetch commits - for org view or user view across all orgs
         commits = [];
         commitsFetchFailed = false;
-        if (Auth.getStoredToken()) {
-          try {
-            if (org && !username) {
-              // Fetch all commits in an organization
-              commits = await fetchOrgCommits(org, oneWeekAgoISO);
-              console.log('Successfully fetched org commits via GraphQL');
-            } else if (!org && username) {
-              // Fetch user's commits across all organizations
-              commits = await fetchUserCommits(username, oneWeekAgoISO);
-              console.log('Successfully fetched user commits via GraphQL');
-            }
-          } catch (error) {
-            console.warn('Failed to fetch commits via GraphQL, continuing without commits:', error);
-            commits = [];
-            commitsFetchFailed = true;
+        try {
+          if (org && !username) {
+            // Fetch all commits in an organization
+            commits = await fetchOrgCommits(org, oneWeekAgoISO);
+            console.log('Successfully fetched org commits via GraphQL');
+          } else if (!org && username) {
+            // Fetch user's commits across all organizations
+            commits = await fetchUserCommits(username, oneWeekAgoISO);
+            console.log('Successfully fetched user commits via GraphQL');
           }
+        } catch (error) {
+          console.warn('Failed to fetch commits via GraphQL, continuing without commits:', error);
+          commits = [];
+          commitsFetchFailed = true;
         }
         
         // Cache the results (including the fetch status)
@@ -1059,8 +1232,27 @@ export const Changelog = (() => {
         
         // Now that we have all data (PRs and commits), render the page
         filterAndRenderPRs();
+
+        // Setup filter event listeners
+        if (userFilterSelect) {
+          userFilterSelect.addEventListener('change', () => {
+            updateURLWithFilters(userFilterSelect.value, teamFilterSelect?.value || '');
+            filterAndRenderPRs();
+          });
+        }
+
+        if (teamFilterSelect) {
+          teamFilterSelect.addEventListener('change', () => {
+            updateURLWithFilters(userFilterSelect?.value || '', teamFilterSelect.value);
+            filterAndRenderPRs();
+          });
+        }
+
+        if (includeBots) {
+          includeBots.addEventListener('change', filterAndRenderPRs);
+        }
       }
-      
+
     } catch (error) {
       console.error('Error loading changelog:', error);
       hide(changelogLoading);

@@ -292,47 +292,76 @@ export const Stats = (() => {
       const container = $("orgStatsContainer");
 
       if (!org) {
+        // No org specified - show stats for user's personal repos
+        // Use username as the "org" for personal repos
+        const personalUsername = username || state.currentUser?.login;
+        if (!personalUsername) {
+          container.innerHTML = '<div class="empty-state">Unable to determine user</div>';
+          return;
+        }
+
+        // Continue with personal username treated as org
+        const githubAPIWithStatus = async (endpoint, options) => {
+          const loadingEl = document.getElementById('statsLoadingIndicator');
+
+          return withRetry(
+            () => githubAPI(endpoint, options),
+            0,
+            (retrying, delayMs) => {
+              if (retrying && loadingEl) {
+                const messages = [
+                  `GitHub needs a breather! Trying again in ${delayMs/1000} seconds... ☕`,
+                  `Too many requests! Taking a ${delayMs/1000}-second power nap... 😴`,
+                  `Hit the rate limit! Back in ${delayMs/1000} seconds... 🚦`,
+                  `GitHub says slow down! Resuming in ${delayMs/1000} seconds... 🐌`
+                ];
+                const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+
+                loadingEl.innerHTML = `
+                  <div class="stats-loading-spinner-container">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#FF9500" stroke-width="2" class="stats-loading-spinner-pulse">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 6v6l4 2"/>
+                    </svg>
+                  </div>
+                  <div class="stats-loading-title">${randomMessage}</div>
+                  <div class="stats-loading-subtitle">Your stats will be worth the wait!</div>
+                `;
+              }
+            }
+          );
+        };
+
+        // Show loading indicator
         container.innerHTML = `
-          <div class="stats-loading-container">
-            <div class="stats-loading-indicator">
+          <div class="stats-loading-container" id="loadingContainer">
+            <div id="statsLoadingIndicator" class="stats-loading-indicator">
               <div class="stats-loading-spinner-container">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" class="stats-loading-spinner">
                   <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
                   <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
                 </svg>
               </div>
-              <div class="stats-loading-title">Finding your teams...</div>
-              <div class="stats-loading-subtitle">Discovering where the magic happens ✨</div>
+              <div class="stats-loading-title">Loading pull requests...</div>
+              <div class="stats-loading-subtitle" id="loadingSubtext">Counting all the shipped goodness 📊</div>
             </div>
           </div>
         `;
 
-        // Use the same cached organizations as the dropdown
-        const orgs = await loadUserOrganizations(state, githubAPI);
+        // Create the section for personal repos and add it to the DOM immediately (but hidden)
+        const personalSection = createOrgSection(personalUsername);
+        personalSection.classList.add('display-none');
+        container.appendChild(personalSection);
 
-        if (orgs.length === 0) {
-          container.innerHTML =
-            '<div class="empty-state">No organizations found</div>';
-          return;
+        // Process stats for user's personal repos (author:username instead of org:)
+        await processOrgStats(personalUsername, personalUsername, githubAPIWithStatus, true);
+
+        // Remove loading screen and show the populated section
+        const loadingContainer = document.getElementById('loadingContainer');
+        if (loadingContainer) {
+          loadingContainer.remove();
         }
-
-        container.innerHTML = `
-          <div class="org-selector">
-            <h2 class="org-selector-title">Select an organization to view statistics</h2>
-            <p class="org-selector-subtitle">Choose from your organizations where you've been active</p>
-            <div class="org-list">
-              ${orgs
-                .map(
-                  (orgName) => `
-                <a href="https://${escapeHtml(orgName)}.ready-to-review.dev/stats" class="org-list-item">
-                  <div class="org-list-name">${escapeHtml(orgName)}</div>
-                </a>
-              `,
-                )
-                .join("")}
-            </div>
-          </div>
-        `;
+        personalSection.classList.remove('display-none');
         return;
       }
 
@@ -513,13 +542,13 @@ export const Stats = (() => {
     return section;
   };
 
-  const processOrgStats = async (org, username, githubAPI) => {
+  const processOrgStats = async (org, username, githubAPI, isPersonalRepos = false) => {
     try {
-      console.log(`[Stats Debug] Processing stats for org: ${org}`);
+      console.log(`[Stats Debug] Processing stats for ${isPersonalRepos ? 'user' : 'org'}: ${org}`);
       const CACHE_KEY = `r2r_stats_${org}`;
       const CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours
       const SHOW_CACHE_AGE_AFTER = 60 * 1000; // Show cache age after 1 minute
-      
+
       // Check cache first
       let cacheAge = null;
       try {
@@ -543,14 +572,14 @@ export const Stats = (() => {
               mergedSampleSize: data.mergedSampleSize
             });
             // Apply cached data to UI
-            displayOrgStats(org, data);
-            
+            displayOrgStats(org, data, isPersonalRepos);
+
             // Show cache age if older than 1 minute
             if (age > SHOW_CACHE_AGE_AFTER) {
               cacheAge = Math.floor(age / 60000); // Convert to minutes
               showCacheAge(org, cacheAge);
             }
-            
+
             return;
           } else {
             console.log(`[Stats Debug] Cache expired for ${org}, age: ${Math.floor(age/60000)} minutes`);
@@ -559,15 +588,17 @@ export const Stats = (() => {
       } catch (e) {
         console.log("[Stats Debug] Error reading stats cache:", e);
       }
-      
+
       const now = new Date();
       const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
       const tenDaysAgoISO = tenDaysAgo.toISOString().split("T")[0];
 
       console.log(`[Stats Debug] Date range: ${tenDaysAgoISO} to ${now.toISOString().split("T")[0]}`);
 
-      const openAllQuery = `type:pr is:open org:${org}`;
-      const mergedRecentQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgoISO}`;
+      // Use user:username for personal repos (PRs in user's repos), org:orgname for organizations
+      const scopeFilter = isPersonalRepos ? `user:${org}` : `org:${org}`;
+      const openAllQuery = `type:pr is:open ${scopeFilter}`;
+      const mergedRecentQuery = `type:pr is:merged ${scopeFilter} merged:>=${tenDaysAgoISO}`;
 
       console.log(`[Stats Debug] Queries:`, {
         openAll: openAllQuery,
@@ -725,16 +756,16 @@ export const Stats = (() => {
       }
       
       // Display the stats
-      displayOrgStats(org, statsData);
+      displayOrgStats(org, statsData, isPersonalRepos);
     } catch (error) {
       console.error(`Error processing stats for ${org}:`, error);
       throw error;
     }
   };
-  
-  const displayOrgStats = (org, statsData) => {
-    console.log(`[Stats Debug] displayOrgStats called with:`, { org, statsData });
-    
+
+  const displayOrgStats = (org, statsData, isPersonalRepos = false) => {
+    console.log(`[Stats Debug] displayOrgStats called with:`, { org, statsData, isPersonalRepos });
+
     const {
       currentlyOpen,
       openMoreThan10Days,
@@ -749,7 +780,7 @@ export const Stats = (() => {
       openSampleSize,
       mergedSampleSize
     } = statsData;
-    
+
     console.log(`[Stats Debug] Extracted values:`, {
       currentlyOpen,
       openMoreThan10Days,
@@ -764,7 +795,10 @@ export const Stats = (() => {
       openSampleSize,
       mergedSampleSize
     });
-    
+
+    // Use user:username for personal repos (PRs in user's repos), org:orgname for organizations
+    const scopeFilter = isPersonalRepos ? `user:${org}` : `org:${org}`;
+
     const now = new Date(nowTime);
       const totalOpenElement = $(`totalOpen-${org}`);
       const avgOpenAgeElement = $(`avgOpenAge-${org}`);
@@ -780,7 +814,7 @@ export const Stats = (() => {
         const totalOpenLink = $(`totalOpenLink-${org}`);
         if (totalOpenLink) {
           if (currentlyOpen > 0) {
-            const openQuery = `type:pr is:open org:${org}`;
+            const openQuery = `type:pr is:open ${scopeFilter}`;
             totalOpenLink.href = `https://github.com/search?q=${encodeURIComponent(openQuery)}&type=pullrequests`;
           } else {
             totalOpenLink.removeAttribute("href");
@@ -803,7 +837,7 @@ export const Stats = (() => {
 
           let displayText;
           let warningColor = "#1a1a1a"; // Default color
-          
+
           if (avgOpenAgeMinutes < 60) {
             displayText = `${Math.round(avgOpenAgeMinutes)}m`;
             warningColor = "#34C759"; // Green for < 1 hour
@@ -836,7 +870,7 @@ export const Stats = (() => {
           }
 
           if (avgOpenAgeLink) {
-            const openQuery = `type:pr is:open org:${org}`;
+            const openQuery = `type:pr is:open ${scopeFilter}`;
             avgOpenAgeLink.href = `https://github.com/search?q=${encodeURIComponent(openQuery)}&type=pullrequests`;
           }
         } else {
@@ -860,7 +894,7 @@ export const Stats = (() => {
         const mergedLink = $(`mergedPRsLink-${org}`);
         if (mergedLink) {
           if (mergedLast10Days > 0) {
-            const mergedQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgoISO}`;
+            const mergedQuery = `type:pr is:merged ${scopeFilter} merged:>=${tenDaysAgoISO}`;
             mergedLink.href = `https://github.com/search?q=${encodeURIComponent(mergedQuery)}&type=pullrequests`;
           } else {
             mergedLink.removeAttribute("href");
@@ -876,7 +910,7 @@ export const Stats = (() => {
         const openLink = $(`openPRsLink-${org}`);
         if (openLink) {
           if (openMoreThan10Days > 0) {
-            const openQuery = `type:pr is:open org:${org} updated:<${tenDaysAgoISO}`;
+            const openQuery = `type:pr is:open ${scopeFilter} updated:<${tenDaysAgoISO}`;
             openLink.href = `https://github.com/search?q=${encodeURIComponent(openQuery)}&type=pullrequests`;
           } else {
             openLink.removeAttribute("href");
@@ -899,7 +933,7 @@ export const Stats = (() => {
 
           let displayText;
           let cycleColor = "#1a1a1a"; // Default color
-          
+
           if (avgMergeMinutes < 60) {
             displayText = `${Math.round(avgMergeMinutes)}m`;
             cycleColor = "#34C759"; // Green for < 1 hour
@@ -934,7 +968,7 @@ export const Stats = (() => {
           }
 
           if (avgLink) {
-            const mergedQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgoISO}`;
+            const mergedQuery = `type:pr is:merged ${scopeFilter} merged:>=${tenDaysAgoISO}`;
             avgLink.href = `https://github.com/search?q=${encodeURIComponent(mergedQuery)}&type=pullrequests`;
           }
         } else {

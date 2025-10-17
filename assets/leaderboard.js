@@ -44,16 +44,25 @@ export const Leaderboard = (() => {
 
   const showLeaderboardPage = async (state, githubAPI, loadCurrentUser, updateUserDisplay, setupHamburgerMenu, updateOrgFilter, handleOrgChange, handleSearch, parseURL, loadUserOrganizations) => {
     // Hide other content
-    $$('[id$="Content"], #prSections, #loginPrompt').forEach(el => el?.setAttribute('hidden', ''));
-    
+    $$('[id$="Content"], #prSections').forEach(el => el?.setAttribute('hidden', ''));
+
+    // Check for authentication first
+    if (!state.accessToken) {
+      const loginPrompt = $('loginPrompt');
+      show(loginPrompt);
+      hide($('leaderboardContent'));
+      return;
+    }
+
     const leaderboardContent = $('leaderboardContent');
     if (!leaderboardContent) {
       console.error('Leaderboard content element not found');
       return;
     }
-    
+
+    hide($('loginPrompt'));
     show(leaderboardContent);
-    
+
     // Load current user if needed
     if (!state.currentUser) {
       try {
@@ -91,67 +100,38 @@ export const Leaderboard = (() => {
     
     // Disable org selector if no org specified
     const urlContext = parseURL();
-    const org = urlContext?.org;
-    
+    let org = urlContext?.org;
+    let isPersonalPage = false;
+
     if (!org) {
-      // Get user's organizations for selection
-      const orgs = [];
-      if (orgSelect) {
-        Array.from(orgSelect.options).forEach(opt => {
-          if (opt.value !== '*') {
-            orgs.push(opt.value);
-          }
-        });
-      }
-      
-      const loadingDiv = $('leaderboardLoading');
-      const contentDiv = $('leaderboardData');
-      hide(loadingDiv);
-      show(contentDiv);
-      
-      if (orgs.length === 0) {
-        contentDiv.innerHTML = `
-          <div class="empty-state">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-            <p>No organizations found</p>
-            <p style="font-size: 0.875rem; color: var(--color-text-secondary); margin-top: 0.5rem;">You need to be a member of at least one organization</p>
-          </div>
-        `;
+      // No org specified - show user's personal contributions
+      // Use the current username as the "org" for personal stats
+      const personalUsername = urlContext?.username || state.currentUser?.login;
+      if (!personalUsername) {
+        const loadingDiv = $('leaderboardLoading');
+        const contentDiv = $('leaderboardData');
+        hide(loadingDiv);
+        show(contentDiv);
+        contentDiv.innerHTML = '<div class="empty-state">Unable to determine user</div>';
         return;
       }
-      
-      contentDiv.innerHTML = `
-        <div class="org-selector">
-          <h2 class="org-selector-title">Select an organization to view leaderboard</h2>
-          <p class="org-selector-subtitle">Choose from your organizations to see top contributors</p>
-          <div class="org-list">
-            ${orgs.map(orgName => `
-              <a href="https://${escapeHtml(orgName)}.ready-to-review.dev/leaderboard" class="org-list-item">
-                <div class="org-list-name">${escapeHtml(orgName)}</div>
-              </a>
-            `).join('')}
-          </div>
-        </div>
-      `;
-      return;
+
+      // Continue with personal username - will fetch author:username PRs
+      org = personalUsername;
+      isPersonalPage = true;
     }
-    
+
     // Show loading state
     const loadingDiv = $('leaderboardLoading');
     const contentDiv = $('leaderboardData');
     show(loadingDiv);
     hide(contentDiv);
-    
+
     try {
       // Check cache first
       const cacheKey = `${CACHE_KEY_PREFIX}${org}`;
       const cached = getCachedData(cacheKey);
-      
+
       let mergedPRs;
       if (cached) {
         console.log('Using cached data for leaderboard');
@@ -174,17 +154,19 @@ export const Leaderboard = (() => {
         console.log('Fetching fresh data for leaderboard');
         // Fetch merged PRs from last 10 days
         const tenDaysAgo = new Date(Date.now() - TEN_DAYS_IN_MS);
-        const mergedQuery = `type:pr is:merged org:${org} merged:>=${tenDaysAgo.toISOString().split('T')[0]}`;
-        
+        // Use user:username for personal pages (PRs in user's repos), org:orgname for organizations
+        const scopeFilter = isPersonalPage ? `user:${org}` : `org:${org}`;
+        const mergedQuery = `type:pr is:merged ${scopeFilter} merged:>=${tenDaysAgo.toISOString().split('T')[0]}`;
+
         // Use Stats module's search function
         const mergedResponse = await Stats.githubSearchAll(
           `/search/issues?q=${encodeURIComponent(mergedQuery)}&sort=updated&order=desc&per_page=100`,
           20,
           githubAPI
         );
-        
+
         mergedPRs = mergedResponse.items || [];
-        
+
         // Cache the results
         setCachedData(cacheKey, mergedPRs);
       }

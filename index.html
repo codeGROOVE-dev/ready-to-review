@@ -58,7 +58,7 @@
                                 <div class="header-filters" id="headerFilters" hidden>
                                     <div class="filter-group filter-group-compact">
                                         <button type="button" id="hideOrgsDropdown" class="filter-dropdown-btn">
-                                            <span>Hide organizations</span>
+                                            <span>Hide PRs in...</span>
                                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                                                 <path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/>
                                             </svg>
@@ -112,7 +112,6 @@
                     </button>
                 </div>
                 <div class="workspace-selector-container">
-                    <label for="workspaceSelect" class="workspace-label">Workspace</label>
                     <select
                         id="workspaceSelect"
                         class="workspace-select"
@@ -1107,6 +1106,22 @@
                                 >
                             </div>
                             <div class="changelog-controls">
+                                <div class="changelog-filters">
+                                    <select
+                                        id="changelogUserFilter"
+                                        class="changelog-filter-select"
+                                        aria-label="Filter by user"
+                                    >
+                                        <option value="">All users</option>
+                                    </select>
+                                    <select
+                                        id="changelogTeamFilter"
+                                        class="changelog-filter-select"
+                                        aria-label="Filter by team"
+                                    >
+                                        <option value="">All teams</option>
+                                    </select>
+                                </div>
                                 <div
                                     class="changelog-bot-toggle"
                                     id="changelogBotToggle"

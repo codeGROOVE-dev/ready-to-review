@@ -175,6 +175,18 @@ export const Robots = (() => {
     githubAPI,
     updateOrgFilter,
   ) => {
+    // Check for authentication first
+    if (!state.accessToken) {
+      const loginPrompt = $('loginPrompt');
+      show(loginPrompt);
+      hide($("prSections"));
+      hide($("statsPage"));
+      hide($("settingsPage"));
+      hide($("notificationsPage"));
+      return;
+    }
+
+    hide($('loginPrompt'));
     hide($("prSections"));
     hide($("statsPage"));
     hide($("settingsPage"));
@@ -235,6 +247,18 @@ export const Robots = (() => {
       window.location.pathname,
     );
     try {
+      // Check for authentication first
+      if (!state.accessToken) {
+        const loginPrompt = $('loginPrompt');
+        show(loginPrompt);
+        hide($("prSections"));
+        hide($("statsPage"));
+        hide($("notificationsPage"));
+        hide($("settingsPage"));
+        return;
+      }
+
+      hide($('loginPrompt'));
       hide($("prSections"));
       hide($("statsPage"));
       hide($("notificationsPage"));
@@ -297,43 +321,31 @@ export const Robots = (() => {
       });
 
       // Check if we're at /robots (no org) or /robots/gh/org
-      if (!org && window.location.pathname === "/robots") {
-        // No org selected - show org selection
-        document.title = "Select Organization - Robot Army";
-        const settingsTitle = settingsPage?.querySelector(".settings-title");
-        const settingsSubtitle =
-          settingsPage?.querySelector(".settings-subtitle");
-        if (settingsTitle) {
-          settingsTitle.textContent = `🤖 Robot Army Configuration`;
-        }
-        if (settingsSubtitle) {
-          settingsSubtitle.textContent = `Select an organization to configure automated helpers`;
-        }
-
-        // Hide robot config
-        if (robotConfig) {
-          console.log("[showSettingsPage] Hiding robot config");
-          hide(robotConfig);
-        }
-        
-        // Hide search input when showing organization list
-        const searchInput = $("searchInput");
-        if (searchInput) {
-          hide(searchInput);
+      if (!org) {
+        // No org specified - use current user's personal repos
+        const personalUsername = urlContext?.username || state.currentUser?.login;
+        if (!personalUsername) {
+          document.title = "Login Required - Robot Army";
+          const settingsTitle = settingsPage?.querySelector(".settings-title");
+          const settingsSubtitle = settingsPage?.querySelector(".settings-subtitle");
+          if (settingsTitle) {
+            settingsTitle.textContent = `🤖 Robot Army Configuration`;
+          }
+          if (settingsSubtitle) {
+            settingsSubtitle.textContent = `Please login to configure automated helpers`;
+          }
+          if (robotConfig) {
+            hide(robotConfig);
+          }
+          return;
         }
 
-        // Show organization list similar to stats page
-        await showOrganizationList(
-          state,
-          githubAPI,
-          loadUserOrganizations,
-          settingsContent,
-        );
-
-        return; // Don't proceed with robot config
+        // Continue with personal username - treat user's repos like an org
+        org = personalUsername;
+        console.log("[showSettingsPage] Using personal repos for:", org);
       }
 
-      // We have an org selected
+      // We have an org (or username for personal repos) selected
       selectedOrg = org;
 
       document.title = `${org}'s Robot Army`;
@@ -420,52 +432,6 @@ export const Robots = (() => {
     }
   };
 
-  const showOrganizationList = async (
-    state,
-    githubAPI,
-    loadUserOrganizations,
-    container,
-  ) => {
-    try {
-      // Show loading indicator
-      const orgListContainer = document.createElement("div");
-      orgListContainer.innerHTML =
-        '<div class="loading-indicator">Loading organizations...</div>';
-      container.appendChild(orgListContainer);
-
-      // Use the same cached organizations as the dropdown
-      const orgs = await loadUserOrganizations(state, githubAPI);
-
-      if (orgs.length === 0) {
-        orgListContainer.innerHTML =
-          '<div class="empty-state">No organizations found</div>';
-        return;
-      }
-
-      // Create organization list similar to stats page
-      orgListContainer.innerHTML = `
-        <div class="org-selector">
-          <h2 class="org-selector-title">Select an organization to configure robots</h2>
-          <p class="org-selector-subtitle">Choose from your organizations where you've been active</p>
-          <div class="org-list">
-            ${orgs
-              .map(
-                (orgName) => `
-              <a href="https://${escapeHtml(orgName)}.ready-to-review.dev/robots" class="org-list-item">
-                <div class="org-list-name">${escapeHtml(orgName)}</div>
-              </a>
-            `,
-              )
-              .join("")}
-          </div>
-        </div>
-      `;
-    } catch (error) {
-      console.error("Failed to load organizations:", error);
-      container.innerHTML =
-        '<div class="empty-state">Failed to load organizations</div>';
-    }
-  };
 
   const loadOrganizationsForSettings = async (
     state,

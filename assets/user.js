@@ -579,8 +579,44 @@ export const User = (() => {
 
     const viewingUser = state.viewingUser || state.currentUser;
 
+    // Get current workspace (org) from subdomain
+    const currentWorkspace = Workspace.currentWorkspace();
+
+    // Helper function to check if user is a member of an org
+    const isUserMemberOfOrg = (orgName) => {
+      if (!orgName || !state.currentUser) return false;
+
+      try {
+        const CACHE_KEY = 'r2r_user_orgs_cache';
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { orgs, userId } = JSON.parse(cached);
+          const currentUserId = state.currentUser.login;
+
+          // Check if cached orgs are for the current user
+          if (userId === currentUserId && orgs) {
+            return orgs.includes(orgName);
+          }
+        }
+      } catch (e) {
+        console.log("Error checking org membership:", e);
+      }
+
+      // Default to true if we can't determine (don't show asterisk if uncertain)
+      return true;
+    };
+
     // Clear existing content - XSS-safe
     clearChildren(userInfo);
+
+    // Handle footer notification banner for non-member status
+    const footerBanner = document.querySelector('.footer-notification-banner');
+    const notificationText = footerBanner?.querySelector('.notification-text');
+
+    // Reset banner visibility
+    if (footerBanner) {
+      footerBanner.classList.remove('visible');
+    }
 
     if (state.currentUser) {
       // Create avatar - XSS-safe (src is from trusted GitHub API)
@@ -594,11 +630,49 @@ export const User = (() => {
         }
       });
 
-      // Create user name - XSS-safe (textContent)
+      // Create user name with optional @org - XSS-safe (textContent)
       const userName = el('span', {
-        className: 'user-name',
-        text: state.currentUser.name || state.currentUser.login
+        className: 'user-name'
       });
+
+      // Add username
+      const usernameSpan = el('span', {
+        className: 'username-main',
+        text: state.currentUser.login
+      });
+      userName.appendChild(usernameSpan);
+
+      // Add @org if viewing an organization workspace
+      if (currentWorkspace) {
+        const orgSpan = el('span', {
+          className: 'username-org',
+          text: `@${currentWorkspace}`
+        });
+        userName.appendChild(orgSpan);
+
+        // Add red asterisk if user is not a member of this org
+        const isMember = isUserMemberOfOrg(currentWorkspace);
+        if (!isMember) {
+          const asterisk = el('span', {
+            className: 'username-org-non-member',
+            text: '*',
+            attrs: {
+              title: 'You are not a member of this organization'
+            }
+          });
+          userName.appendChild(asterisk);
+
+          // Show banner if not a member
+          if (footerBanner && notificationText) {
+            footerBanner.classList.add('visible');
+            clearChildren(notificationText);
+            const message = el('span', {
+              text: `You are not a member of ${currentWorkspace}, but that's OK, we can't show you anything you don't have permission to`
+            });
+            notificationText.appendChild(message);
+          }
+        }
+      }
 
       // Create logout button - XSS-safe
       const logoutBtn = el('button', {
@@ -622,11 +696,51 @@ export const User = (() => {
         }
       });
 
-      // Create viewing label - XSS-safe (textContent)
+      // Create viewing label with username and optional @org - XSS-safe (textContent)
       const userName = el('span', {
-        className: 'user-name',
-        text: `Viewing: ${viewingUser.name || viewingUser.login}`
+        className: 'user-name'
       });
+
+      const viewingLabel = text('Viewing: ');
+      userName.appendChild(viewingLabel);
+
+      const usernameSpan = el('span', {
+        className: 'username-main',
+        text: viewingUser.login
+      });
+      userName.appendChild(usernameSpan);
+
+      // Add @org if viewing an organization workspace
+      if (currentWorkspace) {
+        const orgSpan = el('span', {
+          className: 'username-org',
+          text: `@${currentWorkspace}`
+        });
+        userName.appendChild(orgSpan);
+
+        // Add red asterisk if user is not a member of this org
+        const isMember = isUserMemberOfOrg(currentWorkspace);
+        if (!isMember) {
+          const asterisk = el('span', {
+            className: 'username-org-non-member',
+            text: '*',
+            attrs: {
+              title: 'You are not a member of this organization'
+            }
+          });
+          userName.appendChild(asterisk);
+
+          // Show banner if not a member
+          if (footerBanner && notificationText) {
+            footerBanner.classList.add('visible');
+            clearChildren(notificationText);
+            const message = el('span', {
+              text: `You are not a member of ${currentWorkspace}, but that's OK, we can't show you anything you don't have permission to`
+            });
+            notificationText.appendChild(message);
+          }
+        }
+      }
 
       // Create login button - XSS-safe
       const loginBtn = el('button', {
@@ -908,9 +1022,9 @@ export const User = (() => {
     // Update button text to show count of hidden orgs
     const buttonText = hideOrgsDropdown.querySelector('span');
     if (hiddenOrgs.length > 0) {
-      buttonText.textContent = `Hide organizations (${hiddenOrgs.length})`;
+      buttonText.textContent = `Hide PRs in... (${hiddenOrgs.length})`;
     } else {
-      buttonText.textContent = 'Hide organizations';
+      buttonText.textContent = 'Hide PRs in...';
     }
 
     // Clear existing menu items - XSS-safe

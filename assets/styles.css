@@ -317,10 +317,10 @@ a {
 .workspace-select {
     width: 100%;
     padding: var(--space-3) var(--space-4);
-    background-color: transparent;
-    border: none;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    color: var(--color-text-secondary);
+    color: var(--color-text);
     font-size: var(--text-base);
     font-weight: 500;
     cursor: pointer;
@@ -1493,6 +1493,17 @@ a {
     font-size: var(--text-sm);
     font-weight: 500;
     color: var(--color-text-secondary);
+}
+
+.username-org {
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+.username-org-non-member {
+    color: #ff0000;
+    margin-left: 2px;
+    font-weight: 600;
 }
 
 /* Toast */
@@ -3143,7 +3154,7 @@ a {
 }
 
 .footer-notification-banner {
-    display: flex;
+    display: none; /* Hidden by default, shown when user is not in org */
     align-items: center;
     justify-content: center;
     gap: var(--space-3);
@@ -3152,6 +3163,10 @@ a {
     font-size: var(--text-sm);
     font-weight: 400;
     position: relative;
+}
+
+.footer-notification-banner.visible {
+    display: flex;
 }
 
 .notification-icon {
@@ -3324,6 +3339,35 @@ a {
     justify-content: center;
     gap: 1.5rem;
     flex-wrap: wrap;
+}
+
+.changelog-filters {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.changelog-filter-select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+    min-width: 120px;
+}
+
+.changelog-filter-select:hover:not(:disabled) {
+    border-color: var(--color-primary);
+}
+
+.changelog-filter-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    color: var(--color-text-tertiary);
 }
 
 .changelog-bot-toggle {

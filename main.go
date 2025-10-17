@@ -53,6 +53,7 @@ const (
 
 //go:embed index.html
 //go:embed assets/*
+//go:embed favicon.ico
 var staticFiles embed.FS
 
 var (

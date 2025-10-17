@@ -148,13 +148,20 @@ const App = (() => {
     try {
       const orgs = await User.loadUserOrganizations(state, githubAPI);
 
+      // Ensure current workspace is in the list even if user isn't a member
+      const allOrgs = [...orgs];
+      if (currentWorkspace && !allOrgs.includes(currentWorkspace)) {
+        allOrgs.push(currentWorkspace);
+        allOrgs.sort();
+      }
+
       // Clear existing options - XSS-safe
       clearChildren(workspaceSelect);
       const defaultOption = el('option', { attrs: { value: '' }, text: 'Personal' });
       workspaceSelect.appendChild(defaultOption);
 
       // Add org options - XSS-safe (textContent)
-      orgs.forEach(org => {
+      allOrgs.forEach(org => {
         const option = el('option', {
           attrs: { value: org },
           text: org // XSS-safe
@@ -214,16 +221,8 @@ const App = (() => {
     }
 
     if (changelogLink) {
-      // For org-focused pages (stats, robots, leaderboard), show org changelog
-      const isOrgPage = urlContext?.isStats || urlContext?.isSettings || urlContext?.isLeaderboard;
-
-      if (isOrgPage) {
-        changelogLink.href = '/changelog';
-      } else if (targetUsername) {
-        changelogLink.href = `/changelog/${targetUsername}`;
-      } else {
-        changelogLink.href = '/changelog';
-      }
+      // Always default to org-wide changelog
+      changelogLink.href = '/changelog';
     }
 
     if (leaderboardLink) {
@@ -682,12 +681,8 @@ const App = (() => {
           setupHamburgerMenu();
           await User.updateOrgFilter(state, parseURL, githubAPI);
 
-          // Redirect /changelog to /changelog/username if no username in URL
-          if (!urlContext.username && state.currentUser) {
-            window.location.href = `/changelog/${state.currentUser.login}`;
-            return;
-          }
-          
+          // No redirect - /changelog stays on org-wide view
+
           // Setup org dropdown handler
           const orgSelect = $("orgSelect");
           if (orgSelect) {
