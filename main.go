@@ -360,12 +360,9 @@ func main() {
 	if err := csrfProtection.AddTrustedOrigin("https://*." + baseDomain); err != nil {
 		log.Fatalf("CRITICAL: Failed to configure CSRF protection for subdomains: %v", err)
 	}
-	// Allow localhost for development
+	// Allow localhost for development (covers all ports)
 	if err := csrfProtection.AddTrustedOrigin("http://localhost"); err != nil {
 		log.Fatalf("CRITICAL: Failed to configure CSRF protection for localhost: %v", err)
-	}
-	if err := csrfProtection.AddTrustedOrigin("http://localhost:*"); err != nil {
-		log.Fatalf("CRITICAL: Failed to configure CSRF protection for localhost with ports: %v", err)
 	}
 
 	// Set up routes
