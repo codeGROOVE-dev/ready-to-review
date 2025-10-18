@@ -1,9 +1,14 @@
+.PHONY: deploy
+deploy:
+	./hacks/deploy.sh
+
 
 # BEGIN: lint-install .
 # http://github.com/codeGROOVE-dev/lint-install
 
 .PHONY: lint
 lint: _lint
+
 
 LINT_ARCH := $(shell uname -m)
 LINT_OS := $(shell uname)
