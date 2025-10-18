@@ -70,7 +70,7 @@ LINTERS += yamllint-lint
 yamllint-lint: $(YAMLLINT_BIN)
 	PYTHONPATH=$(YAMLLINT_ROOT)/dist $(YAMLLINT_ROOT)/dist/bin/yamllint .
 
-BIOME_VERSION ?= 1.9.4
+BIOME_VERSION ?= 2.2.6
 BIOME_BIN := $(LINT_ROOT)/out/linters/biome-$(BIOME_VERSION)-$(LINT_ARCH)
 BIOME_CONFIG := $(LINT_ROOT)/biome.json
 
@@ -83,7 +83,7 @@ endif
 $(BIOME_BIN):
 	mkdir -p $(LINT_ROOT)/out/linters
 	rm -rf $(LINT_ROOT)/out/linters/biome-*
-	curl -sSfL -o $@ https://github.com/biomejs/biome/releases/download/cli%2Fv$(BIOME_VERSION)/biome-$(LINT_OS_LOWER)-$(BIOME_ARCH) \
+	curl -sSfL -o $@ https://github.com/biomejs/biome/releases/download/%40biomejs%2Fbiome%40$(BIOME_VERSION)/biome-$(LINT_OS_LOWER)-$(BIOME_ARCH) \
 		|| echo "Unable to fetch biome for $(LINT_OS_LOWER)/$(BIOME_ARCH), falling back to local install"
 	test -f $@ || printf "#!/usr/bin/env biome\n" > $@
 	chmod u+x $@

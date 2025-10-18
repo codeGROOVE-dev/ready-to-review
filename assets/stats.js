@@ -38,7 +38,7 @@ export const Stats = (() => {
     }
   };
 
-  const githubSearchAll = async (searchPath, maxPages = 20, githubAPI, onProgress = null) => {
+  const githubSearchAll = async (searchPath, _maxPages = 20, githubAPI, onProgress = null) => {
     console.log(`[Stats Debug] githubSearchAll called with path: ${searchPath}`);
     const allItems = [];
     let actualTotalCount = 0;
@@ -207,7 +207,7 @@ export const Stats = (() => {
       }
 
       const urlContext = parseURL();
-      if (urlContext && urlContext.username) {
+      if (urlContext?.username) {
         if (!state.viewingUser || typeof state.viewingUser === "string") {
           try {
             state.viewingUser = await githubAPI(`/users/${urlContext.username}`);
@@ -247,7 +247,7 @@ export const Stats = (() => {
       updateOrgFilter();
 
       // Update hamburger menu links after org filter is set
-      if (window.App && window.App.updateHamburgerMenuLinks) {
+      if (window.App?.updateHamburgerMenuLinks) {
         window.App.updateHamburgerMenuLinks();
       }
 
@@ -297,7 +297,7 @@ export const Stats = (() => {
     }
   };
 
-  const loadStatsData = async (state, githubAPI, parseURL, loadUserOrganizations) => {
+  const loadStatsData = async (state, githubAPI, parseURL, _loadUserOrganizations) => {
     try {
       const urlContext = parseURL();
       if (!urlContext) return;
@@ -556,7 +556,7 @@ export const Stats = (() => {
     return section;
   };
 
-  const processOrgStats = async (org, username, githubAPI, isPersonalRepos = false) => {
+  const processOrgStats = async (org, _username, githubAPI, isPersonalRepos = false) => {
     try {
       console.log(`[Stats Debug] Processing stats for ${isPersonalRepos ? "user" : "org"}: ${org}`);
       const CACHE_KEY = `r2r_stats_${org}`;
@@ -644,7 +644,7 @@ export const Stats = (() => {
           `/search/issues?q=${encodeURIComponent(openAllQuery)}&per_page=100`,
           20,
           githubAPI,
-          (loaded, total) => {
+          (loaded, _total) => {
             openPRsFound = loaded;
             updateLoadingText();
           }
@@ -653,7 +653,7 @@ export const Stats = (() => {
           `/search/issues?q=${encodeURIComponent(mergedRecentQuery)}&per_page=100`,
           20,
           githubAPI,
-          (loaded, total) => {
+          (loaded, _total) => {
             mergedPRsFound = loaded;
             updateLoadingText();
           }
@@ -827,7 +827,7 @@ export const Stats = (() => {
     // Use user:username for personal repos (PRs in user's repos), org:orgname for organizations
     const scopeFilter = isPersonalRepos ? `user:${org}` : `org:${org}`;
 
-    const now = new Date(nowTime);
+    const _now = new Date(nowTime);
     const totalOpenElement = $(`totalOpen-${org}`);
     const avgOpenAgeElement = $(`avgOpenAge-${org}`);
     const mergedElement = $(`mergedPRs-${org}`);
@@ -1128,7 +1128,7 @@ export const Stats = (() => {
       clearBtn.textContent = "[clear]";
       clearBtn.addEventListener("click", () => clearStatsCache(org));
 
-      cacheAgeEl.textContent = cacheText + " ";
+      cacheAgeEl.textContent = `${cacheText} `;
       cacheAgeEl.appendChild(clearBtn);
       cacheAgeEl.classList.remove("display-none");
     }

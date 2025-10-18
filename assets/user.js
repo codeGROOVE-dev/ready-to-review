@@ -86,7 +86,7 @@ export const User = (() => {
   // Turn API integration with caching
   const turnAPI = async (prUrl, updatedAt, accessToken, currentUser) => {
     // Extract repo and PR number from URL for cache key
-    const urlMatch = prUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/);
+    const urlMatch = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
     if (!urlMatch) {
       console.warn(`Invalid PR URL format: ${prUrl}`);
       return null;

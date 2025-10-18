@@ -1,6 +1,6 @@
 import { Stats } from "./stats.js";
 // Leaderboard Module - Shows PR merge activity by contributor
-import { $, $$, escapeHtml, hide, show, showToast } from "./utils.js";
+import { $, $$, hide, show, showToast } from "./utils.js";
 
 export const Leaderboard = (() => {
   const TEN_DAYS_IN_MS = 10 * 24 * 60 * 60 * 1000;
@@ -56,7 +56,9 @@ export const Leaderboard = (() => {
     loadUserOrganizations
   ) => {
     // Hide other content
-    $$('[id$="Content"], #prSections').forEach((el) => el?.setAttribute("hidden", ""));
+    $$('[id$="Content"], #prSections').forEach((el) => {
+      el?.setAttribute("hidden", "");
+    });
 
     // Check for authentication first
     if (!state.accessToken) {
@@ -87,7 +89,7 @@ export const Leaderboard = (() => {
       }
     }
 
-    updateUserDisplay(state, () => {});
+    updateUserDisplay(state, () => undefined);
     setupHamburgerMenu();
 
     // Update search input placeholder
@@ -150,7 +152,7 @@ export const Leaderboard = (() => {
         mergedPRs = cached.data;
         console.log("Cached leaderboard data:", {
           totalPRs: mergedPRs.length,
-          cacheAge: Math.round(cached.age / 60000) + " minutes",
+          cacheAge: `${Math.round(cached.age / 60000)} minutes`,
           dateRange: {
             from: new Date(Date.now() - TEN_DAYS_IN_MS).toISOString().split("T")[0],
             to: new Date().toISOString().split("T")[0],
@@ -280,7 +282,7 @@ export const Leaderboard = (() => {
               <div class="chart-content">
                 ${topContributors
                   .slice(0, 5)
-                  .map((author, index) => {
+                  .map((author, _index) => {
                     const percentage = (author.count / maxContributorCount) * 100;
                     return `
                     <div class="chart-item">
@@ -305,7 +307,7 @@ export const Leaderboard = (() => {
               <div class="chart-content">
                 ${topRepos
                   .slice(0, 5)
-                  .map((repo, index) => {
+                  .map((repo, _index) => {
                     const percentage = (repo.count / maxRepoCount) * 100;
                     const shortName = repo.name.split("/")[1] || repo.name;
                     return `

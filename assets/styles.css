@@ -715,7 +715,9 @@ a {
   border-radius: var(--radius-md);
   max-height: 240px;
   overflow-y: auto;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
   z-index: 10;
 }
 
@@ -1221,7 +1223,12 @@ a {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
   transform: translateX(-100%);
 }
 
@@ -2286,7 +2293,9 @@ a {
   background: var(--color-surface-primary);
   border-radius: 24px;
   border: 1px solid var(--color-border-subtle);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.06),
+    0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .org-selection-image {
@@ -2829,7 +2838,9 @@ a {
   background-color: white;
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 50%;
-  box-shadow: 0 3px 8px 0 rgba(0, 0, 0, 0.15), 0 3px 1px 0 rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 3px 8px 0 rgba(0, 0, 0, 0.15),
+    0 3px 1px 0 rgba(0, 0, 0, 0.06);
 }
 
 .toggle-switch input:checked + .toggle-slider {
@@ -3741,7 +3752,9 @@ a {
   background: var(--color-bg-elevated);
   border-radius: 12px;
   padding: 2rem;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .leaderboard-header {

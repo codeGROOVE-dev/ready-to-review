@@ -5,7 +5,7 @@ import { Robots } from "./robots.js";
 import { Stats } from "./stats.js";
 import { User } from "./user.js";
 // Ready To Review - Modern ES6+ Application
-import { $, $$, clearChildren, el, hide, setHTML, show, showToast } from "./utils.js";
+import { $, clearChildren, el, hide, show, showToast } from "./utils.js";
 import { Workspace } from "./workspace.js";
 
 const App = (() => {
@@ -40,7 +40,7 @@ const App = (() => {
         isChangelog: true,
       };
     }
-    const changelogMatch = path.match(/^\/changelog\/([^\/]+)$/);
+    const changelogMatch = path.match(/^\/changelog\/([^/]+)$/);
     if (changelogMatch) {
       const [, username] = changelogMatch;
       return {
@@ -87,7 +87,7 @@ const App = (() => {
     }
 
     // Check for user dashboard pattern: /u/username
-    const userMatch = path.match(/^\/u\/([^\/]+)$/);
+    const userMatch = path.match(/^\/u\/([^/]+)$/);
     if (userMatch) {
       const [, username] = userMatch;
       return {
@@ -435,7 +435,7 @@ const App = (() => {
           const rateLimitReset = response.headers.get("X-RateLimit-Reset");
 
           if (rateLimitRemaining === "0") {
-            const resetTime = new Date(Number.parseInt(rateLimitReset) * 1000);
+            const resetTime = new Date(Number.parseInt(rateLimitReset, 10) * 1000);
             const now = new Date();
             const minutesUntilReset = Math.ceil((resetTime - now) / 60000);
 
@@ -464,7 +464,7 @@ const App = (() => {
               errorMessage = `GitHub error: ${firstError.message}`;
             }
           }
-        } catch (e) {
+        } catch (_e) {
           // Use default message
         }
 
@@ -488,14 +488,18 @@ const App = (() => {
 
   // Demo Mode
   const initializeDemoMode = () => {
+    // biome-ignore lint/correctness/noUndeclaredVariables: DEMO_DATA loaded as global from demo-data.js
     if (typeof DEMO_DATA === "undefined") {
       console.error("Demo data not loaded");
       return;
     }
 
     state.isDemoMode = true;
+    // biome-ignore lint/correctness/noUndeclaredVariables: DEMO_DATA loaded as global from demo-data.js
     state.currentUser = DEMO_DATA.user;
+    // biome-ignore lint/correctness/noUndeclaredVariables: DEMO_DATA loaded as global from demo-data.js
     state.viewingUser = DEMO_DATA.user;
+    // biome-ignore lint/correctness/noUndeclaredVariables: DEMO_DATA loaded as global from demo-data.js
     state.pullRequests = DEMO_DATA.pullRequests;
 
     const allPRs = [...state.pullRequests.incoming, ...state.pullRequests.outgoing];
@@ -570,6 +574,7 @@ const App = (() => {
 
     const urlContext = parseURL();
     if (!urlContext || !urlContext.username) {
+      // biome-ignore lint/correctness/noUndeclaredVariables: DEMO_DATA loaded as global from demo-data.js
       window.location.href = `/u/${DEMO_DATA.user.login}?demo=true`;
       return;
     }
@@ -625,7 +630,7 @@ const App = (() => {
       path === "/" ||
       path.startsWith("/u/") ||
       path === "/robots" ||
-      path.match(/^\/robots\/gh\/[^\/]+$/)
+      path.match(/^\/robots\/gh\/[^/]+$/)
     ) {
       show(searchInput);
     } else {
@@ -714,7 +719,7 @@ const App = (() => {
     }
     // Handle notifications page routing
     const path = window.location.pathname;
-    if (path === "/notifications" || path.match(/^\/notifications\/gh\/[^\/]+$/)) {
+    if (path === "/notifications" || path.match(/^\/notifications\/gh\/[^/]+$/)) {
       updateSearchInputVisibility();
       const token = Auth.getStoredToken();
       if (token) {
@@ -731,7 +736,7 @@ const App = (() => {
     }
 
     // Handle robots page routing
-    if (path === "/robots" || path.match(/^\/robots\/gh\/[^\/]+$/)) {
+    if (path === "/robots" || path.match(/^\/robots\/gh\/[^/]+$/)) {
       updateSearchInputVisibility();
       const token = Auth.getStoredToken();
       if (!token) {
@@ -969,7 +974,7 @@ const App = (() => {
     Robots.copyYAML();
     try {
       showToast("Configuration copied to clipboard!", "success");
-    } catch (error) {
+    } catch (_error) {
       showToast("Failed to copy to clipboard", "error");
     }
   };

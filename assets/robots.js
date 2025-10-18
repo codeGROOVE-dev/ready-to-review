@@ -1,5 +1,5 @@
 // Robot Army Module for Ready To Review
-import { $, escapeHtml, hide, show } from "./utils.js";
+import { $, hide, show } from "./utils.js";
 
 export const Robots = (() => {
   const robotDefinitions = [
@@ -191,7 +191,7 @@ export const Robots = (() => {
     await updateOrgFilter(state, parseURL, githubAPI);
 
     // Update hamburger menu links to reflect URL org
-    if (window.App && window.App.updateHamburgerMenuLinks) {
+    if (window.App?.updateHamburgerMenuLinks) {
       window.App.updateHamburgerMenuLinks();
     }
 
@@ -282,8 +282,8 @@ export const Robots = (() => {
   const showSettingsPage = async (
     state,
     setupHamburgerMenu,
-    githubAPI,
-    loadUserOrganizations,
+    _githubAPI,
+    _loadUserOrganizations,
     parseURL
   ) => {
     console.log("[showSettingsPage] Starting with path:", window.location.pathname);
@@ -322,11 +322,11 @@ export const Robots = (() => {
         return;
       }
 
-      const org = urlContext.org;
+      let org = urlContext.org;
       console.log("[showSettingsPage] Parsed org from URL:", org || "no org");
 
       // Update hamburger menu links to reflect URL org
-      if (window.App && window.App.updateHamburgerMenuLinks) {
+      if (window.App?.updateHamburgerMenuLinks) {
         window.App.updateHamburgerMenuLinks();
       }
 
@@ -401,7 +401,7 @@ export const Robots = (() => {
       }
 
       const settingsContentDiv = settingsPage?.querySelector(".settings-content");
-      if (settingsContentDiv && settingsContentDiv.hasAttribute("hidden")) {
+      if (settingsContentDiv?.hasAttribute("hidden")) {
         console.log("[showSettingsPage] Removing hidden from settings-content");
         settingsContentDiv.removeAttribute("hidden");
       }
@@ -457,7 +457,7 @@ export const Robots = (() => {
     }
   };
 
-  const loadOrganizationsForSettings = async (state, githubAPI, loadUserOrganizations) => {
+  const _loadOrganizationsForSettings = async (state, githubAPI, loadUserOrganizations) => {
     const orgSelect = $("orgSelectSettings");
     if (!orgSelect) return;
 
@@ -768,7 +768,7 @@ ${previewSteps.join("\n")}
 
   const generatePreviewSteps = (robot) => {
     switch (robot.id) {
-      case "autoassign":
+      case "autoassign": {
         const reviewerCount = document.getElementById(`config-${robot.id}-select`)?.value || "2";
         return [
           `1. Analyze changed files in the PR`,
@@ -777,6 +777,7 @@ ${previewSteps.join("\n")}
           `4. Select top ${reviewerCount} reviewer(s) based on expertise`,
           `5. Automatically assign selected reviewer(s) to the PR`,
         ];
+      }
 
       case "autoapprove":
         return [
@@ -813,7 +814,7 @@ ${previewSteps.join("\n")}
           `5. Include PR details and direct review link`,
         ];
 
-      case "reassign":
+      case "reassign": {
         const days = document.getElementById(`config-${robot.id}-select`)?.value || "5";
         return [
           `1. Check age of all open PRs with pending reviews`,
@@ -822,6 +823,7 @@ ${previewSteps.join("\n")}
           `4. Find and assign new suitable reviewers`,
           `5. Notify both old and new reviewers of the change`,
         ];
+      }
 
       case "testbot":
         return [
@@ -832,7 +834,7 @@ ${previewSteps.join("\n")}
           `5. Link to relevant documentation or similar fixes`,
         ];
 
-      case "autoclose":
+      case "autoclose": {
         const closeDays = document.getElementById(`config-${robot.id}-select`)?.value || "90";
         return [
           `1. Scan all open pull requests`,
@@ -841,6 +843,7 @@ ${previewSteps.join("\n")}
           `4. Add warning comment 7 days before closing`,
           `5. Close PR and add explanation comment`,
         ];
+      }
 
       default:
         return ["No preview available"];
@@ -879,12 +882,13 @@ robots:
 
       configs.forEach((config) => {
         switch (config.type) {
-          case "select":
+          case "select": {
             const selectValue = document.getElementById(`config-${robot.id}-select`)?.value;
             if (selectValue) {
               yaml += `    ${robot.id === "autoassign" ? "reviewers" : robot.id === "reassign" ? "days" : robot.id === "autoclose" ? "days" : "value"}: ${selectValue}\n`;
             }
             break;
+          }
 
           case "checkboxes":
             if (config.options) {
@@ -900,19 +904,21 @@ robots:
             }
             break;
 
-          case "checkbox":
+          case "checkbox": {
             const isChecked = document.getElementById(`config-${robot.id}-checkbox`)?.checked;
             yaml += `    wait_for_tests: ${isChecked}\n`;
             break;
+          }
 
-          case "text":
+          case "text": {
             const textValue = document.getElementById(`config-${robot.id}-text`)?.value;
             if (textValue) {
               yaml += `    topic_filter: ${textValue}\n`;
             }
             break;
+          }
 
-          case "mappings":
+          case "mappings": {
             const mappingsContainer = $(`mappings-${robot.id}`);
             if (mappingsContainer) {
               const mappings = mappingsContainer.querySelectorAll(".robot-mapping");
@@ -927,6 +933,7 @@ robots:
               }
             }
             break;
+          }
         }
       });
     });
@@ -964,12 +971,13 @@ robots:
 
       configs.forEach((config) => {
         switch (config.type) {
-          case "select":
+          case "select": {
             const selectEl = document.getElementById(`config-${robot.id}-select`);
             if (selectEl) {
               robotConfigs[robot.id].config.select = selectEl.value;
             }
             break;
+          }
 
           case "checkboxes":
             robotConfigs[robot.id].config.checkboxes = {};
@@ -981,21 +989,23 @@ robots:
             });
             break;
 
-          case "checkbox":
+          case "checkbox": {
             const checkEl = document.getElementById(`config-${robot.id}-checkbox`);
             if (checkEl) {
               robotConfigs[robot.id].config.checkbox = checkEl.checked;
             }
             break;
+          }
 
-          case "text":
+          case "text": {
             const textEl = document.getElementById(`config-${robot.id}-text`);
             if (textEl) {
               robotConfigs[robot.id].config.text = textEl.value;
             }
             break;
+          }
 
-          case "mappings":
+          case "mappings": {
             const mappingsContainer = $(`mappings-${robot.id}`);
             if (mappingsContainer) {
               const mappings = [];
@@ -1012,6 +1022,7 @@ robots:
               robotConfigs[robot.id].config.mappings = mappings;
             }
             break;
+          }
         }
       });
     });

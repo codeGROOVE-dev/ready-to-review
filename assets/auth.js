@@ -31,7 +31,7 @@ export const Auth = (() => {
   }
 
   function getCookie(name) {
-    const nameEQ = name + "=";
+    const nameEQ = `${name}=`;
     const ca = document.cookie.split(";");
     for (let i = 0; i < ca.length; i++) {
       let c = ca[i];
@@ -79,7 +79,7 @@ export const Auth = (() => {
     console.log("[Auth.initiateOAuthLogin] Current URL:", window.location.href);
     console.log(
       "[Auth.initiateOAuthLogin] Redirecting to:",
-      window.location.origin + "/oauth/login"
+      `${window.location.origin}/oauth/login`
     );
 
     // Simply redirect to the backend OAuth endpoint
@@ -198,7 +198,7 @@ export const Auth = (() => {
           errorDiv.style.display = "block";
         }
       }
-    } catch (error) {
+    } catch (_error) {
       if (errorDiv) {
         errorDiv.textContent = "Error validating token. Please try again.";
         errorDiv.style.display = "block";
@@ -274,7 +274,7 @@ export const Auth = (() => {
 
     const token = getStoredToken();
     if (token) {
-      headers["Authorization"] = `token ${token}`;
+      headers.Authorization = `token ${token}`;
     }
 
     let lastError;
@@ -302,14 +302,14 @@ export const Auth = (() => {
               const responseClone = response.clone();
               const responseText = await responseClone.text();
               console.warn("Response body:", responseText);
-            } catch (e) {
+            } catch (_e) {
               console.warn("Could not read response body due to CORS restrictions");
             }
           }
 
           // Retry on all 500+ server errors
           if (response.status >= 500 && attempt < retries) {
-            const delay = Math.min(250 * Math.pow(2, attempt), 10000); // Exponential backoff starting at 250ms, max 10s
+            const delay = Math.min(250 * 2 ** attempt, 10000); // Exponential backoff starting at 250ms, max 10s
             console.warn(
               `[githubAPI] Retry ${attempt + 1}/${retries} for ${CONFIG.API_BASE}${endpoint} - Status: ${response.status}, Delay: ${delay}ms`
             );
@@ -325,7 +325,7 @@ export const Auth = (() => {
 
         // If it's a network error and we have retries left, try again
         if (attempt < retries) {
-          const delay = Math.min(250 * Math.pow(2, attempt), 10000);
+          const delay = Math.min(250 * 2 ** attempt, 10000);
           console.warn(
             `[githubAPI] Network error retry ${attempt + 1}/${retries} for ${CONFIG.API_BASE}${endpoint} - Error: ${error.message}, Delay: ${delay}ms`
           );
@@ -385,7 +385,7 @@ export const Auth = (() => {
 
           // Retry on all 500+ server errors
           if (response.status >= 500 && attempt < retries) {
-            const delay = Math.min(250 * Math.pow(2, attempt), 10000); // Exponential backoff starting at 250ms, max 10s
+            const delay = Math.min(250 * 2 ** attempt, 10000); // Exponential backoff starting at 250ms, max 10s
 
             // Log all available response information
             console.warn(
@@ -397,7 +397,7 @@ export const Auth = (() => {
             try {
               const responseText = await response.text();
               console.warn("Response body:", responseText);
-            } catch (e) {
+            } catch (_e) {
               console.warn("Could not read response body due to CORS restrictions");
             }
 
@@ -410,7 +410,7 @@ export const Auth = (() => {
           console.error("Request details:", {
             query,
             variables,
-            authHeader: authHeader.substring(0, 20) + "...",
+            authHeader: `${authHeader.substring(0, 20)}...`,
           });
           throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
         }
@@ -418,7 +418,7 @@ export const Auth = (() => {
         const data = await response.json();
         if (data.errors) {
           console.error("GraphQL errors:", data.errors);
-          throw new Error("GraphQL query failed: " + data.errors[0]?.message);
+          throw new Error(`GraphQL query failed: ${data.errors[0]?.message}`);
         }
 
         return data.data;
@@ -427,7 +427,7 @@ export const Auth = (() => {
 
         // If it's a network error and we have retries left, try again
         if (error.name === "TypeError" && error.message.includes("fetch") && attempt < retries) {
-          const delay = Math.min(250 * Math.pow(2, attempt), 10000);
+          const delay = Math.min(250 * 2 ** attempt, 10000);
           console.warn(
             `[githubGraphQL] Network error retry ${attempt + 1}/${retries} for ${CONFIG.API_BASE}/graphql - Error: ${error.message}, Delay: ${delay}ms`
           );

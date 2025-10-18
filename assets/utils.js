@@ -3,8 +3,8 @@
 // DOM Helpers
 export const $ = (id) => document.getElementById(id);
 export const $$ = (selector) => document.querySelectorAll(selector);
-export const show = (el) => el && el.removeAttribute("hidden");
-export const hide = (el) => el && el.setAttribute("hidden", "");
+export const show = (el) => el?.removeAttribute("hidden");
+export const hide = (el) => el?.setAttribute("hidden", "");
 
 // HTML escaping for user-controlled content
 // SECURITY: This must be used for ALL user-controlled data before inserting into HTML
@@ -56,7 +56,7 @@ export const escapeAttr = (str) => {
 // CSP requires "require-trusted-types-for 'script'" and "trusted-types default"
 let trustedTypesPolicy = null;
 
-if (window.trustedTypes && window.trustedTypes.createPolicy) {
+if (window.trustedTypes?.createPolicy) {
   // SECURITY NOTE: This policy passes through HTML as-is because we control all HTML
   // generation and use escapeHtml() for all user-controlled data.
   // Each innerHTML assignment has been audited to ensure user data is escaped.

@@ -1,4 +1,5 @@
-#!/usr/bin/env bash -eux -o pipefail
+#!/usr/bin/env bash
+set -eux -o pipefail
 # Deploys Go program to Cloud Run - from cwd or arg[1].
 cd "${1:-.}"
 

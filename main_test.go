@@ -94,7 +94,7 @@ func TestServerIntegration(t *testing.T) {
 
 	binaryPath := "./dashboard-test"
 	t.Cleanup(func() {
-		os.Remove(binaryPath)
+		_ = os.Remove(binaryPath) //nolint:errcheck // best-effort cleanup of test binary
 	})
 
 	buildCmd := exec.CommandContext(buildCtx, "go", "build", "-o", binaryPath, ".")
@@ -125,8 +125,8 @@ func TestServerIntegration(t *testing.T) {
 	t.Cleanup(func() {
 		serverCancel()
 		if serverCmd.Process != nil {
-			serverCmd.Process.Kill()
-			serverCmd.Wait()
+			_ = serverCmd.Process.Kill() //nolint:errcheck // best-effort cleanup of test process
+			_ = serverCmd.Wait()         //nolint:errcheck // best-effort cleanup of test process
 		}
 	})
 
@@ -143,7 +143,7 @@ func TestServerIntegration(t *testing.T) {
 			lastErr = err
 			continue
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck // best-effort close in health check loop
 
 		if resp.StatusCode == http.StatusOK {
 			t.Log("Server started successfully and responding to requests")

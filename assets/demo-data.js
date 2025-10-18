@@ -3,6 +3,7 @@
  * Mock data representing a busy software engineer working on Go, Terraform, and React
  */
 
+// biome-ignore lint/correctness/noUnusedVariables: Used as global variable in app.js
 const DEMO_DATA = {
   user: {
     login: "demo",
