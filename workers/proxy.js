@@ -7,12 +7,8 @@ addEventListener("fetch", (event) => {
 async function handleRequest(request, event) {
   try {
     const url = new URL(request.url);
-    const targetHost =
-      event.env?.TARGET_HOST || "dashboard-919730087582.us-central1.run.app";
-    const targetUrl = new URL(
-      url.pathname + url.search,
-      `https://${targetHost}`,
-    );
+    const targetHost = event.env?.TARGET_HOST || "dashboard-919730087582.us-central1.run.app";
+    const targetUrl = new URL(url.pathname + url.search, `https://${targetHost}`);
 
     // Build headers with original hostname
     const headers = new Headers(request.headers);

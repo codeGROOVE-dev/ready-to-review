@@ -86,19 +86,19 @@ var (
 
 // authCodeData stores a one-time use auth code with expiration.
 type authCodeData struct {
+	expiry   time.Time
 	token    string
 	username string
 	returnTo string
-	expiry   time.Time
 	used     bool
 }
 
 // rateLimiter implements a simple in-memory rate limiter.
 type rateLimiter struct {
-	mu       sync.Mutex
 	requests map[string][]time.Time
 	window   time.Duration
 	limit    int
+	mu       sync.Mutex
 }
 
 func (rl *rateLimiter) limitHandler(next http.HandlerFunc) http.HandlerFunc {
@@ -258,9 +258,9 @@ type oauthTokenResponse struct {
 
 // githubUser represents a GitHub user.
 type githubUser struct {
-	ID    int    `json:"id"`
 	Login string `json:"login"`
 	Name  string `json:"name"`
+	ID    int    `json:"id"`
 }
 
 // loadClientSecret retrieves the GitHub OAuth client secret from environment or Secret Manager.
@@ -1187,9 +1187,9 @@ func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	health := struct {
+		Timestamp  time.Time `json:"timestamp"`
 		Status     string    `json:"status"`
 		Version    string    `json:"version"`
-		Timestamp  time.Time `json:"timestamp"`
 		OAuthReady bool      `json:"oauth_ready"`
 	}{
 		Status:     "healthy",

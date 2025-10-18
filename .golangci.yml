@@ -152,10 +152,10 @@ linters:
 
     nakedret:
       # Default: 30
-      max-func-lines: 4
+      max-func-lines: 7
 
     nestif:
-      min-complexity: 12
+      min-complexity: 15
 
     nolintlint:
       # Exclude following linters from requiring an explanation.
@@ -173,9 +173,9 @@ linters:
           severity: warning
           disabled: true
         - name: cognitive-complexity
-          arguments: [55]
+          disabled: true # prefer maintidx
         - name: cyclomatic
-          arguments: [60]
+          disabled: true # prefer maintidx
         - name: function-length
           arguments: [150, 225]
         - name: line-length-limit
@@ -207,8 +207,14 @@ linters:
       os-temp-dir: true
 
     varnamelen:
-      max-distance: 70
+      max-distance: 75
       min-name-length: 2
+      check-receivers: false
+      ignore-names:
+        - r
+        - w
+        - f
+        - err
 
   exclusions:
     # Default: []
@@ -222,15 +228,6 @@ linters:
       - text: "parameter 'ctx' seems to be unused, consider removing or renaming it as _"
         linters:
           - revive
-      - text: "parameter name 'w' is too short for the scope of its usage"
-        linters:
-          - varnamelen
-      - text: "parameter name 'r' is too short for the scope of its usage"
-        linters:
-          - varnamelen
-      - text: "fieldalignment:"
-        linters:
-          - govet
       - path: _test\.go
         linters:
           - dupl

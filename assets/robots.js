@@ -1,9 +1,7 @@
 // Robot Army Module for Ready To Review
-import { $, show, hide, escapeHtml } from "./utils.js";
+import { $, escapeHtml, hide, show } from "./utils.js";
 
 export const Robots = (() => {
-  "use strict";
-
   const robotDefinitions = [
     {
       id: "autoassign",
@@ -169,15 +167,10 @@ export const Robots = (() => {
 
   // DOM helpers are imported from utils.js
 
-  const showNotificationsPage = async (
-    state,
-    parseURL,
-    githubAPI,
-    updateOrgFilter,
-  ) => {
+  const showNotificationsPage = async (state, parseURL, githubAPI, updateOrgFilter) => {
     // Check for authentication first
     if (!state.accessToken) {
-      const loginPrompt = $('loginPrompt');
+      const loginPrompt = $("loginPrompt");
       show(loginPrompt);
       hide($("prSections"));
       hide($("statsPage"));
@@ -186,7 +179,7 @@ export const Robots = (() => {
       return;
     }
 
-    hide($('loginPrompt'));
+    hide($("loginPrompt"));
     hide($("prSections"));
     hide($("statsPage"));
     hide($("settingsPage"));
@@ -216,7 +209,7 @@ export const Robots = (() => {
     } else {
       console.log("[DEBUG] orgSelect listener already exists or element not found", {
         orgSelectExists: !!orgSelect,
-        hasListener: orgSelect?.hasAttribute("data-listener")
+        hasListener: orgSelect?.hasAttribute("data-listener"),
       });
     }
 
@@ -240,7 +233,7 @@ export const Robots = (() => {
         const slackConfigLink = $("slackConfigLink");
         const slackConfigText = $("slackConfigText");
         if (!slackConfigLink || !slackConfigText) {
-          console.log('[Slack Config] Link elements not found');
+          console.log("[Slack Config] Link elements not found");
           return;
         }
 
@@ -259,16 +252,16 @@ export const Robots = (() => {
           if (isValid) {
             configUrl = `https://github.com/${encodeURIComponent(sanitized)}/.codeGROOVE/blob/main/slack.yaml`;
             configText = `${sanitized} Configuration`;
-            console.log('[Slack Config] Using workspace:', sanitized);
+            console.log("[Slack Config] Using workspace:", sanitized);
           } else {
-            console.warn('[Slack Config] Invalid workspace name:', sanitized);
+            console.warn("[Slack Config] Invalid workspace name:", sanitized);
           }
         }
 
         slackConfigLink.href = configUrl;
         slackConfigText.textContent = configText;
       } catch (error) {
-        console.error('[Slack Config] Error:', error);
+        console.error("[Slack Config] Error:", error);
       }
     };
 
@@ -281,7 +274,7 @@ export const Robots = (() => {
       if (workspaceSelect && !workspaceSelect.hasAttribute("data-slack-listener")) {
         workspaceSelect.addEventListener("change", updateSlackConfigLink);
         workspaceSelect.setAttribute("data-slack-listener", "true");
-        console.log('[Slack Config] Workspace change listener attached');
+        console.log("[Slack Config] Workspace change listener attached");
       }
     }
   };
@@ -291,16 +284,13 @@ export const Robots = (() => {
     setupHamburgerMenu,
     githubAPI,
     loadUserOrganizations,
-    parseURL,
+    parseURL
   ) => {
-    console.log(
-      "[showSettingsPage] Starting with path:",
-      window.location.pathname,
-    );
+    console.log("[showSettingsPage] Starting with path:", window.location.pathname);
     try {
       // Check for authentication first
       if (!state.accessToken) {
-        const loginPrompt = $('loginPrompt');
+        const loginPrompt = $("loginPrompt");
         show(loginPrompt);
         hide($("prSections"));
         hide($("statsPage"));
@@ -309,24 +299,18 @@ export const Robots = (() => {
         return;
       }
 
-      hide($('loginPrompt'));
+      hide($("loginPrompt"));
       hide($("prSections"));
       hide($("statsPage"));
       hide($("notificationsPage"));
 
       const settingsPage = $("settingsPage");
-      console.log(
-        "[showSettingsPage] Settings page element found:",
-        !!settingsPage,
-      );
+      console.log("[showSettingsPage] Settings page element found:", !!settingsPage);
       show(settingsPage);
 
       const settingsContent = settingsPage?.querySelector(".settings-content");
       if (settingsContent) {
-        console.log(
-          "[showSettingsPage] settings-content element:",
-          settingsContent,
-        );
+        console.log("[showSettingsPage] settings-content element:", settingsContent);
         show(settingsContent);
       }
 
@@ -360,7 +344,7 @@ export const Robots = (() => {
       } else {
         console.log("[DEBUG] orgSelect listener already exists or element not found", {
           orgSelectExists: !!orgSelect,
-          hasListener: orgSelect?.hasAttribute("data-listener")
+          hasListener: orgSelect?.hasAttribute("data-listener"),
         });
       }
 
@@ -401,14 +385,10 @@ export const Robots = (() => {
 
       document.title = `${org}'s Robot Army`;
       const settingsTitle = settingsPage?.querySelector(".settings-title");
-      const settingsSubtitle =
-        settingsPage?.querySelector(".settings-subtitle");
+      const settingsSubtitle = settingsPage?.querySelector(".settings-subtitle");
       if (settingsTitle) {
         settingsTitle.textContent = `🤖 ${org}'s Robot Army`;
-        console.log(
-          "[showSettingsPage] Updated h1 title to:",
-          settingsTitle.textContent,
-        );
+        console.log("[showSettingsPage] Updated h1 title to:", settingsTitle.textContent);
       }
       if (settingsSubtitle) {
         settingsSubtitle.textContent = `Configure automated helpers to handle repetitive GitHub tasks`;
@@ -420,21 +400,15 @@ export const Robots = (() => {
         show(robotConfig);
       }
 
-      const settingsContentDiv =
-        settingsPage?.querySelector(".settings-content");
+      const settingsContentDiv = settingsPage?.querySelector(".settings-content");
       if (settingsContentDiv && settingsContentDiv.hasAttribute("hidden")) {
         console.log("[showSettingsPage] Removing hidden from settings-content");
         settingsContentDiv.removeAttribute("hidden");
       }
 
-      console.log(
-        "[showSettingsPage] Current robotConfigs:",
-        Object.keys(robotConfigs),
-      );
+      console.log("[showSettingsPage] Current robotConfigs:", Object.keys(robotConfigs));
       if (Object.keys(robotConfigs).length === 0) {
-        console.log(
-          "[showSettingsPage] Initializing robot configs with defaults",
-        );
+        console.log("[showSettingsPage] Initializing robot configs with defaults");
         robotDefinitions.forEach((robot) => {
           robotConfigs[robot.id] = {
             enabled: false,
@@ -444,7 +418,7 @@ export const Robots = (() => {
         console.log(
           "[showSettingsPage] Initialized configs for",
           robotDefinitions.length,
-          "robots",
+          "robots"
         );
       }
 
@@ -457,24 +431,24 @@ export const Robots = (() => {
 
       console.log("[showSettingsPage] Calling renderRobotCards...");
       renderRobotCards();
-      
+
       // Set up search functionality for robots
       const searchInput = $("searchInput");
       if (searchInput) {
         // Remove any existing listeners first
         const newSearchInput = searchInput.cloneNode(true);
         searchInput.parentNode.replaceChild(newSearchInput, searchInput);
-        
+
         // Add new listener for robot filtering
         newSearchInput.addEventListener("input", (e) => {
           const searchTerm = e.target.value;
           renderRobotCards(searchTerm);
         });
-        
+
         // Update placeholder text for robot page
         newSearchInput.placeholder = "Search robots...";
       }
-      
+
       console.log("[showSettingsPage] Completed setup");
       console.log("[showSettingsPage] Completed successfully");
     } catch (error) {
@@ -483,20 +457,14 @@ export const Robots = (() => {
     }
   };
 
-
-  const loadOrganizationsForSettings = async (
-    state,
-    githubAPI,
-    loadUserOrganizations,
-  ) => {
+  const loadOrganizationsForSettings = async (state, githubAPI, loadUserOrganizations) => {
     const orgSelect = $("orgSelectSettings");
     if (!orgSelect) return;
 
     try {
       const user = state.currentUser || state.viewingUser;
       if (!user) {
-        orgSelect.innerHTML =
-          '<option value="">Please login to view organizations</option>';
+        orgSelect.innerHTML = '<option value="">Please login to view organizations</option>';
         return;
       }
 
@@ -504,8 +472,7 @@ export const Robots = (() => {
       const orgs = await loadUserOrganizations(state, githubAPI);
 
       if (orgs.length === 0) {
-        orgSelect.innerHTML =
-          '<option value="">No organizations found</option>';
+        orgSelect.innerHTML = '<option value="">No organizations found</option>';
         return;
       }
 
@@ -520,8 +487,7 @@ export const Robots = (() => {
       orgSelect.addEventListener("change", onOrgSelected);
     } catch (error) {
       console.error("Failed to load organizations:", error);
-      orgSelect.innerHTML =
-        '<option value="">Failed to load organizations</option>';
+      orgSelect.innerHTML = '<option value="">Failed to load organizations</option>';
     }
   };
 
@@ -534,7 +500,7 @@ export const Robots = (() => {
     }
   };
 
-  const renderRobotCards = (searchTerm = '') => {
+  const renderRobotCards = (searchTerm = "") => {
     console.log("[renderRobotCards] Starting...");
     const container = $("robotCards");
     if (!container) {
@@ -543,18 +509,15 @@ export const Robots = (() => {
     }
 
     // Filter robots based on search term
-    const filteredRobots = searchTerm 
-      ? robotDefinitions.filter(robot => 
-          robot.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          robot.description.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredRobots = searchTerm
+      ? robotDefinitions.filter(
+          (robot) =>
+            robot.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            robot.description.toLowerCase().includes(searchTerm.toLowerCase())
         )
       : robotDefinitions;
-    
-    console.log(
-      "[renderRobotCards] Found container, rendering",
-      filteredRobots.length,
-      "robots",
-    );
+
+    console.log("[renderRobotCards] Found container, rendering", filteredRobots.length, "robots");
 
     try {
       console.log("[renderRobotCards] Creating robot cards HTML...");
@@ -565,10 +528,7 @@ export const Robots = (() => {
         })
         .join("");
 
-      console.log(
-        "[renderRobotCards] Setting container innerHTML, length:",
-        cardsHtml.length,
-      );
+      console.log("[renderRobotCards] Setting container innerHTML, length:", cardsHtml.length);
       container.innerHTML = cardsHtml;
 
       console.log("[renderRobotCards] Adding event listeners...");
@@ -611,10 +571,7 @@ export const Robots = (() => {
     console.log(`[createRobotCard] Robot ${robot.id} enabled:`, isEnabled);
 
     const configHtml = renderRobotConfig(robot);
-    console.log(
-      `[createRobotCard] Config HTML length for ${robot.id}:`,
-      configHtml.length,
-    );
+    console.log(`[createRobotCard] Config HTML length for ${robot.id}:`, configHtml.length);
 
     return `
       <div class="robot-card ${isEnabled ? "robot-enabled" : ""}">
@@ -671,7 +628,7 @@ export const Robots = (() => {
                 ${config.options
                   .map(
                     (opt) =>
-                      `<option value="${opt.value}" ${opt.value === config.default ? "selected" : ""}>${opt.label}</option>`,
+                      `<option value="${opt.value}" ${opt.value === config.default ? "selected" : ""}>${opt.label}</option>`
                   )
                   .join("")}
               </select>
@@ -690,7 +647,7 @@ export const Robots = (() => {
                     <input type="checkbox" id="config-${robot.id}-${opt.id}" ${opt.default ? "checked" : ""}>
                     <label for="config-${robot.id}-${opt.id}">${opt.label}</label>
                   </div>
-                `,
+                `
                   )
                   .join("")}
               </div>
@@ -745,14 +702,9 @@ export const Robots = (() => {
       robotConfigs[robotId] = {};
     }
     robotConfigs[robotId].enabled = enabled;
-    console.log(
-      `[onRobotToggle] Updated config for ${robotId}:`,
-      robotConfigs[robotId],
-    );
+    console.log(`[onRobotToggle] Updated config for ${robotId}:`, robotConfigs[robotId]);
 
-    const card = document
-      .querySelector(`#toggle-${robotId}`)
-      .closest(".robot-card");
+    const card = document.querySelector(`#toggle-${robotId}`).closest(".robot-card");
     const config = card.querySelector(".robot-config");
 
     if (enabled) {
@@ -776,21 +728,21 @@ export const Robots = (() => {
 
     if (!config) return;
 
-    const mappingDiv = document.createElement('div');
-    mappingDiv.className = 'robot-mapping';
+    const mappingDiv = document.createElement("div");
+    mappingDiv.className = "robot-mapping";
     mappingDiv.id = mappingId;
 
-    const input1 = document.createElement('input');
-    input1.type = 'text';
+    const input1 = document.createElement("input");
+    input1.type = "text";
     input1.placeholder = config.placeholder1;
 
-    const input2 = document.createElement('input');
-    input2.type = 'text';
+    const input2 = document.createElement("input");
+    input2.type = "text";
     input2.placeholder = config.placeholder2;
 
-    const button = document.createElement('button');
-    button.setAttribute('aria-label', 'Remove mapping');
-    button.addEventListener('click', () => removeMapping(mappingId));
+    const button = document.createElement("button");
+    button.setAttribute("aria-label", "Remove mapping");
+    button.addEventListener("click", () => removeMapping(mappingId));
 
     mappingDiv.appendChild(input1);
     mappingDiv.appendChild(input2);
@@ -817,8 +769,7 @@ ${previewSteps.join("\n")}
   const generatePreviewSteps = (robot) => {
     switch (robot.id) {
       case "autoassign":
-        const reviewerCount =
-          document.getElementById(`config-${robot.id}-select`)?.value || "2";
+        const reviewerCount = document.getElementById(`config-${robot.id}-select`)?.value || "2";
         return [
           `1. Analyze changed files in the PR`,
           `2. Find contributors who have recently modified the same files`,
@@ -863,8 +814,7 @@ ${previewSteps.join("\n")}
         ];
 
       case "reassign":
-        const days =
-          document.getElementById(`config-${robot.id}-select`)?.value || "5";
+        const days = document.getElementById(`config-${robot.id}-select`)?.value || "5";
         return [
           `1. Check age of all open PRs with pending reviews`,
           `2. Identify PRs blocked for more than ${days} days`,
@@ -883,8 +833,7 @@ ${previewSteps.join("\n")}
         ];
 
       case "autoclose":
-        const closeDays =
-          document.getElementById(`config-${robot.id}-select`)?.value || "90";
+        const closeDays = document.getElementById(`config-${robot.id}-select`)?.value || "90";
         return [
           `1. Scan all open pull requests`,
           `2. Check last activity date on each PR`,
@@ -908,9 +857,7 @@ ${previewSteps.join("\n")}
   };
 
   const generateYAMLConfig = () => {
-    const enabledRobots = robotDefinitions.filter(
-      (robot) => robotConfigs[robot.id]?.enabled,
-    );
+    const enabledRobots = robotDefinitions.filter((robot) => robotConfigs[robot.id]?.enabled);
 
     if (enabledRobots.length === 0) {
       return "# No robots enabled\n";
@@ -928,16 +875,12 @@ robots:
       yaml += `\n  ${robot.id}:\n`;
       yaml += `    enabled: true\n`;
 
-      const configs = Array.isArray(robot.config)
-        ? robot.config
-        : [robot.config];
+      const configs = Array.isArray(robot.config) ? robot.config : [robot.config];
 
       configs.forEach((config) => {
         switch (config.type) {
           case "select":
-            const selectValue = document.getElementById(
-              `config-${robot.id}-select`,
-            )?.value;
+            const selectValue = document.getElementById(`config-${robot.id}-select`)?.value;
             if (selectValue) {
               yaml += `    ${robot.id === "autoassign" ? "reviewers" : robot.id === "reassign" ? "days" : robot.id === "autoclose" ? "days" : "value"}: ${selectValue}\n`;
             }
@@ -946,9 +889,7 @@ robots:
           case "checkboxes":
             if (config.options) {
               const selected = config.options.filter(
-                (opt) =>
-                  document.getElementById(`config-${robot.id}-${opt.id}`)
-                    ?.checked,
+                (opt) => document.getElementById(`config-${robot.id}-${opt.id}`)?.checked
               );
               if (selected.length > 0) {
                 yaml += `    approve_authors:\n`;
@@ -960,16 +901,12 @@ robots:
             break;
 
           case "checkbox":
-            const isChecked = document.getElementById(
-              `config-${robot.id}-checkbox`,
-            )?.checked;
+            const isChecked = document.getElementById(`config-${robot.id}-checkbox`)?.checked;
             yaml += `    wait_for_tests: ${isChecked}\n`;
             break;
 
           case "text":
-            const textValue = document.getElementById(
-              `config-${robot.id}-text`,
-            )?.value;
+            const textValue = document.getElementById(`config-${robot.id}-text`)?.value;
             if (textValue) {
               yaml += `    topic_filter: ${textValue}\n`;
             }
@@ -978,17 +915,12 @@ robots:
           case "mappings":
             const mappingsContainer = $(`mappings-${robot.id}`);
             if (mappingsContainer) {
-              const mappings =
-                mappingsContainer.querySelectorAll(".robot-mapping");
+              const mappings = mappingsContainer.querySelectorAll(".robot-mapping");
               if (mappings.length > 0) {
                 yaml += `    mappings:\n`;
                 mappings.forEach((mapping) => {
                   const inputs = mapping.querySelectorAll("input");
-                  if (
-                    inputs.length === 2 &&
-                    inputs[0].value &&
-                    inputs[1].value
-                  ) {
+                  if (inputs.length === 2 && inputs[0].value && inputs[1].value) {
                     yaml += `      ${inputs[0].value}: ${inputs[1].value}\n`;
                   }
                 });
@@ -1028,16 +960,12 @@ robots:
         robotConfigs[robot.id] = { enabled: false, config: {} };
       }
 
-      const configs = Array.isArray(robot.config)
-        ? robot.config
-        : [robot.config];
+      const configs = Array.isArray(robot.config) ? robot.config : [robot.config];
 
       configs.forEach((config) => {
         switch (config.type) {
           case "select":
-            const selectEl = document.getElementById(
-              `config-${robot.id}-select`,
-            );
+            const selectEl = document.getElementById(`config-${robot.id}-select`);
             if (selectEl) {
               robotConfigs[robot.id].config.select = selectEl.value;
             }
@@ -1046,20 +974,15 @@ robots:
           case "checkboxes":
             robotConfigs[robot.id].config.checkboxes = {};
             config.options.forEach((opt) => {
-              const checkEl = document.getElementById(
-                `config-${robot.id}-${opt.id}`,
-              );
+              const checkEl = document.getElementById(`config-${robot.id}-${opt.id}`);
               if (checkEl) {
-                robotConfigs[robot.id].config.checkboxes[opt.id] =
-                  checkEl.checked;
+                robotConfigs[robot.id].config.checkboxes[opt.id] = checkEl.checked;
               }
             });
             break;
 
           case "checkbox":
-            const checkEl = document.getElementById(
-              `config-${robot.id}-checkbox`,
-            );
+            const checkEl = document.getElementById(`config-${robot.id}-checkbox`);
             if (checkEl) {
               robotConfigs[robot.id].config.checkbox = checkEl.checked;
             }
@@ -1076,8 +999,7 @@ robots:
             const mappingsContainer = $(`mappings-${robot.id}`);
             if (mappingsContainer) {
               const mappings = [];
-              const mappingEls =
-                mappingsContainer.querySelectorAll(".robot-mapping");
+              const mappingEls = mappingsContainer.querySelectorAll(".robot-mapping");
               mappingEls.forEach((mapping) => {
                 const inputs = mapping.querySelectorAll("input");
                 if (inputs.length === 2 && inputs[0].value && inputs[1].value) {

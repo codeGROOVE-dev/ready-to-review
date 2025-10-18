@@ -9,8 +9,8 @@ export const hide = (el) => el && el.setAttribute("hidden", "");
 // HTML escaping for user-controlled content
 // SECURITY: This must be used for ALL user-controlled data before inserting into HTML
 export const escapeHtml = (str) => {
-  if (!str) return '';
-  const div = document.createElement('div');
+  if (!str) return "";
+  const div = document.createElement("div");
   div.textContent = str;
   return div.innerHTML;
 };
@@ -18,34 +18,38 @@ export const escapeHtml = (str) => {
 // URL validation and sanitization
 // SECURITY: Only allow http/https URLs, block javascript: and data: URLs
 export const sanitizeUrl = (url) => {
-  if (!url) return '';
+  if (!url) return "";
   const urlStr = String(url).trim().toLowerCase();
   // Block javascript:, data:, vbscript:, and other dangerous protocols
-  if (urlStr.startsWith('javascript:') || urlStr.startsWith('data:') ||
-      urlStr.startsWith('vbscript:') || urlStr.startsWith('file:')) {
-    return '';
+  if (
+    urlStr.startsWith("javascript:") ||
+    urlStr.startsWith("data:") ||
+    urlStr.startsWith("vbscript:") ||
+    urlStr.startsWith("file:")
+  ) {
+    return "";
   }
   // Only allow http, https, and relative URLs
-  if (urlStr.startsWith('http://') || urlStr.startsWith('https://') || urlStr.startsWith('/')) {
+  if (urlStr.startsWith("http://") || urlStr.startsWith("https://") || urlStr.startsWith("/")) {
     return url;
   }
   // If no protocol specified, assume it needs https://
-  if (!urlStr.includes(':')) {
+  if (!urlStr.includes(":")) {
     return url;
   }
-  return '';
+  return "";
 };
 
 // Attribute escaping for use in HTML attributes
 // SECURITY: Escapes quotes and other dangerous characters for attribute context
 export const escapeAttr = (str) => {
-  if (!str) return '';
+  if (!str) return "";
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 };
 
 // Trusted Types policy for CSP compliance
@@ -56,12 +60,12 @@ if (window.trustedTypes && window.trustedTypes.createPolicy) {
   // SECURITY NOTE: This policy passes through HTML as-is because we control all HTML
   // generation and use escapeHtml() for all user-controlled data.
   // Each innerHTML assignment has been audited to ensure user data is escaped.
-  trustedTypesPolicy = window.trustedTypes.createPolicy('default', {
+  trustedTypesPolicy = window.trustedTypes.createPolicy("default", {
     createHTML: (input) => {
       // In production, we trust our own HTML generation
       // All user data MUST be escaped using escapeHtml() before passing to setHTML()
       return input;
-    }
+    },
   });
 }
 
@@ -142,7 +146,7 @@ export const el = (tag, options = {}) => {
  * SECURITY: Text nodes are automatically XSS-safe
  */
 export const text = (content) => {
-  return document.createTextNode(content || '');
+  return document.createTextNode(content || "");
 };
 
 /**
@@ -176,7 +180,7 @@ const DAYS_PER_YEAR = 365;
 
 export const formatDate = (dateString) => {
   const diffDays = Math.floor((Date.now() - new Date(dateString)) / MS_PER_DAY);
-  
+
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
   if (diffDays < DAYS_PER_WEEK) return `${diffDays} days ago`;
@@ -190,11 +194,11 @@ let toastContainer = null;
 
 export const showToast = (message, type = "info") => {
   if (!toastContainer) {
-    toastContainer = document.createElement('div');
-    toastContainer.className = 'toast-container';
+    toastContainer = document.createElement("div");
+    toastContainer.className = "toast-container";
     document.body.appendChild(toastContainer);
   }
-  
+
   const toast = document.createElement("div");
   toast.className = `toast toast-${type}`;
   toast.textContent = message;

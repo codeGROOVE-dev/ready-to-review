@@ -1,26 +1,30 @@
 // Workspace Module for Ready To Review
-console.log('[Workspace Module] Loading...');
+console.log("[Workspace Module] Loading...");
 export const Workspace = (() => {
-  "use strict";
-  console.log('[Workspace Module] Initializing...');
+  console.log("[Workspace Module] Initializing...");
 
-  const BASE_DOMAIN = 'ready-to-review.dev';
+  const BASE_DOMAIN = "ready-to-review.dev";
 
   // Extract workspace from hostname
   const currentWorkspace = () => {
     const hostname = window.location.hostname;
 
     // Handle localhost - no workspace concept in development
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('localhost:') || hostname.startsWith('127.0.0.1:')) {
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.startsWith("localhost:") ||
+      hostname.startsWith("127.0.0.1:")
+    ) {
       return null;
     }
 
-    const parts = hostname.split('.');
+    const parts = hostname.split(".");
 
     // If subdomain exists and it's not a reserved one
     if (parts.length >= 3) {
       const subdomain = parts[0];
-      if (['www', 'dash', 'api', 'login', 'auth-callback'].includes(subdomain)) {
+      if (["www", "dash", "api", "login", "auth-callback"].includes(subdomain)) {
         return null; // Base domain
       }
       return subdomain;
@@ -31,7 +35,7 @@ export const Workspace = (() => {
 
   // Get hidden orgs for current workspace
   const hiddenOrgs = () => {
-    const workspace = currentWorkspace() || 'personal';
+    const workspace = currentWorkspace() || "personal";
     const cookieName = `hidden_orgs_${workspace}`;
     const cookieValue = getCookie(cookieName);
 
@@ -40,14 +44,14 @@ export const Workspace = (() => {
     try {
       return JSON.parse(cookieValue);
     } catch (e) {
-      console.error('[Workspace] Failed to parse hidden_orgs cookie:', e);
+      console.error("[Workspace] Failed to parse hidden_orgs cookie:", e);
       return [];
     }
   };
 
   // Set hidden orgs for current workspace
   const setHiddenOrgs = (orgs) => {
-    const workspace = currentWorkspace() || 'personal';
+    const workspace = currentWorkspace() || "personal";
     const cookieName = `hidden_orgs_${workspace}`;
     const cookieValue = JSON.stringify(orgs);
 
@@ -55,9 +59,13 @@ export const Workspace = (() => {
     // Allow some overhead for cookie name and attributes
     const maxCookieSize = 3800; // Conservative limit
     if (cookieValue.length > maxCookieSize) {
-      console.error('[Workspace] Hidden orgs list exceeds cookie size limit:', cookieValue.length, 'bytes');
-      console.error('[Workspace] Maximum allowed:', maxCookieSize, 'bytes');
-      console.error('[Workspace] Consider reducing the number of hidden orgs');
+      console.error(
+        "[Workspace] Hidden orgs list exceeds cookie size limit:",
+        cookieValue.length,
+        "bytes"
+      );
+      console.error("[Workspace] Maximum allowed:", maxCookieSize, "bytes");
+      console.error("[Workspace] Consider reducing the number of hidden orgs");
       return;
     }
 
@@ -97,7 +105,7 @@ export const Workspace = (() => {
     const currentHash = window.location.hash;
 
     let newHostname;
-    if (org === '' || org === 'Personal' || org === null) {
+    if (org === "" || org === "Personal" || org === null) {
       // Personal workspace - no subdomain
       newHostname = BASE_DOMAIN;
     } else {
@@ -111,7 +119,7 @@ export const Workspace = (() => {
 
   // Get username from cookie
   const username = () => {
-    return getCookie('username');
+    return getCookie("username");
   };
 
   // Cookie helper function
@@ -126,7 +134,7 @@ export const Workspace = (() => {
     return null;
   }
 
-  console.log('[Workspace Module] Exporting functions...');
+  console.log("[Workspace Module] Exporting functions...");
   const workspaceExports = {
     currentWorkspace,
     hiddenOrgs,
@@ -136,7 +144,7 @@ export const Workspace = (() => {
     switchWorkspace,
     username,
   };
-  console.log('[Workspace Module] Exports:', workspaceExports);
+  console.log("[Workspace Module] Exports:", workspaceExports);
   return workspaceExports;
 })();
-console.log('[Workspace Module] Module loaded, Workspace object:', Workspace);
+console.log("[Workspace Module] Module loaded, Workspace object:", Workspace);

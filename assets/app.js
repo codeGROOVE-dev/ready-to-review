@@ -1,16 +1,14 @@
+import { Auth } from "./auth.js";
+import { Changelog } from "./changelog.js";
+import { Leaderboard } from "./leaderboard.js";
+import { Robots } from "./robots.js";
+import { Stats } from "./stats.js";
+import { User } from "./user.js";
 // Ready To Review - Modern ES6+ Application
-import { $, $$, show, hide, showToast, setHTML, el, clearChildren } from './utils.js';
-import { Auth } from './auth.js';
-import { User } from './user.js';
-import { Stats } from './stats.js';
-import { Robots } from './robots.js';
-import { Changelog } from './changelog.js';
-import { Leaderboard } from './leaderboard.js';
-import { Workspace } from './workspace.js';
+import { $, $$, clearChildren, el, hide, setHTML, show, showToast } from "./utils.js";
+import { Workspace } from "./workspace.js";
 
 const App = (() => {
-  "use strict";
-
   // State Management
   const state = {
     currentUser: null,
@@ -29,13 +27,13 @@ const App = (() => {
     let path = window.location.pathname;
 
     // Remove trailing slash to normalize paths
-    path = path.replace(/\/$/, '');
+    path = path.replace(/\/$/, "");
 
     // Get org from subdomain (workspace)
     const workspace = Workspace.currentWorkspace();
 
     // Check for changelog page patterns: /changelog or /changelog/username
-    if (path === '/changelog') {
+    if (path === "/changelog") {
       return {
         org: workspace,
         username: null,
@@ -53,7 +51,7 @@ const App = (() => {
     }
 
     // Check for leaderboard page: /leaderboard
-    if (path === '/leaderboard') {
+    if (path === "/leaderboard") {
       return {
         org: workspace,
         username: state.currentUser?.login,
@@ -62,7 +60,7 @@ const App = (() => {
     }
 
     // Check for robot page: /robots
-    if (path === '/robots') {
+    if (path === "/robots") {
       return {
         org: workspace,
         username: state.currentUser?.login,
@@ -71,7 +69,7 @@ const App = (() => {
     }
 
     // Check for stats page: /stats
-    if (path === '/stats') {
+    if (path === "/stats") {
       return {
         org: workspace,
         username: state.viewingUser?.login || state.currentUser?.login,
@@ -80,7 +78,7 @@ const App = (() => {
     }
 
     // Check for notifications page: /notifications
-    if (path === '/notifications') {
+    if (path === "/notifications") {
       return {
         org: workspace,
         username: state.currentUser?.login,
@@ -109,16 +107,16 @@ const App = (() => {
     $("loginPrompt")?.setAttribute("hidden", "");
     $("prSections")?.removeAttribute("hidden");
   };
-  
+
   const showMainContentWithLoading = () => {
     $("loginPrompt")?.setAttribute("hidden", "");
     $("prSections")?.removeAttribute("hidden");
-    
+
     // Show loading screen immediately
-    const loadingOverlay = $('prLoadingOverlay');
-    const incomingSection = $('incomingPRs')?.parentElement;
-    const outgoingSection = $('outgoingPRs')?.parentElement;
-    
+    const loadingOverlay = $("prLoadingOverlay");
+    const incomingSection = $("incomingPRs")?.parentElement;
+    const outgoingSection = $("outgoingPRs")?.parentElement;
+
     if (loadingOverlay) {
       show(loadingOverlay);
       // Hide PR sections while loading
@@ -135,7 +133,7 @@ const App = (() => {
 
   // Hamburger Menu Functions
   let hamburgersSetup = false;
-  
+
   // Setup workspace selector in hamburger menu
   let workspaceSelectorSetup = false;
   const setupWorkspaceSelector = async () => {
@@ -157,14 +155,14 @@ const App = (() => {
 
       // Clear existing options - XSS-safe
       clearChildren(workspaceSelect);
-      const defaultOption = el('option', { attrs: { value: '' }, text: 'Personal' });
+      const defaultOption = el("option", { attrs: { value: "" }, text: "Personal" });
       workspaceSelect.appendChild(defaultOption);
 
       // Add org options - XSS-safe (textContent)
-      allOrgs.forEach(org => {
-        const option = el('option', {
+      allOrgs.forEach((org) => {
+        const option = el("option", {
           attrs: { value: org },
-          text: org // XSS-safe
+          text: org, // XSS-safe
         });
         workspaceSelect.appendChild(option);
       });
@@ -173,19 +171,19 @@ const App = (() => {
       if (currentWorkspace) {
         workspaceSelect.value = currentWorkspace;
       } else {
-        workspaceSelect.value = '';
+        workspaceSelect.value = "";
       }
 
       // Handle workspace changes (only set up listener once)
       if (!workspaceSelectorSetup) {
-        workspaceSelect.addEventListener('change', () => {
+        workspaceSelect.addEventListener("change", () => {
           const selectedOrg = workspaceSelect.value;
           Workspace.switchWorkspace(selectedOrg);
         });
         workspaceSelectorSetup = true;
       }
     } catch (error) {
-      console.error('Failed to load organizations for workspace selector:', error);
+      console.error("Failed to load organizations for workspace selector:", error);
     }
   };
 
@@ -200,7 +198,7 @@ const App = (() => {
     const { username } = urlContext || {};
 
     const currentUser = state.currentUser || state.viewingUser;
-    const defaultUsername = currentUser?.login || '';
+    const defaultUsername = currentUser?.login || "";
     const targetUsername = username || defaultUsername;
 
     // All links use new format without org in path (org is in subdomain)
@@ -209,27 +207,27 @@ const App = (() => {
     }
 
     if (statsLink) {
-      statsLink.href = '/stats';
+      statsLink.href = "/stats";
     }
 
     if (settingsLink) {
-      settingsLink.href = '/robots';
+      settingsLink.href = "/robots";
     }
 
     if (notificationsLink) {
-      notificationsLink.href = '/notifications';
+      notificationsLink.href = "/notifications";
     }
 
     if (changelogLink) {
       // Always default to org-wide changelog
-      changelogLink.href = '/changelog';
+      changelogLink.href = "/changelog";
     }
 
     if (leaderboardLink) {
-      leaderboardLink.href = '/leaderboard';
+      leaderboardLink.href = "/leaderboard";
     }
   };
-  
+
   const setupHamburgerMenu = () => {
     if (hamburgersSetup) return;
 
@@ -263,8 +261,8 @@ const App = (() => {
     hamburgersSetup = true;
 
     // Setup workspace selector asynchronously after hamburger is ready
-    setupWorkspaceSelector().catch(error => {
-      console.error('Failed to setup workspace selector:', error);
+    setupWorkspaceSelector().catch((error) => {
+      console.error("Failed to setup workspace selector:", error);
     });
 
     document.addEventListener("keydown", (e) => {
@@ -275,14 +273,14 @@ const App = (() => {
 
     // Set up initial links
     updateHamburgerMenuLinks();
-    
+
     // Set active states based on current path
     const path = window.location.pathname;
     if (dashboardLink) {
-      if (path === '/' || path.startsWith('/u/')) {
+      if (path === "/" || path.startsWith("/u/")) {
         dashboardLink.classList.add("active");
       }
-      
+
       dashboardLink.addEventListener("click", (e) => {
         e.preventDefault();
         closeMenu();
@@ -291,7 +289,7 @@ const App = (() => {
     }
 
     if (statsLink) {
-      if (path.startsWith('/stats')) {
+      if (path.startsWith("/stats")) {
         statsLink.classList.add("active");
       }
 
@@ -301,52 +299,52 @@ const App = (() => {
         window.location.href = statsLink.href;
       });
     }
-    
+
     const notificationsLink = $("notificationsLink");
     if (notificationsLink) {
-      if (path.startsWith('/notifications')) {
+      if (path.startsWith("/notifications")) {
         notificationsLink.classList.add("active");
       }
-      
+
       notificationsLink.addEventListener("click", (e) => {
         e.preventDefault();
         closeMenu();
         window.location.href = notificationsLink.href;
       });
     }
-    
+
     const changelogLink = $("changelogLink");
     if (changelogLink) {
-      if (path.startsWith('/changelog')) {
+      if (path.startsWith("/changelog")) {
         changelogLink.classList.add("active");
       }
-      
+
       changelogLink.addEventListener("click", (e) => {
         e.preventDefault();
         closeMenu();
         window.location.href = changelogLink.href;
       });
     }
-    
+
     const leaderboardLink = $("leaderboardLink");
     if (leaderboardLink) {
-      if (path.startsWith('/leaderboard')) {
+      if (path.startsWith("/leaderboard")) {
         leaderboardLink.classList.add("active");
       }
-      
+
       leaderboardLink.addEventListener("click", (e) => {
         e.preventDefault();
         closeMenu();
         window.location.href = leaderboardLink.href;
       });
     }
-    
+
     const settingsLink = $("settingsLink");
     if (settingsLink) {
-      if (path.startsWith('/robots')) {
+      if (path.startsWith("/robots")) {
         settingsLink.classList.add("active");
       }
-      
+
       settingsLink.addEventListener("click", (e) => {
         e.preventDefault();
         closeMenu();
@@ -359,7 +357,7 @@ const App = (() => {
   const handleOrgChange = () => {
     // Org change is now handled via workspace switching (subdomain change)
     // This function is deprecated but kept for compatibility
-    console.warn('handleOrgChange called but org filtering is now done via workspace selector');
+    console.warn("handleOrgChange called but org filtering is now done via workspace selector");
   };
 
   const handleSearch = () => {
@@ -372,7 +370,7 @@ const App = (() => {
     if (!checkbox) return;
 
     // Save workspace-specific filter state
-    const workspace = Workspace.currentWorkspace() || 'personal';
+    const workspace = Workspace.currentWorkspace() || "personal";
     const cookieKey = `${filterId}_${workspace}`;
 
     setCookie(cookieKey, checkbox.checked, 365);
@@ -430,21 +428,19 @@ const App = (() => {
   const githubAPI = async (endpoint, options = {}) => {
     try {
       const response = await Auth.githubAPI(endpoint, options);
-      
+
       if (!response.ok) {
         if (response.status === 403) {
-          const rateLimitRemaining = response.headers.get(
-            "X-RateLimit-Remaining",
-          );
+          const rateLimitRemaining = response.headers.get("X-RateLimit-Remaining");
           const rateLimitReset = response.headers.get("X-RateLimit-Reset");
 
           if (rateLimitRemaining === "0") {
-            const resetTime = new Date(parseInt(rateLimitReset) * 1000);
+            const resetTime = new Date(Number.parseInt(rateLimitReset) * 1000);
             const now = new Date();
             const minutesUntilReset = Math.ceil((resetTime - now) / 60000);
 
             const error = new Error(
-              `GitHub API rate limit exceeded. Resets in ${minutesUntilReset} minutes.`,
+              `GitHub API rate limit exceeded. Resets in ${minutesUntilReset} minutes.`
             );
             error.isRateLimit = true;
             error.resetTime = resetTime;
@@ -502,15 +498,10 @@ const App = (() => {
     state.viewingUser = DEMO_DATA.user;
     state.pullRequests = DEMO_DATA.pullRequests;
 
-    const allPRs = [
-      ...state.pullRequests.incoming,
-      ...state.pullRequests.outgoing,
-    ];
+    const allPRs = [...state.pullRequests.incoming, ...state.pullRequests.outgoing];
 
     allPRs.forEach((pr) => {
-      pr.age_days = Math.floor(
-        (Date.now() - new Date(pr.created_at)) / 86400000,
-      );
+      pr.age_days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
 
       const labelNames = (pr.labels || []).map((l) => l.name);
 
@@ -558,13 +549,9 @@ const App = (() => {
             timestamp: pr.updated_at,
           },
           checks: checks,
-          unresolved_comments: labelNames.includes("unresolved comments")
-            ? 3
-            : 0,
+          unresolved_comments: labelNames.includes("unresolved comments") ? 3 : 0,
           size: size,
-          ready_to_merge:
-            labelNames.includes("ready") &&
-            !labelNames.includes("blocked on you"),
+          ready_to_merge: labelNames.includes("ready") && !labelNames.includes("blocked on you"),
           merge_conflict: labelNames.includes("merge conflict"),
           approved: labelNames.includes("approved"),
           tags: [],
@@ -590,14 +577,14 @@ const App = (() => {
     User.updateUserDisplay(state, initiateLogin, logout);
     User.updateOrgFilter(state, parseURL, githubAPI);
     showMainContentWithLoading();
-    
+
     // Simulate loading for demo mode
     setTimeout(() => {
       User.updatePRSections(state);
-      const loadingOverlay = $('prLoadingOverlay');
-      const incomingSection = $('incomingPRs')?.parentElement;
-      const outgoingSection = $('outgoingPRs')?.parentElement;
-      
+      const loadingOverlay = $("prLoadingOverlay");
+      const incomingSection = $("incomingPRs")?.parentElement;
+      const outgoingSection = $("outgoingPRs")?.parentElement;
+
       if (loadingOverlay) {
         hide(loadingOverlay);
         if (incomingSection) show(incomingSection);
@@ -608,21 +595,21 @@ const App = (() => {
 
   // Footer Management
   const initializeFooter = () => {
-    const footer = document.querySelector('.dashboard-footer');
-    const closeBtn = document.getElementById('footerCloseBtn');
-    
+    const footer = document.querySelector(".dashboard-footer");
+    const closeBtn = document.getElementById("footerCloseBtn");
+
     // Check localStorage for footer state
-    const footerHidden = localStorage.getItem('footerHidden') === 'true';
+    const footerHidden = localStorage.getItem("footerHidden") === "true";
     if (footerHidden && footer) {
-      footer.classList.add('hidden');
+      footer.classList.add("hidden");
     }
-    
+
     // Add close button event listener
     if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
+      closeBtn.addEventListener("click", () => {
         if (footer) {
-          footer.classList.add('hidden');
-          localStorage.setItem('footerHidden', 'true');
+          footer.classList.add("hidden");
+          localStorage.setItem("footerHidden", "true");
         }
       });
     }
@@ -630,11 +617,16 @@ const App = (() => {
 
   // Manage search input visibility based on current page
   const updateSearchInputVisibility = () => {
-    const searchInput = $('searchInput');
+    const searchInput = $("searchInput");
     const path = window.location.pathname;
-    
+
     // Show search input only on PR view and robot army pages
-    if (path === '/' || path.startsWith('/u/') || path === '/robots' || path.match(/^\/robots\/gh\/[^\/]+$/)) {
+    if (
+      path === "/" ||
+      path.startsWith("/u/") ||
+      path === "/robots" ||
+      path.match(/^\/robots\/gh\/[^\/]+$/)
+    ) {
       show(searchInput);
     } else {
       hide(searchInput);
@@ -650,9 +642,9 @@ const App = (() => {
     // Hide demo button if visiting a custom workspace (not base domain)
     const workspace = Workspace.currentWorkspace();
     if (workspace) {
-      const demoButton = document.getElementById('demoButton');
+      const demoButton = document.getElementById("demoButton");
       if (demoButton) {
-        demoButton.style.display = 'none';
+        demoButton.style.display = "none";
       }
     }
 
@@ -662,11 +654,18 @@ const App = (() => {
     // Handle stats page routing
     if (urlContext && urlContext.isStats) {
       updateSearchInputVisibility();
-      await Stats.showStatsPage(state, githubAPI, loadCurrentUser, 
-        () => User.updateUserDisplay(state, initiateLogin, logout), 
-        setupHamburgerMenu, 
+      await Stats.showStatsPage(
+        state,
+        githubAPI,
+        loadCurrentUser,
+        () => User.updateUserDisplay(state, initiateLogin, logout),
+        setupHamburgerMenu,
         () => User.updateOrgFilter(state, parseURL, githubAPI),
-        handleOrgChange, handleSearch, parseURL, User.loadUserOrganizations);
+        handleOrgChange,
+        handleSearch,
+        parseURL,
+        User.loadUserOrganizations
+      );
       return;
     }
 
@@ -695,20 +694,27 @@ const App = (() => {
       await Changelog.showChangelogPage(state, githubAPI, parseURL);
       return;
     }
-    
+
     // Handle leaderboard page routing
     if (urlContext && urlContext.isLeaderboard) {
       updateSearchInputVisibility();
-      await Leaderboard.showLeaderboardPage(state, githubAPI, loadCurrentUser, 
-        () => User.updateUserDisplay(state, initiateLogin, logout), 
-        setupHamburgerMenu, 
+      await Leaderboard.showLeaderboardPage(
+        state,
+        githubAPI,
+        loadCurrentUser,
+        () => User.updateUserDisplay(state, initiateLogin, logout),
+        setupHamburgerMenu,
         () => User.updateOrgFilter(state, parseURL, githubAPI),
-        handleOrgChange, handleSearch, parseURL, User.loadUserOrganizations);
+        handleOrgChange,
+        handleSearch,
+        parseURL,
+        User.loadUserOrganizations
+      );
       return;
     }
     // Handle notifications page routing
     const path = window.location.pathname;
-    if (path === '/notifications' || path.match(/^\/notifications\/gh\/[^\/]+$/)) {
+    if (path === "/notifications" || path.match(/^\/notifications\/gh\/[^\/]+$/)) {
       updateSearchInputVisibility();
       const token = Auth.getStoredToken();
       if (token) {
@@ -725,12 +731,12 @@ const App = (() => {
     }
 
     // Handle robots page routing
-    if (path === '/robots' || path.match(/^\/robots\/gh\/[^\/]+$/)) {
+    if (path === "/robots" || path.match(/^\/robots\/gh\/[^\/]+$/)) {
       updateSearchInputVisibility();
       const token = Auth.getStoredToken();
       if (!token) {
         showToast("Please login to configure Robot Army", "error");
-        window.location.href = '/';
+        window.location.href = "/";
         return;
       }
 
@@ -740,17 +746,23 @@ const App = (() => {
         } catch (error) {
           console.error("Failed to load user:", error);
           showToast("Failed to load user data", "error");
-          window.location.href = '/';
+          window.location.href = "/";
           return;
         }
       }
 
       User.updateUserDisplay(state, initiateLogin, logout);
-      
+
       // Always update org filter to ensure dropdown is populated
       await User.updateOrgFilter(state, parseURL, githubAPI);
-      
-      await Robots.showSettingsPage(state, setupHamburgerMenu, githubAPI, User.loadUserOrganizations, parseURL);
+
+      await Robots.showSettingsPage(
+        state,
+        setupHamburgerMenu,
+        githubAPI,
+        User.loadUserOrganizations,
+        parseURL
+      );
       return;
     }
 
@@ -774,9 +786,7 @@ const App = (() => {
 
     // Set up global stale filter
     const globalStaleFilter = $("globalFilterStale");
-    globalStaleFilter?.addEventListener("change", () =>
-      handleFilterChange("globalFilterStale"),
-    );
+    globalStaleFilter?.addEventListener("change", () => handleFilterChange("globalFilterStale"));
 
     document.addEventListener("keydown", handleKeyboardShortcuts);
     document.addEventListener("click", async (e) => {
@@ -803,8 +813,10 @@ const App = (() => {
 
     if (githubAppLoginBtn) githubAppLoginBtn.addEventListener("click", showGitHubAppModal);
     if (patLoginBtn) patLoginBtn.addEventListener("click", initiatePATLogin);
-    if (githubAppModalBackdrop) githubAppModalBackdrop.addEventListener("click", closeGitHubAppModal);
-    if (closeGitHubAppModalBtn) closeGitHubAppModalBtn.addEventListener("click", closeGitHubAppModal);
+    if (githubAppModalBackdrop)
+      githubAppModalBackdrop.addEventListener("click", closeGitHubAppModal);
+    if (closeGitHubAppModalBtn)
+      closeGitHubAppModalBtn.addEventListener("click", closeGitHubAppModal);
     if (cancelGitHubAppBtn) cancelGitHubAppBtn.addEventListener("click", closeGitHubAppModal);
     if (proceedWithOAuthBtn) proceedWithOAuthBtn.addEventListener("click", proceedWithOAuth);
     if (patModalBackdrop) patModalBackdrop.addEventListener("click", closePATModal);
@@ -834,16 +846,16 @@ const App = (() => {
     }
 
     // Handle OAuth callback with auth code
-    console.log('[App.init] Checking for OAuth auth code...');
+    console.log("[App.init] Checking for OAuth auth code...");
     const authCodeExchanged = await Auth.handleAuthCodeCallback();
 
     // Re-check for authentication token (it might have been set after module load or auth code exchange)
     state.accessToken = Auth.getStoredToken();
-    console.log('[App.init] Checked for access token:', state.accessToken ? 'found' : 'not found');
+    console.log("[App.init] Checked for access token:", state.accessToken ? "found" : "not found");
 
     // If we just exchanged an auth code successfully, reload to start with fresh state
     if (authCodeExchanged) {
-      console.log('[App.init] Auth code exchanged successfully, reloading page...');
+      console.log("[App.init] Auth code exchanged successfully, reloading page...");
       window.location.reload();
       return;
     }
@@ -851,19 +863,25 @@ const App = (() => {
     // Check for authentication
     if (!state.accessToken) {
       updateSearchInputVisibility();
-      if (urlContext && urlContext.username && !urlContext.isStats && !urlContext.isSettings && !urlContext.isNotifications) {
+      if (
+        urlContext &&
+        urlContext.username &&
+        !urlContext.isStats &&
+        !urlContext.isSettings &&
+        !urlContext.isNotifications
+      ) {
         // Only load PRs for actual user PR dashboard pages
         try {
           // Skip API call if it's the demo user
-          if (urlContext.username === 'demo') {
+          if (urlContext.username === "demo") {
             showLoginPrompt();
             return;
           }
           state.viewingUser = await githubAPI(`/users/${urlContext.username}`);
-          
+
           showLoginPrompt();
           User.updateUserDisplay(state, initiateLogin, logout);
-          
+
           // Load public data
           await User.updateOrgFilter(state, parseURL, githubAPI);
           showMainContentWithLoading();
@@ -909,15 +927,18 @@ const App = (() => {
       await User.updateOrgFilter(state, parseURL, githubAPI);
 
       // Only load PRs if we're on the PR dashboard page
-      if (!urlContext || (!urlContext.isStats && !urlContext.isSettings && !urlContext.isNotifications)) {
+      if (
+        !urlContext ||
+        (!urlContext.isStats && !urlContext.isSettings && !urlContext.isNotifications)
+      ) {
         showMainContentWithLoading();
         await User.loadPullRequests(state, githubAPI, state.isDemoMode);
         // Update org filter again after PRs are loaded to include PR organizations
         await User.updateOrgFilter(state, parseURL, githubAPI);
 
         // Update workspace selector after all data is loaded
-        await setupWorkspaceSelector().catch(error => {
-          console.error('Failed to update workspace selector after PR load:', error);
+        await setupWorkspaceSelector().catch((error) => {
+          console.error("Failed to update workspace selector after PR load:", error);
         });
 
         // Reset search input placeholder for PR view
@@ -955,22 +976,22 @@ const App = (() => {
 
   // Debug function to check modal state
   const debugModals = () => {
-    const githubModal = document.getElementById('githubAppModal');
-    const patModal = document.getElementById('patModal');
-    
+    const githubModal = document.getElementById("githubAppModal");
+    const patModal = document.getElementById("patModal");
+
     return {
       github: {
         exists: !!githubModal,
-        hidden: githubModal?.hasAttribute('hidden'),
+        hidden: githubModal?.hasAttribute("hidden"),
         display: githubModal?.style.display,
-        computedDisplay: githubModal ? window.getComputedStyle(githubModal).display : 'N/A'
+        computedDisplay: githubModal ? window.getComputedStyle(githubModal).display : "N/A",
       },
       pat: {
         exists: !!patModal,
-        hidden: patModal?.hasAttribute('hidden'),
+        hidden: patModal?.hasAttribute("hidden"),
         display: patModal?.style.display,
-        computedDisplay: patModal ? window.getComputedStyle(patModal).display : 'N/A'
-      }
+        computedDisplay: patModal ? window.getComputedStyle(patModal).display : "N/A",
+      },
     };
   };
 

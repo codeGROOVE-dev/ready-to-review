@@ -1,13 +1,24 @@
 // User PR Dashboard Module for Ready To Review
-import { $, $$, show, hide, escapeHtml, sanitizeUrl, escapeAttr, setHTML, el, text, clearChildren, replaceChildren } from './utils.js';
-import { Workspace } from './workspace.js';
+import {
+  $,
+  $$,
+  clearChildren,
+  el,
+  escapeAttr,
+  escapeHtml,
+  hide,
+  replaceChildren,
+  sanitizeUrl,
+  setHTML,
+  show,
+  text,
+} from "./utils.js";
+import { Workspace } from "./workspace.js";
 
 // Request deduplication cache
 const pendingRequests = new Map();
 
 export const User = (() => {
-  "use strict";
-
   // DOM Helpers and utilities are imported from utils.js
 
   // Time constants for performance
@@ -17,7 +28,7 @@ export const User = (() => {
   const WEEK = 604800;
   const MONTH = 2592000;
   const YEAR = 31536000;
-  
+
   const formatTimeAgo = (timestamp) => {
     const seconds = Math.floor((Date.now() - new Date(timestamp)) / 1000);
 
@@ -43,7 +54,7 @@ export const User = (() => {
 
   const STALE_THRESHOLD_MS = 90 * 86400000; // 90 days in milliseconds
   const isStale = (pr) => {
-    return (Date.now() - new Date(pr.updated_at)) >= STALE_THRESHOLD_MS;
+    return Date.now() - new Date(pr.updated_at) >= STALE_THRESHOLD_MS;
   };
 
   const isBlockedOnOthers = (pr) => {
@@ -80,19 +91,21 @@ export const User = (() => {
       console.warn(`Invalid PR URL format: ${prUrl}`);
       return null;
     }
-    
+
     const [, owner, repo, prNumber] = urlMatch;
     const TURN_CACHE_KEY = `r2r_turn_${owner}_${repo}_${prNumber}`;
     const TURN_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours
-    
+
     // Check cache first
     try {
       const cached = localStorage.getItem(TURN_CACHE_KEY);
       if (cached) {
         const { data, timestamp } = JSON.parse(cached);
         if (Date.now() - timestamp < TURN_CACHE_DURATION) {
-          console.log(`Using cached turn data for ${owner}/${repo}#${prNumber} (${Math.round((Date.now() - timestamp) / 60000)}m old)`);
-          console.log('Cached turn data:', data);
+          console.log(
+            `Using cached turn data for ${owner}/${repo}#${prNumber} (${Math.round((Date.now() - timestamp) / 60000)}m old)`
+          );
+          console.log("Cached turn data:", data);
           return data;
         }
       }
@@ -110,19 +123,16 @@ export const User = (() => {
     }
 
     try {
-      const response = await fetch(
-        "https://turn.github.codegroove.app/v1/validate",
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            url: prUrl,
-            updated_at: updatedAt,
-            user: currentUser?.login || "",
-          }),
-          mode: "cors",
-        },
-      );
+      const response = await fetch("https://turn.github.codegroove.app/v1/validate", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: prUrl,
+          updated_at: updatedAt,
+          user: currentUser?.login || "",
+        }),
+        mode: "cors",
+      });
 
       if (!response.ok) {
         console.warn(`Turn API error for ${prUrl}: ${response.statusText}`);
@@ -130,17 +140,20 @@ export const User = (() => {
       }
 
       const data = await response.json();
-      
+
       // Cache the result
       try {
-        localStorage.setItem(TURN_CACHE_KEY, JSON.stringify({
-          data: data,
-          timestamp: Date.now()
-        }));
+        localStorage.setItem(
+          TURN_CACHE_KEY,
+          JSON.stringify({
+            data: data,
+            timestamp: Date.now(),
+          })
+        );
       } catch (e) {
         console.log("Error caching turn data:", e);
       }
-      
+
       return data;
     } catch (error) {
       console.warn(`Turn API request failed for ${prUrl}:`, error);
@@ -162,17 +175,14 @@ export const User = (() => {
 
       if (response.items && response.items.length > 0) {
         // Filter out PRs from archived or disabled repositories
-        const activeItems = response.items.filter(pr => {
+        const activeItems = response.items.filter((pr) => {
           if (!pr.repo && !pr.repository) return true; // Keep if no repository data
           const repo = pr.repo || pr.repository;
           return !repo.archived && !repo.disabled;
         });
         allItems.push(...activeItems);
 
-        if (
-          response.total_count <= allItems.length ||
-          response.items.length < 100
-        ) {
+        if (response.total_count <= allItems.length || response.items.length < 100) {
           hasMore = false;
         } else {
           page++;
@@ -196,48 +206,50 @@ export const User = (() => {
     }
 
     // Get loading screen elements
-    const loadingOverlay = $('prLoadingOverlay');
-    const prCountFound = $('prCountFound');
-    const prCountLoaded = $('prCountLoaded');
-    const prLoadingProgress = $('prLoadingProgress');
-    const prCountLoadedContainer = $('.pr-count-loaded');
-    const incomingSection = $('incomingPRs')?.parentElement;
-    const outgoingSection = $('outgoingPRs')?.parentElement;
-    
+    const loadingOverlay = $("prLoadingOverlay");
+    const prCountFound = $("prCountFound");
+    const prCountLoaded = $("prCountLoaded");
+    const prLoadingProgress = $("prLoadingProgress");
+    const prCountLoadedContainer = $(".pr-count-loaded");
+    const incomingSection = $("incomingPRs")?.parentElement;
+    const outgoingSection = $("outgoingPRs")?.parentElement;
+
     // Reset loading screen counters
-    if (prCountFound) prCountFound.textContent = '0';
-    if (prCountLoaded) prCountLoaded.textContent = '0';
+    if (prCountFound) prCountFound.textContent = "0";
+    if (prCountLoaded) prCountLoaded.textContent = "0";
     if (prLoadingProgress) hide(prLoadingProgress);
     if (prCountLoadedContainer) hide(prCountLoadedContainer);
 
     const CACHE_KEY = `r2r_prs_${targetUser.login}`;
     const CACHE_DURATION = 10 * 1000; // 10 seconds
-    
+
     // Check cache first
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
         const { prs, timestamp } = JSON.parse(cached);
         if (Date.now() - timestamp < CACHE_DURATION) {
-          console.log(`Using cached PRs for ${targetUser.login} (${Math.round((Date.now() - timestamp) / 1000)}s old)`);
-          console.log('Cached PR data:', {
+          console.log(
+            `Using cached PRs for ${targetUser.login} (${Math.round((Date.now() - timestamp) / 1000)}s old)`
+          );
+          console.log("Cached PR data:", {
             totalPRs: prs.length,
-            incoming: prs.filter(pr => pr.user.login !== targetUser.login).length,
-            outgoing: prs.filter(pr => pr.user.login === targetUser.login).length,
-            sample: prs.slice(0, 3).map(pr => ({
+            incoming: prs.filter((pr) => pr.user.login !== targetUser.login).length,
+            outgoing: prs.filter((pr) => pr.user.login === targetUser.login).length,
+            sample: prs.slice(0, 3).map((pr) => ({
               number: pr.number,
               title: pr.title,
-              repo: pr.repository?.full_name || 'unknown',
-              state: pr.state
-            }))
+              repo: pr.repository?.full_name || "unknown",
+              state: pr.state,
+            })),
           });
-          
+
           // Apply cached data
           state.pullRequests = {
             incoming: [],
             outgoing: [],
           };
-          
+
           for (const pr of prs) {
             if (pr.user.login === targetUser.login) {
               state.pullRequests.outgoing.push(pr);
@@ -245,9 +257,9 @@ export const User = (() => {
               state.pullRequests.incoming.push(pr);
             }
           }
-          
+
           updatePRSections(state);
-          
+
           // Hide loading screen since we're using cached data
           if (loadingOverlay) {
             hide(loadingOverlay);
@@ -255,14 +267,14 @@ export const User = (() => {
             if (incomingSection) show(incomingSection);
             if (outgoingSection) show(outgoingSection);
           }
-          
+
           // Still fetch turn data and PR details in background
           setTimeout(() => {
-            prs.forEach(pr => {
+            prs.forEach((pr) => {
               fetchPRDetailsBackground(pr, state, githubAPI, isDemoMode);
             });
           }, 0);
-          
+
           return;
         }
       }
@@ -274,38 +286,26 @@ export const User = (() => {
     const query2 = `is:open is:pr user:${targetUser.login} archived:false`;
 
     console.log("GitHub queries:");
+    console.log(`  1. https://github.com/search?q=${encodeURIComponent(query1)}&type=pullrequests`);
+    console.log(`  2. https://github.com/search?q=${encodeURIComponent(query2)}&type=pullrequests`);
     console.log(
-      `  1. https://github.com/search?q=${encodeURIComponent(query1)}&type=pullrequests`,
-    );
-    console.log(
-      `  2. https://github.com/search?q=${encodeURIComponent(query2)}&type=pullrequests`,
-    );
-    console.log(
-      `Auth: ${state.accessToken ? (state.accessToken.startsWith("ghp_") ? "PAT" : "OAuth") : "none"}`,
+      `Auth: ${state.accessToken ? (state.accessToken.startsWith("ghp_") ? "PAT" : "OAuth") : "none"}`
     );
 
     const [response1, response2] = await Promise.all([
-      githubSearchAll(
-        `/search/issues?q=${encodeURIComponent(query1)}&per_page=100`,
-        20,
-        githubAPI
-      ),
-      githubSearchAll(
-        `/search/issues?q=${encodeURIComponent(query2)}&per_page=100`,
-        20,
-        githubAPI
-      ),
+      githubSearchAll(`/search/issues?q=${encodeURIComponent(query1)}&per_page=100`, 20, githubAPI),
+      githubSearchAll(`/search/issues?q=${encodeURIComponent(query2)}&per_page=100`, 20, githubAPI),
     ]);
 
     const prMap = new Map();
     // Filter out PRs from archived or disabled repositories
     response1.items
-      .filter(pr => !pr.repository || (!pr.repository.archived && !pr.repository.disabled))
+      .filter((pr) => !pr.repository || (!pr.repository.archived && !pr.repository.disabled))
       .forEach((pr) => {
         prMap.set(pr.id, pr);
       });
     response2.items
-      .filter(pr => !pr.repository || (!pr.repository.archived && !pr.repository.disabled))
+      .filter((pr) => !pr.repository || (!pr.repository.archived && !pr.repository.disabled))
       .forEach((pr) => {
         prMap.set(pr.id, pr);
       });
@@ -315,21 +315,15 @@ export const User = (() => {
     console.log(`Found ${response1.items.length} PRs from involves query`);
     console.log(`Found ${response2.items.length} PRs from user repos query`);
     console.log(`Total unique PRs: ${allPRs.length}`);
-    
+
     // Update loading screen with PR count
     if (prCountFound) prCountFound.textContent = allPRs.length.toString();
     if (prLoadingProgress) show(prLoadingProgress);
     if (prCountLoadedContainer && allPRs.length > 0) show(prCountLoadedContainer);
 
     const totalCount = response1.total_count + response2.total_count;
-    if (
-      state.accessToken &&
-      !state.accessToken.startsWith("ghp_") &&
-      totalCount > allPRs.length
-    ) {
-      console.info(
-        `OAuth Apps may not show all PRs. Consider using a Personal Access Token.`,
-      );
+    if (state.accessToken && !state.accessToken.startsWith("ghp_") && totalCount > allPRs.length) {
+      console.info(`OAuth Apps may not show all PRs. Consider using a Personal Access Token.`);
     }
 
     const prs = allPRs.map((pr) => ({
@@ -345,9 +339,7 @@ export const User = (() => {
     };
 
     for (const pr of prs) {
-      pr.age_days = Math.floor(
-        (Date.now() - new Date(pr.created_at)) / 86400000,
-      );
+      pr.age_days = Math.floor((Date.now() - new Date(pr.created_at)) / 86400000);
       pr.status_tags = getStatusTags(pr);
 
       const targetUser = state.viewingUser || state.currentUser;
@@ -357,24 +349,27 @@ export const User = (() => {
         state.pullRequests.incoming.push(pr);
       }
     }
-    
+
     // Cache the basic PR data
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({
-        prs: prs.map(pr => ({
-          ...pr,
-          // Don't cache heavy data that changes frequently
-          turnData: undefined,
-          prState: undefined
-        })),
-        timestamp: Date.now()
-      }));
+      localStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({
+          prs: prs.map((pr) => ({
+            ...pr,
+            // Don't cache heavy data that changes frequently
+            turnData: undefined,
+            prState: undefined,
+          })),
+          timestamp: Date.now(),
+        })
+      );
     } catch (e) {
       console.log("Error caching PRs:", e);
     }
 
     updatePRSections(state);
-    
+
     // Track loading progress
     let loadedCount = 0;
     const updateLoadingProgress = () => {
@@ -388,9 +383,7 @@ export const User = (() => {
         const owner = urlParts[urlParts.length - 2];
         const repo = urlParts[urlParts.length - 1];
 
-        const prDetails = await githubAPI(
-          `/repos/${owner}/${repo}/pulls/${pr.number}`,
-        );
+        const prDetails = await githubAPI(`/repos/${owner}/${repo}/pulls/${pr.number}`);
         pr.additions = prDetails.additions;
         pr.deletions = prDetails.deletions;
 
@@ -430,10 +423,7 @@ export const User = (() => {
 
           updateSinglePRCard(pr, state);
         } catch (error) {
-          console.error(
-            `Failed to load turn data for PR ${pr.html_url}:`,
-            error,
-          );
+          console.error(`Failed to load turn data for PR ${pr.html_url}:`, error);
           pr.turnData = null;
           pr.status_tags = getStatusTags(pr);
           updateSinglePRCard(pr, state);
@@ -444,7 +434,7 @@ export const User = (() => {
     }
 
     await Promise.all(detailPromises);
-    
+
     // Hide loading screen when done
     if (loadingOverlay) {
       hide(loadingOverlay);
@@ -453,7 +443,7 @@ export const User = (() => {
       if (outgoingSection) show(outgoingSection);
     }
   };
-  
+
   const fetchPRDetailsBackground = async (pr, state, githubAPI, isDemoMode) => {
     // Fetch PR details
     try {
@@ -461,9 +451,7 @@ export const User = (() => {
       const owner = urlParts[urlParts.length - 2];
       const repo = urlParts[urlParts.length - 1];
 
-      const prDetails = await githubAPI(
-        `/repos/${owner}/${repo}/pulls/${pr.number}`,
-      );
+      const prDetails = await githubAPI(`/repos/${owner}/${repo}/pulls/${pr.number}`);
       pr.additions = prDetails.additions;
       pr.deletions = prDetails.deletions;
 
@@ -471,7 +459,7 @@ export const User = (() => {
     } catch (error) {
       console.error(`Failed to fetch PR details for ${pr.html_url}:`, error);
     }
-    
+
     // Fetch turn data
     if (!isDemoMode) {
       try {
@@ -498,10 +486,7 @@ export const User = (() => {
 
         updateSinglePRCard(pr, state);
       } catch (error) {
-        console.error(
-          `Failed to load turn data for PR ${pr.html_url}:`,
-          error,
-        );
+        console.error(`Failed to load turn data for PR ${pr.html_url}:`, error);
         pr.turnData = null;
         pr.status_tags = getStatusTags(pr);
         updateSinglePRCard(pr, state);
@@ -587,7 +572,7 @@ export const User = (() => {
       if (!orgName || !state.currentUser) return false;
 
       try {
-        const CACHE_KEY = 'r2r_user_orgs_cache';
+        const CACHE_KEY = "r2r_user_orgs_cache";
         const cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
           const { orgs, userId } = JSON.parse(cached);
@@ -610,64 +595,64 @@ export const User = (() => {
     clearChildren(userInfo);
 
     // Handle footer notification banner for non-member status
-    const footerBanner = document.querySelector('.footer-notification-banner');
-    const notificationText = footerBanner?.querySelector('.notification-text');
+    const footerBanner = document.querySelector(".footer-notification-banner");
+    const notificationText = footerBanner?.querySelector(".notification-text");
 
     // Reset banner visibility
     if (footerBanner) {
-      footerBanner.classList.remove('visible');
+      footerBanner.classList.remove("visible");
     }
 
     if (state.currentUser) {
       // Create avatar - XSS-safe (src is from trusted GitHub API)
-      const avatar = el('img', {
-        className: 'user-avatar',
+      const avatar = el("img", {
+        className: "user-avatar",
         attrs: {
           src: state.currentUser.avatar_url,
           alt: state.currentUser.login,
           width: 32,
-          height: 32
-        }
+          height: 32,
+        },
       });
 
       // Create user name with optional @org - XSS-safe (textContent)
-      const userName = el('span', {
-        className: 'user-name'
+      const userName = el("span", {
+        className: "user-name",
       });
 
       // Add username
-      const usernameSpan = el('span', {
-        className: 'username-main',
-        text: state.currentUser.login
+      const usernameSpan = el("span", {
+        className: "username-main",
+        text: state.currentUser.login,
       });
       userName.appendChild(usernameSpan);
 
       // Add @org if viewing an organization workspace
       if (currentWorkspace) {
-        const orgSpan = el('span', {
-          className: 'username-org',
-          text: `@${currentWorkspace}`
+        const orgSpan = el("span", {
+          className: "username-org",
+          text: `@${currentWorkspace}`,
         });
         userName.appendChild(orgSpan);
 
         // Add red asterisk if user is not a member of this org
         const isMember = isUserMemberOfOrg(currentWorkspace);
         if (!isMember) {
-          const asterisk = el('span', {
-            className: 'username-org-non-member',
-            text: '*',
+          const asterisk = el("span", {
+            className: "username-org-non-member",
+            text: "*",
             attrs: {
-              title: 'You are not a member of this organization'
-            }
+              title: "You are not a member of this organization",
+            },
           });
           userName.appendChild(asterisk);
 
           // Show banner if not a member
           if (footerBanner && notificationText) {
-            footerBanner.classList.add('visible');
+            footerBanner.classList.add("visible");
             clearChildren(notificationText);
-            const message = el('span', {
-              text: `You are not a member of ${currentWorkspace}, but that's OK, we can't show you anything you don't have permission to`
+            const message = el("span", {
+              text: `You are not a member of ${currentWorkspace}, but that's OK, we can't show you anything you don't have permission to`,
             });
             notificationText.appendChild(message);
           }
@@ -675,10 +660,10 @@ export const User = (() => {
       }
 
       // Create logout button - XSS-safe
-      const logoutBtn = el('button', {
-        className: 'btn btn-primary',
-        text: 'Logout',
-        on: { click: logout }
+      const logoutBtn = el("button", {
+        className: "btn btn-primary",
+        text: "Logout",
+        on: { click: logout },
       });
 
       userInfo.appendChild(avatar);
@@ -686,56 +671,56 @@ export const User = (() => {
       userInfo.appendChild(logoutBtn);
     } else if (viewingUser) {
       // Create avatar - XSS-safe
-      const avatar = el('img', {
-        className: 'user-avatar',
+      const avatar = el("img", {
+        className: "user-avatar",
         attrs: {
           src: viewingUser.avatar_url,
           alt: viewingUser.login,
           width: 32,
-          height: 32
-        }
+          height: 32,
+        },
       });
 
       // Create viewing label with username and optional @org - XSS-safe (textContent)
-      const userName = el('span', {
-        className: 'user-name'
+      const userName = el("span", {
+        className: "user-name",
       });
 
-      const viewingLabel = text('Viewing: ');
+      const viewingLabel = text("Viewing: ");
       userName.appendChild(viewingLabel);
 
-      const usernameSpan = el('span', {
-        className: 'username-main',
-        text: viewingUser.login
+      const usernameSpan = el("span", {
+        className: "username-main",
+        text: viewingUser.login,
       });
       userName.appendChild(usernameSpan);
 
       // Add @org if viewing an organization workspace
       if (currentWorkspace) {
-        const orgSpan = el('span', {
-          className: 'username-org',
-          text: `@${currentWorkspace}`
+        const orgSpan = el("span", {
+          className: "username-org",
+          text: `@${currentWorkspace}`,
         });
         userName.appendChild(orgSpan);
 
         // Add red asterisk if user is not a member of this org
         const isMember = isUserMemberOfOrg(currentWorkspace);
         if (!isMember) {
-          const asterisk = el('span', {
-            className: 'username-org-non-member',
-            text: '*',
+          const asterisk = el("span", {
+            className: "username-org-non-member",
+            text: "*",
             attrs: {
-              title: 'You are not a member of this organization'
-            }
+              title: "You are not a member of this organization",
+            },
           });
           userName.appendChild(asterisk);
 
           // Show banner if not a member
           if (footerBanner && notificationText) {
-            footerBanner.classList.add('visible');
+            footerBanner.classList.add("visible");
             clearChildren(notificationText);
-            const message = el('span', {
-              text: `You are not a member of ${currentWorkspace}, but that's OK, we can't show you anything you don't have permission to`
+            const message = el("span", {
+              text: `You are not a member of ${currentWorkspace}, but that's OK, we can't show you anything you don't have permission to`,
             });
             notificationText.appendChild(message);
           }
@@ -743,11 +728,11 @@ export const User = (() => {
       }
 
       // Create login button - XSS-safe
-      const loginBtn = el('button', {
-        className: 'btn btn-primary',
-        text: 'Login',
-        attrs: { id: 'loginBtn' },
-        on: { click: initiateLogin }
+      const loginBtn = el("button", {
+        className: "btn btn-primary",
+        text: "Login",
+        attrs: { id: "loginBtn" },
+        on: { click: initiateLogin },
       });
 
       userInfo.appendChild(avatar);
@@ -755,11 +740,11 @@ export const User = (() => {
       userInfo.appendChild(loginBtn);
     } else {
       // Create login button only - XSS-safe
-      const loginBtn = el('button', {
-        className: 'btn btn-primary',
-        text: 'Login with GitHub',
-        attrs: { id: 'loginBtn' },
-        on: { click: initiateLogin }
+      const loginBtn = el("button", {
+        className: "btn btn-primary",
+        text: "Login with GitHub",
+        attrs: { id: "loginBtn" },
+        on: { click: initiateLogin },
       });
 
       userInfo.appendChild(loginBtn);
@@ -767,37 +752,34 @@ export const User = (() => {
   };
 
   const loadUserOrganizations = async (state, githubAPI) => {
-    const CACHE_KEY = 'r2r_user_orgs_cache';
+    const CACHE_KEY = "r2r_user_orgs_cache";
     const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-    
+
     // Check cache first
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
         const { orgs, timestamp, userId } = JSON.parse(cached);
         const user = state.currentUser || state.viewingUser;
-        const currentUserId = user?.login || 'anonymous';
-        
+        const currentUserId = user?.login || "anonymous";
+
         // Return cached data if it's fresh and for the same user
         if (Date.now() - timestamp < CACHE_DURATION && userId === currentUserId) {
           console.log("Using cached organizations:", orgs);
-          console.log('Cache details:', {
-            cacheAge: Math.round((Date.now() - timestamp) / 1000) + 's',
+          console.log("Cache details:", {
+            cacheAge: Math.round((Date.now() - timestamp) / 1000) + "s",
             userId: userId,
-            orgCount: orgs.length
+            orgCount: orgs.length,
           });
-          
+
           // On PR page, still merge in orgs from loaded PRs
           const urlPath = window.location.pathname;
-          if (urlPath === '/' || urlPath.startsWith('/u/')) {
+          if (urlPath === "/" || urlPath.startsWith("/u/")) {
             const prOrgs = new Set(orgs);
-            const allPRs = [
-              ...state.pullRequests.incoming,
-              ...state.pullRequests.outgoing,
-            ];
-            
+            const allPRs = [...state.pullRequests.incoming, ...state.pullRequests.outgoing];
+
             console.log(`Found ${allPRs.length} PRs to check for organizations`);
-            
+
             allPRs.forEach((pr) => {
               if (pr.repository && pr.repository.full_name) {
                 const org = pr.repository.full_name.split("/")[0];
@@ -807,29 +789,29 @@ export const User = (() => {
                 prOrgs.add(org);
               }
             });
-            
+
             const finalOrgs = Array.from(prOrgs).sort();
             console.log("Final organizations list:", finalOrgs);
             return finalOrgs;
           }
-          
+
           return orgs;
         }
       }
     } catch (e) {
       console.log("Error reading org cache:", e);
     }
-    
+
     const orgs = new Set();
-    
+
     try {
       // Get organizations from user membership
-      const userOrgs = await githubAPI('/user/orgs');
-      userOrgs.forEach(org => orgs.add(org.login));
+      const userOrgs = await githubAPI("/user/orgs");
+      userOrgs.forEach((org) => orgs.add(org.login));
     } catch (e) {
       console.log("Could not load user orgs (may lack permission)");
     }
-    
+
     try {
       // Get organizations from recent activity
       const user = state.currentUser || state.viewingUser;
@@ -837,10 +819,10 @@ export const User = (() => {
         const events = await githubAPI(`/users/${user.login}/events/public?per_page=100`);
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
-        events.forEach(event => {
+
+        events.forEach((event) => {
           if (event.created_at < thirtyDaysAgo.toISOString()) return;
-          
+
           if (
             event.type === "PullRequestEvent" ||
             event.type === "PullRequestReviewEvent" ||
@@ -848,7 +830,7 @@ export const User = (() => {
             event.type === "PushEvent" ||
             event.type === "IssuesEvent"
           ) {
-            const org = event.repo.name.split('/')[0];
+            const org = event.repo.name.split("/")[0];
             orgs.add(org);
           }
         });
@@ -856,45 +838,45 @@ export const User = (() => {
     } catch (e) {
       console.log("Could not load user events");
     }
-    
+
     // Always include orgs from loaded PRs
-    const allPRs = [
-      ...state.pullRequests.incoming,
-      ...state.pullRequests.outgoing,
-    ];
-    
+    const allPRs = [...state.pullRequests.incoming, ...state.pullRequests.outgoing];
+
     allPRs.forEach((pr) => {
       if (pr.repository && pr.repository.full_name) {
         const org = pr.repository.full_name.split("/")[0];
         orgs.add(org);
       }
     });
-    
+
     const orgList = Array.from(orgs).sort();
-    
+
     // Cache the results
     try {
       const user = state.currentUser || state.viewingUser;
-      const userId = user?.login || 'anonymous';
-      localStorage.setItem(CACHE_KEY, JSON.stringify({
-        orgs: orgList,
-        timestamp: Date.now(),
-        userId: userId
-      }));
+      const userId = user?.login || "anonymous";
+      localStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({
+          orgs: orgList,
+          timestamp: Date.now(),
+          userId: userId,
+        })
+      );
     } catch (e) {
       console.log("Error caching orgs:", e);
     }
-    
+
     return orgList;
   };
 
   const updateOrgFilter = async (state, parseURL, githubAPI) => {
     const orgSelect = $("orgSelect");
     if (!orgSelect) return;
-    
+
     console.log("updateOrgFilter called, current PRs:", {
       incoming: state.pullRequests.incoming.length,
-      outgoing: state.pullRequests.outgoing.length
+      outgoing: state.pullRequests.outgoing.length,
     });
 
     // Load organizations (skip in demo mode)
@@ -904,7 +886,7 @@ export const User = (() => {
     } else {
       // In demo mode, extract orgs from the PR data
       const prOrgs = new Set();
-      [...state.pullRequests.incoming, ...state.pullRequests.outgoing].forEach(pr => {
+      [...state.pullRequests.incoming, ...state.pullRequests.outgoing].forEach((pr) => {
         const urlParts = pr.repository_url.split("/");
         const org = urlParts[urlParts.length - 2];
         if (org) prOrgs.add(org);
@@ -915,7 +897,7 @@ export const User = (() => {
     // Check if current URL has an organization that should be included
     const urlContext = parseURL();
     const currentOrg = urlContext?.org;
-    
+
     // Ensure current URL org is included in the list, even if not returned by API
     if (currentOrg && !uniqueOrgs.includes(currentOrg)) {
       uniqueOrgs.push(currentOrg);
@@ -924,13 +906,13 @@ export const User = (() => {
 
     // Update select element - XSS-safe (using DOM APIs)
     clearChildren(orgSelect);
-    const defaultOption = el('option', { attrs: { value: '' }, text: 'All Organizations' });
+    const defaultOption = el("option", { attrs: { value: "" }, text: "All Organizations" });
     orgSelect.appendChild(defaultOption);
 
     uniqueOrgs.forEach((org) => {
-      const option = el('option', {
+      const option = el("option", {
         attrs: { value: org },
-        text: org // XSS-safe (textContent)
+        text: org, // XSS-safe (textContent)
       });
       orgSelect.appendChild(option);
     });
@@ -942,7 +924,7 @@ export const User = (() => {
       // Clear selection if no org in URL or org is '*'
       orgSelect.value = "";
     }
-    
+
     // Update hamburger menu links to reflect org selection
     if (window.App && window.App.updateHamburgerMenuLinks) {
       window.App.updateHamburgerMenuLinks();
@@ -970,9 +952,7 @@ export const User = (() => {
 
       if (countElement) {
         countElement.textContent =
-          filtered.length < prs.length
-            ? `${filtered.length} (${prs.length})`
-            : prs.length;
+          filtered.length < prs.length ? `${filtered.length} (${prs.length})` : prs.length;
       }
 
       totalVisible += filtered.length;
@@ -994,13 +974,13 @@ export const User = (() => {
     const hideOrgsMenu = $("hideOrgsMenu");
     const hideOrgsDropdown = $("hideOrgsDropdown");
     if (!hideOrgsMenu || !hideOrgsDropdown) {
-      console.error('[populateOrgFilters] Missing hideOrgsMenu or hideOrgsDropdown');
+      console.error("[populateOrgFilters] Missing hideOrgsMenu or hideOrgsDropdown");
       return;
     }
 
     // Workspace is now imported at the top of the file
     if (!Workspace) {
-      console.error('[populateOrgFilters] Workspace module not available');
+      console.error("[populateOrgFilters] Workspace module not available");
       return;
     }
 
@@ -1008,7 +988,7 @@ export const User = (() => {
     const allPRs = [...state.pullRequests.incoming, ...state.pullRequests.outgoing];
     const orgs = new Set();
 
-    allPRs.forEach(pr => {
+    allPRs.forEach((pr) => {
       const org = pr.repository.full_name.split("/")[0];
       orgs.add(org);
     });
@@ -1016,58 +996,58 @@ export const User = (() => {
     const sortedOrgs = Array.from(orgs).sort();
     const hiddenOrgs = Workspace.hiddenOrgs();
 
-    console.log('[populateOrgFilters] All orgs:', sortedOrgs);
-    console.log('[populateOrgFilters] Hidden orgs:', hiddenOrgs);
+    console.log("[populateOrgFilters] All orgs:", sortedOrgs);
+    console.log("[populateOrgFilters] Hidden orgs:", hiddenOrgs);
 
     // Update button text to show count of hidden orgs
-    const buttonText = hideOrgsDropdown.querySelector('span');
+    const buttonText = hideOrgsDropdown.querySelector("span");
     if (hiddenOrgs.length > 0) {
       buttonText.textContent = `Hide PRs in... (${hiddenOrgs.length})`;
     } else {
-      buttonText.textContent = 'Hide PRs in...';
+      buttonText.textContent = "Hide PRs in...";
     }
 
     // Clear existing menu items - XSS-safe
     clearChildren(hideOrgsMenu);
 
     if (sortedOrgs.length === 0) {
-      const emptyMsg = el('div', {
-        className: 'filter-dropdown-empty',
-        text: 'No organizations found' // XSS-safe
+      const emptyMsg = el("div", {
+        className: "filter-dropdown-empty",
+        text: "No organizations found", // XSS-safe
       });
       hideOrgsMenu.appendChild(emptyMsg);
       return;
     }
 
     // Create menu item for each org - XSS-safe
-    sortedOrgs.forEach(org => {
+    sortedOrgs.forEach((org) => {
       const isHidden = hiddenOrgs.includes(org);
 
       // Simple Unicode checkmark - XSS impossible
-      const checkbox = el('span', {
-        className: 'filter-dropdown-checkbox',
-        text: isHidden ? '✓' : '' // Pure text, automatically safe
+      const checkbox = el("span", {
+        className: "filter-dropdown-checkbox",
+        text: isHidden ? "✓" : "", // Pure text, automatically safe
       });
 
-      const label = el('span', {
-        className: 'filter-dropdown-label',
-        text: org // XSS-safe (textContent)
+      const label = el("span", {
+        className: "filter-dropdown-label",
+        text: org, // XSS-safe (textContent)
       });
 
-      const item = el('div', {
-        className: isHidden ? 'filter-dropdown-item active' : 'filter-dropdown-item',
-        children: [checkbox, label]
+      const item = el("div", {
+        className: isHidden ? "filter-dropdown-item active" : "filter-dropdown-item",
+        children: [checkbox, label],
       });
 
       hideOrgsMenu.appendChild(item);
 
       // Handle org visibility toggle
-      item.addEventListener('click', (e) => {
+      item.addEventListener("click", (e) => {
         e.stopPropagation();
-        console.log('[populateOrgFilters] Toggling org:', org);
+        console.log("[populateOrgFilters] Toggling org:", org);
         Workspace.toggleOrgVisibility(org);
         const newHiddenOrgs = Workspace.hiddenOrgs();
-        console.log('[populateOrgFilters] After toggle, hidden orgs:', newHiddenOrgs);
+        console.log("[populateOrgFilters] After toggle, hidden orgs:", newHiddenOrgs);
 
         // Refresh the menu and PR sections
         populateOrgFilters(state);
@@ -1077,21 +1057,21 @@ export const User = (() => {
 
     // Setup dropdown toggle (only once)
     if (!hideOrgsDropdown._listenerAttached) {
-      hideOrgsDropdown.addEventListener('click', (e) => {
+      hideOrgsDropdown.addEventListener("click", (e) => {
         e.stopPropagation();
-        const isHidden = hideOrgsMenu.hasAttribute('hidden');
-        console.log('[populateOrgFilters] Dropdown clicked, currently hidden:', isHidden);
+        const isHidden = hideOrgsMenu.hasAttribute("hidden");
+        console.log("[populateOrgFilters] Dropdown clicked, currently hidden:", isHidden);
         if (isHidden) {
-          hideOrgsMenu.removeAttribute('hidden');
+          hideOrgsMenu.removeAttribute("hidden");
         } else {
-          hideOrgsMenu.setAttribute('hidden', '');
+          hideOrgsMenu.setAttribute("hidden", "");
         }
       });
 
       // Close dropdown when clicking outside
-      document.addEventListener('click', (e) => {
+      document.addEventListener("click", (e) => {
         if (!hideOrgsMenu.contains(e.target) && !hideOrgsDropdown.contains(e.target)) {
-          hideOrgsMenu.setAttribute('hidden', '');
+          hideOrgsMenu.setAttribute("hidden", "");
         }
       });
 
@@ -1107,10 +1087,7 @@ export const User = (() => {
     }
 
     const avgAge =
-      Math.round(
-        filteredPRs.reduce((sum, pr) => sum + pr.age_days, 0) /
-          filteredPRs.length,
-      ) || 0;
+      Math.round(filteredPRs.reduce((sum, pr) => sum + pr.age_days, 0) / filteredPRs.length) || 0;
     const avgElement = $(`${section}Average`);
 
     if (avgAge > 0 && avgElement) {
@@ -1125,7 +1102,8 @@ export const User = (() => {
 
     // Get workspace-specific settings
     const hiddenOrgs = Workspace.hiddenOrgs();
-    const hideStale = getCookie(`globalFilterStale_${Workspace.currentWorkspace() || 'personal'}`) === "true";
+    const hideStale =
+      getCookie(`globalFilterStale_${Workspace.currentWorkspace() || "personal"}`) === "true";
 
     // Update UI if checkboxes exist
     const staleCheckbox = $("globalFilterStale");
@@ -1167,32 +1145,32 @@ export const User = (() => {
       const bBlockedOnViewing = isBlockedOnUser(b, viewingUser);
       const aDraft = a.draft || false;
       const bDraft = b.draft || false;
-      
+
       // Priority order:
       // 1: Normal PRs blocked on viewing user
       // 2: Normal PRs (not blocked, not draft)
       // 3: Draft PRs blocked on viewing user
       // 4: Draft PRs (not blocked)
-      
+
       // Determine categories
       const getCategory = (pr) => {
         const isBlocked = isBlockedOnUser(pr, viewingUser);
         const isDraft = pr.draft || false;
-        
+
         if (!isDraft && isBlocked) return 1; // Normal + blocked
         if (!isDraft && !isBlocked) return 2; // Normal only
         if (isDraft && isBlocked) return 3; // Draft + blocked
         return 4; // Draft only
       };
-      
+
       const aCategory = getCategory(a);
       const bCategory = getCategory(b);
-      
+
       // Sort by category first
       if (aCategory !== bCategory) {
         return aCategory - bCategory;
       }
-      
+
       // Within same category, sort by last modification time (most recent first - descending order)
       return new Date(b.updated_at) - new Date(a.updated_at);
     });
@@ -1209,7 +1187,7 @@ export const User = (() => {
 
   const buildWaitingOn = (pr, viewingUser, currentUser, isIncomingPR = false) => {
     if (!pr.turnData?.analysis?.next_action) {
-      return '';
+      return "";
     }
 
     // next_action is a dictionary where keys are usernames and values have kind/critical/reason
@@ -1217,36 +1195,38 @@ export const User = (() => {
     const usernames = Object.keys(nextAction);
 
     if (usernames.length === 0) {
-      return '';
+      return "";
     }
 
-    const waitingList = usernames.map(username => {
-      const action = nextAction[username];
-      const isViewingUser = viewingUser && username === viewingUser.login;
-      const isCurrentUser = currentUser && username === currentUser.login;
+    const waitingList = usernames
+      .map((username) => {
+        const action = nextAction[username];
+        const isViewingUser = viewingUser && username === viewingUser.login;
+        const isCurrentUser = currentUser && username === currentUser.login;
 
-      let displayName = username;
-      let className = 'pr-waiting-on-user';
+        let displayName = username;
+        let className = "pr-waiting-on-user";
 
-      // If viewing someone else's dashboard, highlight their name
-      if (viewingUser && currentUser && viewingUser.login !== currentUser.login) {
-        if (isViewingUser) {
-          displayName = viewingUser.login;
-          // Use red for incoming PRs, green for outgoing
-          className = isIncomingPR ? 'pr-waiting-on-you' : 'pr-waiting-on-you-green';
+        // If viewing someone else's dashboard, highlight their name
+        if (viewingUser && currentUser && viewingUser.login !== currentUser.login) {
+          if (isViewingUser) {
+            displayName = viewingUser.login;
+            // Use red for incoming PRs, green for outgoing
+            className = isIncomingPR ? "pr-waiting-on-you" : "pr-waiting-on-you-green";
+          }
+        } else {
+          // Normal behavior when viewing your own dashboard
+          if (isCurrentUser) {
+            displayName = "YOU";
+            className = "pr-waiting-on-you";
+          }
         }
-      } else {
-        // Normal behavior when viewing your own dashboard
-        if (isCurrentUser) {
-          displayName = 'YOU';
-          className = 'pr-waiting-on-you';
-        }
-      }
 
-      const title = action.reason || 'Waiting for action';
+        const title = action.reason || "Waiting for action";
 
-      return `<span class="${className}" title="${escapeHtml(title)}">${escapeHtml(displayName)}</span>`;
-    }).join(', ');
+        return `<span class="${className}" title="${escapeHtml(title)}">${escapeHtml(displayName)}</span>`;
+      })
+      .join(", ");
 
     return ` <span class="pr-waiting-on"><span class="pr-waiting-on-label">(waiting on</span> ${waitingList}<span class="pr-waiting-on-label">)</span></span>`;
   };
@@ -1338,7 +1318,7 @@ export const User = (() => {
     `;
 
     const blockedOnViewing = isBlockedOnUser(pr, viewingUser);
-    
+
     return `
       <div class="pr-card" data-state="${state}" data-pr-id="${pr.id}" ${needsAction ? 'data-needs-action="true"' : ""} ${pr.draft ? 'data-draft="true"' : ""} ${blockedOnViewing ? 'data-blocked-on-viewing="true"' : ""}>
         <div class="pr-header">
@@ -1369,15 +1349,13 @@ export const User = (() => {
     const existingCard = document.querySelector(`[data-pr-id="${pr.id}"]`);
     if (!existingCard) return;
 
-    const section = existingCard.closest("#incomingPRs")
-      ? "incoming"
-      : "outgoing";
-    
+    const section = existingCard.closest("#incomingPRs") ? "incoming" : "outgoing";
+
     // Check if this PR's blocking status affects sorting
     const viewingUser = state.viewingUser || state.currentUser;
-    const wasBlockedOnViewing = existingCard.hasAttribute('data-blocked-on-viewing');
+    const wasBlockedOnViewing = existingCard.hasAttribute("data-blocked-on-viewing");
     const isNowBlockedOnViewing = isBlockedOnUser(pr, viewingUser);
-    
+
     // If blocking status changed, re-render the entire section to maintain sort order
     if (wasBlockedOnViewing !== isNowBlockedOnViewing) {
       updatePRSections(state);
@@ -1385,7 +1363,7 @@ export const User = (() => {
     }
 
     const hideStale = getCookie(`${section}FilterStale`) === "true";
-    const shouldHide = (hideStale && isStale(pr));
+    const shouldHide = hideStale && isStale(pr);
 
     if (shouldHide) {
       existingCard.style.transition = "opacity 0.3s ease-out";
@@ -1429,10 +1407,7 @@ export const User = (() => {
     if (pr.status_tags?.includes("stale")) return "stale";
     if (pr.draft || pr.status_tags?.includes("draft")) return "draft";
     if (pr.status_tags?.includes("ready-to-merge")) return "ready";
-    if (
-      pr.status_tags?.includes("approved") &&
-      pr.status_tags?.includes("all_checks_passing")
-    )
+    if (pr.status_tags?.includes("approved") && pr.status_tags?.includes("all_checks_passing"))
       return "ready";
     return "default";
   };
@@ -1459,7 +1434,9 @@ export const User = (() => {
 
     if (pr.turnData?.analysis?.unresolved_comments > 0) {
       const count = pr.turnData.analysis.unresolved_comments;
-      badges.push(`<span class="badge badge-unresolved-comments">${count} unresolved comment${count > 1 ? 's' : ''}</span>`);
+      badges.push(
+        `<span class="badge badge-unresolved-comments">${count} unresolved comment${count > 1 ? "s" : ""}</span>`
+      );
     }
 
     if (pr.turnData?.analysis?.checks?.failing > 0) {
@@ -1476,7 +1453,9 @@ export const User = (() => {
       if (viewingUser && currentUser && viewingUser.login === currentUser.login) {
         badges.push('<span class="badge badge-blocked-on-you">blocked on you</span>');
       } else if (viewingUser) {
-        badges.push(`<span class="badge badge-blocked-on-you">blocked on ${viewingUser.login}</span>`);
+        badges.push(
+          `<span class="badge badge-blocked-on-you">blocked on ${viewingUser.login}</span>`
+        );
       }
     }
 
@@ -1516,7 +1495,11 @@ export const User = (() => {
       badges.push(...labels);
     }
 
-    if (!pr.status_tags?.includes("loading") && pr.additions !== undefined && pr.deletions !== undefined) {
+    if (
+      !pr.status_tags?.includes("loading") &&
+      pr.additions !== undefined &&
+      pr.deletions !== undefined
+    ) {
       const sizeText = getPRSize(pr);
       const totalChanges = (pr.additions || 0) + (pr.deletions || 0);
       badges.push(
@@ -1535,7 +1518,7 @@ export const User = (() => {
       .slice(0, maxShow)
       .map(
         (reviewer) =>
-          `<img src="${reviewer.avatar_url}" alt="${reviewer.login}" class="reviewer-avatar" loading="lazy" width="16" height="16" title="${reviewer.login}">`,
+          `<img src="${reviewer.avatar_url}" alt="${reviewer.login}" class="reviewer-avatar" loading="lazy" width="16" height="16" title="${reviewer.login}">`
       )
       .join("");
 
@@ -1558,8 +1541,7 @@ export const User = (() => {
     const isStats = urlContext && urlContext.isStats;
 
     let newPath;
-    const username =
-      typeof targetUser === "string" ? targetUser : targetUser.login;
+    const username = typeof targetUser === "string" ? targetUser : targetUser.login;
 
     if (isStats) {
       if (selectedOrg) {
@@ -1589,12 +1571,9 @@ export const User = (() => {
     const searchTerm = searchInput?.value.toLowerCase() || "";
 
     $$(".pr-card").forEach((card) => {
-      const title =
-        card.querySelector(".pr-title")?.textContent.toLowerCase() || "";
-      const repo =
-        card.querySelector(".pr-repo")?.textContent.toLowerCase() || "";
-      const author =
-        card.querySelector(".pr-author")?.textContent.toLowerCase() || "";
+      const title = card.querySelector(".pr-title")?.textContent.toLowerCase() || "";
+      const repo = card.querySelector(".pr-repo")?.textContent.toLowerCase() || "";
+      const author = card.querySelector(".pr-author")?.textContent.toLowerCase() || "";
 
       const matches =
         !searchTerm ||
@@ -1621,10 +1600,7 @@ export const User = (() => {
   };
 
   const handlePRAction = async (action, prId, state, githubAPI, showToast) => {
-    const allPRs = [
-      ...state.pullRequests.incoming,
-      ...state.pullRequests.outgoing,
-    ];
+    const allPRs = [...state.pullRequests.incoming, ...state.pullRequests.outgoing];
     const pr = allPRs.find((p) => p.id.toString() === prId);
     if (!pr) return;
 
@@ -1655,15 +1631,13 @@ export const User = (() => {
                 commit_title: `Merge pull request #${pr.number}${pr.head?.ref ? ` from ${pr.head.ref}` : ""}`,
                 commit_message: pr.title || `Merge PR #${pr.number}`,
               }),
-            },
+            }
           );
 
           if (response.ok) {
             showToast("PR merged successfully", "success");
             ["incoming", "outgoing"].forEach((section) => {
-              const index = state.pullRequests[section].findIndex(
-                (p) => p.id.toString() === prId,
-              );
+              const index = state.pullRequests[section].findIndex((p) => p.id.toString() === prId);
               if (index !== -1) {
                 state.pullRequests[section].splice(index, 1);
               }
@@ -1693,7 +1667,7 @@ export const User = (() => {
               body: JSON.stringify({
                 assignees: pr.assignees?.map((a) => a.login) || [],
               }),
-            },
+            }
           );
 
           if (response.ok) {
@@ -1723,15 +1697,13 @@ export const User = (() => {
               body: JSON.stringify({
                 state: "closed",
               }),
-            },
+            }
           );
 
           if (response.ok) {
             showToast("PR closed", "success");
             ["incoming", "outgoing"].forEach((section) => {
-              const index = state.pullRequests[section].findIndex(
-                (p) => p.id.toString() === prId,
-              );
+              const index = state.pullRequests[section].findIndex((p) => p.id.toString() === prId);
               if (index !== -1) {
                 state.pullRequests[section].splice(index, 1);
               }

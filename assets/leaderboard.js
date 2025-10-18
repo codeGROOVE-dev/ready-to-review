@@ -1,12 +1,10 @@
+import { Stats } from "./stats.js";
 // Leaderboard Module - Shows PR merge activity by contributor
-import { $, $$, show, hide, showToast, escapeHtml } from './utils.js';
-import { Stats } from './stats.js';
+import { $, $$, escapeHtml, hide, show, showToast } from "./utils.js";
 
 export const Leaderboard = (() => {
-  "use strict";
-
   const TEN_DAYS_IN_MS = 10 * 24 * 60 * 60 * 1000;
-  const CACHE_KEY_PREFIX = 'leaderboard_cache_';
+  const CACHE_KEY_PREFIX = "leaderboard_cache_";
   const CACHE_DURATION = 4 * 60 * 60 * 1000; // 4 hours
 
   // Reuse cache functions from stats module
@@ -14,53 +12,67 @@ export const Leaderboard = (() => {
     try {
       const cached = localStorage.getItem(key);
       if (!cached) return null;
-      
+
       const { data, timestamp } = JSON.parse(cached);
       const age = Date.now() - timestamp;
-      
+
       // Cache for 4 hours
       if (age > CACHE_DURATION) {
         localStorage.removeItem(key);
         return null;
       }
-      
+
       return { data, age };
     } catch (e) {
-      console.error('Error reading cache:', e);
+      console.error("Error reading cache:", e);
       return null;
     }
   };
 
   const setCachedData = (key, data) => {
     try {
-      localStorage.setItem(key, JSON.stringify({
-        data,
-        timestamp: Date.now()
-      }));
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          data,
+          timestamp: Date.now(),
+        })
+      );
     } catch (e) {
-      console.error('Error setting cache:', e);
+      console.error("Error setting cache:", e);
     }
   };
 
-  const showLeaderboardPage = async (state, githubAPI, loadCurrentUser, updateUserDisplay, setupHamburgerMenu, updateOrgFilter, handleOrgChange, handleSearch, parseURL, loadUserOrganizations) => {
+  const showLeaderboardPage = async (
+    state,
+    githubAPI,
+    loadCurrentUser,
+    updateUserDisplay,
+    setupHamburgerMenu,
+    updateOrgFilter,
+    handleOrgChange,
+    handleSearch,
+    parseURL,
+    loadUserOrganizations
+  ) => {
     // Hide other content
-    $$('[id$="Content"], #prSections').forEach(el => el?.setAttribute('hidden', ''));
+    $$('[id$="Content"], #prSections').forEach((el) => el?.setAttribute("hidden", ""));
 
     // Check for authentication first
     if (!state.accessToken) {
-      const loginPrompt = $('loginPrompt');
+      const loginPrompt = $("loginPrompt");
       show(loginPrompt);
-      hide($('leaderboardContent'));
+      hide($("leaderboardContent"));
       return;
     }
 
-    const leaderboardContent = $('leaderboardContent');
+    const leaderboardContent = $("leaderboardContent");
     if (!leaderboardContent) {
-      console.error('Leaderboard content element not found');
+      console.error("Leaderboard content element not found");
       return;
     }
 
-    hide($('loginPrompt'));
+    hide($("loginPrompt"));
     show(leaderboardContent);
 
     // Load current user if needed
@@ -68,36 +80,36 @@ export const Leaderboard = (() => {
       try {
         await loadCurrentUser();
       } catch (error) {
-        console.error('Failed to load current user:', error);
-        showToast('Please login to view leaderboard', 'error');
-        window.location.href = '/';
+        console.error("Failed to load current user:", error);
+        showToast("Please login to view leaderboard", "error");
+        window.location.href = "/";
         return;
       }
     }
-    
+
     updateUserDisplay(state, () => {});
     setupHamburgerMenu();
-    
+
     // Update search input placeholder
-    const searchInput = $('searchInput');
+    const searchInput = $("searchInput");
     if (searchInput) {
-      searchInput.placeholder = 'Search users...';
-      searchInput.value = '';
+      searchInput.placeholder = "Search users...";
+      searchInput.value = "";
     }
-    
+
     // Setup handlers
-    const orgSelect = $('orgSelect');
+    const orgSelect = $("orgSelect");
     if (orgSelect) {
-      orgSelect.removeEventListener('change', handleOrgChange);
-      orgSelect.addEventListener('change', handleOrgChange);
+      orgSelect.removeEventListener("change", handleOrgChange);
+      orgSelect.addEventListener("change", handleOrgChange);
     }
-    
+
     // Load user organizations for dropdown
     await loadUserOrganizations(state, githubAPI, parseURL);
-    
+
     // Update org filter
     await updateOrgFilter(state, parseURL, githubAPI);
-    
+
     // Disable org selector if no org specified
     const urlContext = parseURL();
     let org = urlContext?.org;
@@ -108,8 +120,8 @@ export const Leaderboard = (() => {
       // Use the current username as the "org" for personal stats
       const personalUsername = urlContext?.username || state.currentUser?.login;
       if (!personalUsername) {
-        const loadingDiv = $('leaderboardLoading');
-        const contentDiv = $('leaderboardData');
+        const loadingDiv = $("leaderboardLoading");
+        const contentDiv = $("leaderboardData");
         hide(loadingDiv);
         show(contentDiv);
         contentDiv.innerHTML = '<div class="empty-state">Unable to determine user</div>';
@@ -122,8 +134,8 @@ export const Leaderboard = (() => {
     }
 
     // Show loading state
-    const loadingDiv = $('leaderboardLoading');
-    const contentDiv = $('leaderboardData');
+    const loadingDiv = $("leaderboardLoading");
+    const contentDiv = $("leaderboardData");
     show(loadingDiv);
     hide(contentDiv);
 
@@ -134,29 +146,29 @@ export const Leaderboard = (() => {
 
       let mergedPRs;
       if (cached) {
-        console.log('Using cached data for leaderboard');
+        console.log("Using cached data for leaderboard");
         mergedPRs = cached.data;
-        console.log('Cached leaderboard data:', {
+        console.log("Cached leaderboard data:", {
           totalPRs: mergedPRs.length,
-          cacheAge: Math.round(cached.age / 60000) + ' minutes',
+          cacheAge: Math.round(cached.age / 60000) + " minutes",
           dateRange: {
-            from: new Date(Date.now() - TEN_DAYS_IN_MS).toISOString().split('T')[0],
-            to: new Date().toISOString().split('T')[0]
+            from: new Date(Date.now() - TEN_DAYS_IN_MS).toISOString().split("T")[0],
+            to: new Date().toISOString().split("T")[0],
           },
-          samplePRs: mergedPRs.slice(0, 3).map(pr => ({
+          samplePRs: mergedPRs.slice(0, 3).map((pr) => ({
             number: pr.number,
             title: pr.title,
-            author: pr.user?.login || 'unknown',
-            repo: pr.repository_url?.replace('https://api.github.com/repos/', '') || 'unknown'
-          }))
+            author: pr.user?.login || "unknown",
+            repo: pr.repository_url?.replace("https://api.github.com/repos/", "") || "unknown",
+          })),
         });
       } else {
-        console.log('Fetching fresh data for leaderboard');
+        console.log("Fetching fresh data for leaderboard");
         // Fetch merged PRs from last 10 days
         const tenDaysAgo = new Date(Date.now() - TEN_DAYS_IN_MS);
         // Use user:username for personal pages (PRs in user's repos), org:orgname for organizations
         const scopeFilter = isPersonalPage ? `user:${org}` : `org:${org}`;
-        const mergedQuery = `type:pr is:merged ${scopeFilter} merged:>=${tenDaysAgo.toISOString().split('T')[0]}`;
+        const mergedQuery = `type:pr is:merged ${scopeFilter} merged:>=${tenDaysAgo.toISOString().split("T")[0]}`;
 
         // Use Stats module's search function
         const mergedResponse = await Stats.githubSearchAll(
@@ -170,66 +182,66 @@ export const Leaderboard = (() => {
         // Cache the results
         setCachedData(cacheKey, mergedPRs);
       }
-      
+
       // Filter out bots and count PRs by author and repo
       const authorCounts = {};
       const repoCounts = {};
-      
-      mergedPRs.forEach(pr => {
+
+      mergedPRs.forEach((pr) => {
         const author = pr.user.login;
-        
+
         // Count repos
-        const repoName = pr.repository_url.split('/').slice(-2).join('/');
+        const repoName = pr.repository_url.split("/").slice(-2).join("/");
         if (!repoCounts[repoName]) {
           repoCounts[repoName] = {
             name: repoName,
             count: 0,
-            url: pr.repository_url.replace('api.github.com/repos', 'github.com')
+            url: pr.repository_url.replace("api.github.com/repos", "github.com"),
           };
         }
         repoCounts[repoName].count++;
-        
+
         // Skip bots for author counting
         const authorLower = author.toLowerCase();
-        if (pr.user.type === 'Bot' || 
-            authorLower.endsWith('[bot]') || 
-            authorLower.endsWith('-bot') ||
-            authorLower.endsWith('-robot') ||
-            authorLower.includes('dependabot')) {
+        if (
+          pr.user.type === "Bot" ||
+          authorLower.endsWith("[bot]") ||
+          authorLower.endsWith("-bot") ||
+          authorLower.endsWith("-robot") ||
+          authorLower.includes("dependabot")
+        ) {
           return;
         }
-        
+
         if (!authorCounts[author]) {
           authorCounts[author] = {
             login: author,
             avatar_url: pr.user.avatar_url,
             html_url: pr.user.html_url,
-            count: 0
+            count: 0,
           };
         }
         authorCounts[author].count++;
       });
-      
+
       // Convert to array and sort by count
       const allContributors = Object.values(authorCounts);
       const totalContributors = allContributors.length;
-      
-      const topContributors = allContributors
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10); // Top 10 contributors
-      
+
+      const topContributors = allContributors.sort((a, b) => b.count - a.count).slice(0, 10); // Top 10 contributors
+
       const topRepos = Object.values(repoCounts)
         .sort((a, b) => b.count - a.count)
         .slice(0, 10); // Top 10 repos
-      
+
       // Calculate max for scaling
       const maxContributorCount = topContributors[0]?.count || 0;
       const maxRepoCount = topRepos[0]?.count || 0;
-      
+
       // Render leaderboard
       hide(loadingDiv);
       show(contentDiv);
-      
+
       if (topContributors.length === 0) {
         contentDiv.innerHTML = `
           <div class="empty-state">
@@ -244,7 +256,7 @@ export const Leaderboard = (() => {
         `;
         return;
       }
-      
+
       contentDiv.innerHTML = `
         <div class="leaderboard-container">
           <div class="leaderboard-header">
@@ -266,9 +278,11 @@ export const Leaderboard = (() => {
             <div class="leaderboard-chart">
               <h3 class="chart-title">Top Contributors</h3>
               <div class="chart-content">
-                ${topContributors.slice(0, 5).map((author, index) => {
-                  const percentage = (author.count / maxContributorCount) * 100;
-                  return `
+                ${topContributors
+                  .slice(0, 5)
+                  .map((author, index) => {
+                    const percentage = (author.count / maxContributorCount) * 100;
+                    return `
                     <div class="chart-item">
                       <div class="chart-item-header">
                         <img src="${author.avatar_url}" alt="${author.login}" class="chart-avatar">
@@ -280,7 +294,8 @@ export const Leaderboard = (() => {
                       </div>
                     </div>
                   `;
-                }).join('')}
+                  })
+                  .join("")}
               </div>
             </div>
             
@@ -288,10 +303,12 @@ export const Leaderboard = (() => {
             <div class="leaderboard-chart">
               <h3 class="chart-title">Top Repositories</h3>
               <div class="chart-content">
-                ${topRepos.slice(0, 5).map((repo, index) => {
-                  const percentage = (repo.count / maxRepoCount) * 100;
-                  const shortName = repo.name.split('/')[1] || repo.name;
-                  return `
+                ${topRepos
+                  .slice(0, 5)
+                  .map((repo, index) => {
+                    const percentage = (repo.count / maxRepoCount) * 100;
+                    const shortName = repo.name.split("/")[1] || repo.name;
+                    return `
                     <div class="chart-item">
                       <div class="chart-item-header">
                         <a href="${repo.url}" target="_blank" rel="noopener" class="chart-item-name chart-repo-name" title="${repo.name}">${shortName}</a>
@@ -302,7 +319,8 @@ export const Leaderboard = (() => {
                       </div>
                     </div>
                   `;
-                }).join('')}
+                  })
+                  .join("")}
               </div>
             </div>
             
@@ -330,29 +348,28 @@ export const Leaderboard = (() => {
           </div>
         </div>
       `;
-      
+
       // Setup search functionality
       if (searchInput) {
         const handleLeaderboardSearch = () => {
           const searchTerm = searchInput.value.toLowerCase();
-          const chartItems = $$('.chart-item');
-          
-          chartItems.forEach(item => {
-            const name = item.querySelector('.chart-item-name')?.textContent.toLowerCase() || '';
-            if (searchTerm === '' || name.includes(searchTerm)) {
+          const chartItems = $$(".chart-item");
+
+          chartItems.forEach((item) => {
+            const name = item.querySelector(".chart-item-name")?.textContent.toLowerCase() || "";
+            if (searchTerm === "" || name.includes(searchTerm)) {
               show(item);
             } else {
               hide(item);
             }
           });
         };
-        
-        searchInput.removeEventListener('input', handleSearch);
-        searchInput.addEventListener('input', handleLeaderboardSearch);
+
+        searchInput.removeEventListener("input", handleSearch);
+        searchInput.addEventListener("input", handleLeaderboardSearch);
       }
-      
     } catch (error) {
-      console.error('Error loading leaderboard:', error);
+      console.error("Error loading leaderboard:", error);
       hide(loadingDiv);
       show(contentDiv);
       contentDiv.innerHTML = `
@@ -365,6 +382,6 @@ export const Leaderboard = (() => {
   };
 
   return {
-    showLeaderboardPage
+    showLeaderboardPage,
   };
 })();

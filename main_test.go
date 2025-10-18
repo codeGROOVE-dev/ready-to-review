@@ -135,7 +135,7 @@ func TestServerIntegration(t *testing.T) {
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	var lastErr error
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		time.Sleep(100 * time.Millisecond)
 
 		resp, err := client.Get(serverURL + "/health")
