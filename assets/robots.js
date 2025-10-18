@@ -233,6 +233,57 @@ export const Robots = (() => {
         }
       };
     }
+
+    // Update Slack configuration link based on workspace
+    const updateSlackConfigLink = () => {
+      try {
+        const slackConfigLink = $("slackConfigLink");
+        const slackConfigText = $("slackConfigText");
+        if (!slackConfigLink || !slackConfigText) {
+          console.log('[Slack Config] Link elements not found');
+          return;
+        }
+
+        const urlContext = parseURL();
+        const workspace = urlContext?.org || orgSelect?.value;
+
+        // Use example config by default
+        let configUrl = "https://github.com/codeGROOVE-dev/.codeGROOVE/blob/main/slack.yaml";
+        let configText = "Configuration Example";
+
+        // If we have a valid workspace, use workspace-specific config
+        if (workspace && workspace !== "" && workspace !== "*") {
+          const sanitized = String(workspace).trim();
+          // SECURITY: GitHub usernames are alphanumeric + hyphens, 1-39 chars, no leading/trailing hyphens
+          const isValid = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$/.test(sanitized);
+          if (isValid) {
+            configUrl = `https://github.com/${encodeURIComponent(sanitized)}/.codeGROOVE/blob/main/slack.yaml`;
+            configText = `${sanitized} Configuration`;
+            console.log('[Slack Config] Using workspace:', sanitized);
+          } else {
+            console.warn('[Slack Config] Invalid workspace name:', sanitized);
+          }
+        }
+
+        slackConfigLink.href = configUrl;
+        slackConfigText.textContent = configText;
+      } catch (error) {
+        console.error('[Slack Config] Error:', error);
+      }
+    };
+
+    // Update on initial load
+    updateSlackConfigLink();
+
+    // Update when workspace changes - avoid duplicate listeners
+    if (orgSelect) {
+      const workspaceSelect = document.getElementById("workspaceSelect");
+      if (workspaceSelect && !workspaceSelect.hasAttribute("data-slack-listener")) {
+        workspaceSelect.addEventListener("change", updateSlackConfigLink);
+        workspaceSelect.setAttribute("data-slack-listener", "true");
+        console.log('[Slack Config] Workspace change listener attached');
+      }
+    }
   };
 
   const showSettingsPage = async (
