@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -24,7 +25,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/r2r/dashboard/secrets"
+	"github.com/codeGROOVE-dev/gsm"
+	"github.com/codeGROOVE-dev/retry"
 )
 
 // Constants for configuration.
@@ -53,7 +55,6 @@ const (
 
 //go:embed index.html
 //go:embed assets/*
-//go:embed favicon.ico
 var staticFiles embed.FS
 
 var (
@@ -87,25 +88,17 @@ var (
 type authCodeData struct {
 	token    string
 	username string
-	expiry   time.Time
 	returnTo string
+	expiry   time.Time
 	used     bool
 }
 
 // rateLimiter implements a simple in-memory rate limiter.
 type rateLimiter struct {
-	requests map[string][]time.Time
 	mu       sync.Mutex
-	limit    int
+	requests map[string][]time.Time
 	window   time.Duration
-}
-
-func newRateLimiter(limit int, window time.Duration) *rateLimiter {
-	return &rateLimiter{
-		requests: make(map[string][]time.Time),
-		limit:    limit,
-		window:   window,
-	}
+	limit    int
 }
 
 func (rl *rateLimiter) limitHandler(next http.HandlerFunc) http.HandlerFunc {
@@ -133,6 +126,17 @@ func (rl *rateLimiter) limitHandler(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		rl.requests[ip] = append(validRequests, now)
+
+		// Prevent memory exhaustion: periodically clean up IPs with no recent requests
+		// This protects against DoS attacks using many different IPs
+		if len(rl.requests)%100 == 0 {
+			for oldIP, times := range rl.requests {
+				if len(times) == 0 || (len(times) > 0 && times[len(times)-1].Before(cutoff)) {
+					delete(rl.requests, oldIP)
+				}
+			}
+		}
+
 		next(w, r)
 	}
 }
@@ -172,46 +176,6 @@ func isValidGitHubHandle(handle string) bool {
 	}
 
 	return true
-}
-
-// homeOrg extracts the home organization from the request hostname.
-// Examples:
-//   - "chainguard-dev.ready-to-review.dev" -> "chainguard-dev"
-//   - "ready-to-review.dev" -> ""
-//   - "tstromberg.ready-to-review.dev" -> "tstromberg".
-func homeOrg(r *http.Request) string {
-	// Try X-Original-Host first (set by reverse proxy)
-	host := r.Header.Get("X-Original-Host")
-	if host == "" {
-		host = r.Host
-	}
-
-	// Remove port if present
-	if colon := strings.LastIndex(host, ":"); colon != -1 {
-		host = host[:colon]
-	}
-
-	// Extract subdomain
-	parts := strings.Split(host, ".")
-	if len(parts) >= 3 {
-		// Has subdomain
-		subdomain := parts[0]
-		// Don't treat reserved subdomains as home orgs
-		if subdomain == "www" || subdomain == "dash" || subdomain == "api" || subdomain == "auth" {
-			return ""
-		}
-
-		// Validate that subdomain looks like a valid GitHub handle
-		if !isValidGitHubHandle(subdomain) {
-			log.Printf("[SECURITY] Invalid GitHub handle in subdomain: %s", subdomain)
-			return ""
-		}
-
-		return subdomain
-	}
-
-	// Base domain or invalid
-	return ""
 }
 
 // clientIP extracts the client IP address from the request.
@@ -267,9 +231,9 @@ func securityHeaders(next http.Handler) http.Handler {
 			"base-uri 'self'",
 			"form-action 'self'",
 			"frame-ancestors 'none'",
-			"upgrade-insecure-requests",           // Force all resources to HTTPS
-			"require-trusted-types-for 'script'",  // Block DOM XSS via innerHTML
-			"trusted-types default",                // Allow only default policy
+			"upgrade-insecure-requests",          // Force all resources to HTTPS
+			"require-trusted-types-for 'script'", // Block DOM XSS via innerHTML
+			"trusted-types default",              // Allow only default policy
 		}
 		w.Header().Set("Content-Security-Policy", strings.Join(csp, "; "))
 
@@ -299,8 +263,14 @@ type githubUser struct {
 	Name  string `json:"name"`
 }
 
-// getClientSecret retrieves the GitHub OAuth client secret from environment or Secret Manager.
-func getClientSecret(ctx context.Context) string {
+// loadClientSecret retrieves the GitHub OAuth client secret from environment or Secret Manager.
+func loadClientSecret(ctx context.Context) string {
+	// Check environment variable first
+	if value := os.Getenv("GITHUB_CLIENT_SECRET"); value != "" {
+		log.Print("Using GITHUB_CLIENT_SECRET from environment variable")
+		return value
+	}
+
 	// Check if running in Cloud Run
 	isCloudRun := os.Getenv("K_SERVICE") != "" || os.Getenv("CLOUD_RUN_TIMEOUT_SECONDS") != ""
 	if !isCloudRun {
@@ -308,17 +278,18 @@ func getClientSecret(ctx context.Context) string {
 		return ""
 	}
 
-	// Fetch secret with environment variable override
-	// The gsm library auto-detects the project ID from metadata server
-	secretValue, err := secrets.Fetch(ctx, "GITHUB_CLIENT_SECRET", "GITHUB_CLIENT_SECRET")
+	// Fetch from Secret Manager (auto-detects project ID from metadata server)
+	log.Print("Fetching GITHUB_CLIENT_SECRET from Google Secret Manager")
+	secretValue, err := gsm.Fetch(ctx, "GITHUB_CLIENT_SECRET")
 	if err != nil {
 		log.Printf("Failed to fetch secret from Secret Manager: %v", err)
 		return ""
 	}
 
-	// Validate secret is not empty
 	if secretValue == "" {
 		log.Print("WARNING: Secret Manager returned empty value for GITHUB_CLIENT_SECRET")
+	} else {
+		log.Print("Successfully fetched GITHUB_CLIENT_SECRET from Google Secret Manager")
 	}
 
 	return secretValue
@@ -354,10 +325,10 @@ func main() {
 		}
 	}
 
-	// Get client secret from environment or Secret Manager
+	// Load client secret from environment or Secret Manager
 	if *clientSecret == "" {
 		ctx := context.Background()
-		*clientSecret = getClientSecret(ctx)
+		*clientSecret = loadClientSecret(ctx)
 	}
 
 	if *redirectURI == defaultRedirectURI || *redirectURI == "" {
@@ -373,17 +344,29 @@ func main() {
 	}
 
 	// Initialize rate limiter for auth code exchange (strict: 10 attempts per minute per IP)
-	exchangeRateLimiter = newRateLimiter(rateLimitRequests, rateLimitWindow)
+	exchangeRateLimiter = &rateLimiter{
+		requests: make(map[string][]time.Time),
+		limit:    rateLimitRequests,
+		window:   rateLimitWindow,
+	}
 
 	// Initialize CSRF protection using Go 1.25's CrossOriginProtection
 	// Uses Fetch Metadata (Sec-Fetch-Site header) for reliable cross-origin detection
 	csrfProtection = http.NewCrossOriginProtection()
 	// Trust requests from our own domain and all subdomains
-	_ = csrfProtection.AddTrustedOrigin("https://" + baseDomain)
-	_ = csrfProtection.AddTrustedOrigin("https://*." + baseDomain)
+	if err := csrfProtection.AddTrustedOrigin("https://" + baseDomain); err != nil {
+		log.Fatalf("CRITICAL: Failed to configure CSRF protection for base domain: %v", err)
+	}
+	if err := csrfProtection.AddTrustedOrigin("https://*." + baseDomain); err != nil {
+		log.Fatalf("CRITICAL: Failed to configure CSRF protection for subdomains: %v", err)
+	}
 	// Allow localhost for development
-	_ = csrfProtection.AddTrustedOrigin("http://localhost")
-	_ = csrfProtection.AddTrustedOrigin("http://localhost:*")
+	if err := csrfProtection.AddTrustedOrigin("http://localhost"); err != nil {
+		log.Fatalf("CRITICAL: Failed to configure CSRF protection for localhost: %v", err)
+	}
+	if err := csrfProtection.AddTrustedOrigin("http://localhost:*"); err != nil {
+		log.Fatalf("CRITICAL: Failed to configure CSRF protection for localhost with ports: %v", err)
+	}
 
 	// Set up routes
 	mux := http.NewServeMux()
@@ -468,40 +451,6 @@ func main() {
 	log.Println("Server exited")
 }
 
-// redirectToWorkspace handles redirecting from base domain to personal workspace.
-func redirectToWorkspace(w http.ResponseWriter, r *http.Request) {
-	// Check for redirect loop protection header
-	if r.Header.Get("X-Redirected-From-Base") == "true" {
-		log.Print("[WARNING] Redirect loop detected for user")
-		// Don't redirect again - serve the base domain page
-		return
-	}
-
-	cookie, err := r.Cookie("access_token")
-	if err != nil || cookie.Value == "" {
-		return
-	}
-
-	// Check for username cookie
-	usernameCookie, err := r.Cookie("username")
-	if err != nil || usernameCookie.Value == "" {
-		return
-	}
-
-	// Validate username format before redirecting
-	if !isValidGitHubHandle(usernameCookie.Value) {
-		log.Printf("[SECURITY] Invalid username in cookie: %s", usernameCookie.Value)
-		return
-	}
-
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	redirectURL := fmt.Sprintf("%s://%s.%s/?from=base", scheme, usernameCookie.Value, baseDomain)
-	http.Redirect(w, r, redirectURL, http.StatusFound)
-}
-
 func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 	// Only allow GET, HEAD, and OPTIONS methods
 	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
@@ -532,12 +481,6 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-
-	// Allow base domain access - don't force redirect to personal workspace
-	// Users can navigate to their workspace via the workspace selector
-	// if homeOrg(r) == "" && r.URL.Path == "/" {
-	// 	redirectToWorkspace(w, r)
-	// }
 
 	// Clean the path
 	path := filepath.Clean(r.URL.Path)
@@ -617,6 +560,52 @@ func serveStaticFiles(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(data); err != nil {
 		log.Printf("Failed to write file content: %v", err)
 	}
+}
+
+// validateReturnToURL validates that a return_to URL is safe to redirect to.
+// Returns the validated URL or empty string if invalid.
+func validateReturnToURL(returnTo string) string {
+	if returnTo == "" {
+		return ""
+	}
+
+	parsedURL, err := url.Parse(returnTo)
+	if err != nil {
+		return ""
+	}
+
+	host := parsedURL.Hostname()
+	urlScheme := parsedURL.Scheme
+
+	// Only allow http/https schemes
+	switch urlScheme {
+	case "http", "https":
+		// Valid scheme, continue validation
+	default:
+		log.Printf("[SECURITY] Invalid return_to scheme: %s", urlScheme)
+		return ""
+	}
+
+	// Validate domain is ours
+	if host != baseDomain && !strings.HasSuffix(host, "."+baseDomain) {
+		log.Printf("[SECURITY] Invalid return_to domain: %s", host)
+		return ""
+	}
+
+	// Validate subdomain format if not base domain
+	if host != baseDomain {
+		parts := strings.Split(host, ".")
+		if len(parts) >= 3 {
+			subdomain := parts[0]
+			// Validate subdomain is a valid GitHub handle (prevents punycode, homograph attacks, etc.)
+			if !isValidGitHubHandle(subdomain) {
+				log.Printf("[SECURITY] Invalid GitHub handle in return_to subdomain: %s", subdomain)
+				return ""
+			}
+		}
+	}
+
+	return returnTo
 }
 
 func handleOAuthLogin(w http.ResponseWriter, r *http.Request) {
@@ -793,7 +782,8 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if cookie.Value != state {
+	// Use constant-time comparison to prevent timing attacks
+	if subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(state)) != 1 {
 		trackFailedAttempt(clientIP(r))
 		log.Printf("[OAuth] State mismatch from %s", clientIP(r))
 		clearStateCookie(w)
@@ -861,43 +851,8 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		scheme = "https"
 	}
 
-	var redirectURL string
-	if returnTo != "" {
-		// Validate return_to URL is for our domain
-		if parsedURL, err := url.Parse(returnTo); err == nil {
-			host := parsedURL.Hostname()
-			urlScheme := parsedURL.Scheme
-
-			// Only allow http/https schemes
-			if urlScheme != "http" && urlScheme != "https" {
-				log.Printf("[SECURITY] Invalid return_to scheme: %s", urlScheme)
-			} else if host == baseDomain || strings.HasSuffix(host, "."+baseDomain) {
-				// Validate subdomain is a valid GitHub username/org (stricter than punycode check)
-				valid := true
-				if host != baseDomain {
-					// Extract subdomain (everything before first dot)
-					parts := strings.Split(host, ".")
-					if len(parts) >= 3 {
-						subdomain := parts[0]
-						// Validate subdomain is a valid GitHub handle (prevents punycode, homograph attacks, etc.)
-						if !isValidGitHubHandle(subdomain) {
-							log.Printf("[SECURITY] Invalid GitHub handle in return_to subdomain: %s", subdomain)
-							valid = false
-						}
-					}
-				}
-
-				if valid {
-					redirectURL = returnTo
-				}
-			} else {
-				log.Printf("[SECURITY] Invalid return_to domain: %s", host)
-			}
-		}
-	}
-
-	// Default to base domain if no valid return_to
-	// Users can navigate to their workspace via the workspace selector if desired
+	// Validate and use return_to URL, or default to base domain
+	redirectURL := validateReturnToURL(returnTo)
 	if redirectURL == "" {
 		redirectURL = fmt.Sprintf("%s://%s", scheme, baseDomain)
 	}
@@ -1046,67 +1001,98 @@ func exchangeCodeForToken(ctx context.Context, code, redirectURI string) (string
 		return "", errors.New("authorization code too long")
 	}
 
-	// Prepare request
-	data := url.Values{}
-	data.Set("client_id", *clientID)
-	data.Set("client_secret", *clientSecret)
-	data.Set("code", code)
-	data.Set("redirect_uri", redirectURI)
+	var tokenResp oauthTokenResponse
 
-	reqCtx, cancel := context.WithTimeout(ctx, httpTimeout)
-	defer cancel()
+	// Retry with exponential backoff for up to 2 minutes
+	err := retry.Do(
+		func() error {
+			// Prepare request
+			data := url.Values{}
+			data.Set("client_id", *clientID)
+			data.Set("client_secret", *clientSecret)
+			data.Set("code", code)
+			data.Set("redirect_uri", redirectURI)
 
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, "https://github.com/login/oauth/access_token", strings.NewReader(data.Encode()))
-	if err != nil {
-		return "", err
-	}
+			reqCtx, cancel := context.WithTimeout(ctx, httpTimeout)
+			defer cancel()
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-
-	// Make request with timeout
-	client := &http.Client{
-		Timeout: httpTimeout,
-		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-			if len(via) >= 3 {
-				return errors.New("too many redirects")
+			req, err := http.NewRequestWithContext(
+				reqCtx,
+				http.MethodPost,
+				"https://github.com/login/oauth/access_token",
+				strings.NewReader(data.Encode()),
+			)
+			if err != nil {
+				return retry.Unrecoverable(err)
 			}
+
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("Accept", "application/json")
+
+			// Make request with timeout
+			client := &http.Client{
+				Timeout: httpTimeout,
+				CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+					if len(via) >= 3 {
+						return errors.New("too many redirects")
+					}
+					return nil
+				},
+			}
+
+			resp, err := client.Do(req)
+			if err != nil {
+				log.Printf("[RETRY] Token exchange network error (will retry): %v", err)
+				return fmt.Errorf("token exchange failed: %w", err)
+			}
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					log.Printf("Failed to close response body: %v", err)
+				}
+			}()
+
+			// Retry on 5xx server errors
+			if resp.StatusCode >= 500 {
+				log.Printf("[RETRY] Token exchange returned %d (will retry)", resp.StatusCode)
+				return fmt.Errorf("token exchange returned status %d", resp.StatusCode)
+			}
+
+			// Don't retry on 4xx client errors
+			if resp.StatusCode != http.StatusOK {
+				return retry.Unrecoverable(fmt.Errorf("token exchange returned status %d", resp.StatusCode))
+			}
+
+			// Read the entire response body
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return retry.Unrecoverable(fmt.Errorf("failed to read response body: %w", err))
+			}
+
+			// Parse response
+			if err := json.Unmarshal(body, &tokenResp); err != nil {
+				log.Printf("Failed to parse token response: %v", err)
+				return retry.Unrecoverable(fmt.Errorf("failed to parse token response: %w", err))
+			}
+
+			if tokenResp.AccessToken == "" {
+				log.Printf("Token response error: %s, description: %s", tokenResp.Error, tokenResp.ErrorDescription)
+				return retry.Unrecoverable(errors.New("no access token in response"))
+			}
+
 			return nil
 		},
-	}
-
-	resp, err := client.Do(req)
+		retry.Context(ctx),
+		retry.Attempts(10),                  // Reasonable number of attempts for 2 minutes
+		retry.Delay(100*time.Millisecond),   // Initial delay
+		retry.MaxDelay(30*time.Second),      // Cap delay at 30s
+		retry.DelayType(retry.BackOffDelay), // Exponential backoff
+		retry.MaxJitter(1*time.Second),      // Add jitter
+		retry.OnRetry(func(n uint, err error) {
+			log.Printf("[RETRY] Attempt %d: %v", n+1, err)
+		}),
+	)
 	if err != nil {
-		return "", fmt.Errorf("token exchange failed: %w", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Printf("Failed to close response body: %v", err)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token exchange returned status %d", resp.StatusCode)
-	}
-
-	// Read the entire response body for debugging
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	// Parse response
-	var tokenResp oauthTokenResponse
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		// Log error without exposing response body (may contain tokens)
-		log.Printf("Failed to parse token response: %v", err)
-		return "", fmt.Errorf("failed to parse token response: %w", err)
-	}
-
-	if tokenResp.AccessToken == "" {
-		// Log error information without exposing tokens
-		log.Printf("Token response error: %s, description: %s", tokenResp.Error, tokenResp.ErrorDescription)
-		return "", errors.New("no access token in response")
+		return "", err
 	}
 
 	// Validate token before returning
@@ -1114,8 +1100,7 @@ func exchangeCodeForToken(ctx context.Context, code, redirectURI string) (string
 		return "", errors.New("invalid token length")
 	}
 
-	// Check token format (GitHub tokens are typically 40 chars of hex)
-	// Note: newer GitHub tokens may start with 'ghp_' or similar prefixes
+	// Check token format
 	if !strings.HasPrefix(tokenResp.AccessToken, "ghp_") &&
 		!strings.HasPrefix(tokenResp.AccessToken, "gho_") &&
 		!strings.HasPrefix(tokenResp.AccessToken, "ghs_") &&
@@ -1123,47 +1108,77 @@ func exchangeCodeForToken(ctx context.Context, code, redirectURI string) (string
 		return "", errors.New("unknown token format")
 	}
 
+	log.Print("Successfully exchanged OAuth code for token")
 	return tokenResp.AccessToken, nil
 }
 
 func userInfo(ctx context.Context, token string) (*githubUser, error) {
-	reqCtx, cancel := context.WithTimeout(ctx, httpTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, "https://api.github.com/user", http.NoBody)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	client := &http.Client{
-		Timeout: httpTimeout,
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return errors.New("unexpected redirect")
-		},
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Printf("Failed to close response body: %v", err)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
-	}
-
 	var user githubUser
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+
+	// Retry with exponential backoff for up to 2 minutes
+	err := retry.Do(
+		func() error {
+			reqCtx, cancel := context.WithTimeout(ctx, httpTimeout)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, "https://api.github.com/user", http.NoBody)
+			if err != nil {
+				return retry.Unrecoverable(err)
+			}
+
+			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+			client := &http.Client{
+				Timeout: httpTimeout,
+				CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+					return errors.New("unexpected redirect")
+				},
+			}
+
+			resp, err := client.Do(req)
+			if err != nil {
+				log.Printf("[RETRY] GitHub user info network error (will retry): %v", err)
+				return err
+			}
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					log.Printf("Failed to close response body: %v", err)
+				}
+			}()
+
+			// Retry on 5xx server errors
+			if resp.StatusCode >= 500 {
+				log.Printf("[RETRY] GitHub user info returned %d (will retry)", resp.StatusCode)
+				return fmt.Errorf("unexpected status: %d", resp.StatusCode)
+			}
+
+			// Don't retry on 4xx client errors (including 401 unauthorized)
+			if resp.StatusCode != http.StatusOK {
+				return retry.Unrecoverable(fmt.Errorf("unexpected status: %d", resp.StatusCode))
+			}
+
+			if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+				return retry.Unrecoverable(err)
+			}
+
+			return nil
+		},
+		retry.Context(ctx),
+		retry.Attempts(10),
+		retry.Delay(100*time.Millisecond),
+		retry.MaxDelay(30*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.MaxJitter(1*time.Second),
+		retry.OnRetry(func(n uint, err error) {
+			log.Printf("[RETRY] User info attempt %d: %v", n+1, err)
+		}),
+	)
+	if err != nil {
 		return nil, err
 	}
 
+	log.Printf("Successfully fetched user info for: %s", user.Login)
 	return &user, nil
 }
 
@@ -1234,8 +1249,8 @@ func trackFailedAttempt(ip string) {
 	now := time.Now()
 	cutoff := now.Add(-failedLoginWindow)
 
-	// Clean old attempts
-	var valid []time.Time
+	// Clean old attempts - reuse slice to reduce allocations
+	valid := failedAttempts[ip][:0]
 	for _, t := range failedAttempts[ip] {
 		if t.After(cutoff) {
 			valid = append(valid, t)
@@ -1248,8 +1263,17 @@ func trackFailedAttempt(ip string) {
 	if len(failedAttempts[ip]) > maxFailedLogins {
 		log.Printf("[SECURITY] Excessive failed auth attempts: ip=%s count=%d window=15min", ip, len(failedAttempts[ip]))
 	}
-}
 
+	// Prevent memory exhaustion: periodically clean up IPs with no recent failures
+	// This protects against DoS attacks using many different IPs
+	if len(failedAttempts)%100 == 0 {
+		for oldIP, times := range failedAttempts {
+			if len(times) == 0 || (len(times) > 0 && times[len(times)-1].Before(cutoff)) {
+				delete(failedAttempts, oldIP)
+			}
+		}
+	}
+}
 
 // requestSizeLimiter prevents large request bodies from exhausting server resources.
 func requestSizeLimiter(next http.Handler) http.Handler {
